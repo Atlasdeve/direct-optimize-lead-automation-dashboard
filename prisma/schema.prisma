@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String?  @unique
+  name         String?
+  passwordHash String
+  role         String   @default("admin")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Region {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  country   String
+  timezone  String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  leads     Lead[]
+
+  @@map("regions")
+}
+
+model Lead {
+  id                 String    @id @default(cuid())
+  companyName        String    @map("company_name")
+  region             String
+  country            String
+  city               String?
+  category           String?
+  businessType       String?   @map("business_type")
+  website            String?
+  googleMapsUrl      String?   @map("google_maps_url")
+  phone              String?
+  email              String?
+  whatsappAvailable  Boolean   @default(false) @map("whatsapp_available")
+  whatsappStatus     String    @default("unknown") @map("whatsapp_status")
+  ownerName          String?   @map("owner_name")
+  ceoName            String?   @map("ceo_name")
+  managerName        String?   @map("manager_name")
+  linkedinUrl        String?   @map("linkedin_url")
+  sourcePlatform     String    @default("google_places") @map("source_platform")
+  leadScore          Int       @default(0) @map("lead_score")
+  outreachStatus     String    @default("New") @map("outreach_status")
+  outreachApproved   Boolean   @default(false) @map("outreach_approved")
+  outreachApprovedAt DateTime? @map("outreach_approved_at")
+  emailSent          Boolean   @default(false) @map("email_sent")
+  whatsappSent       Boolean   @default(false) @map("whatsapp_sent")
+  replied            Boolean   @default(false)
+  lastContactedAt    DateTime? @map("last_contacted_at")
+  nextFollowUpAt     DateTime? @map("next_follow_up_at")
+  notes              String?
+  rating             Float?
+  reviewCount        Int?      @map("review_count")
+  lastReviewAt       DateTime? @map("last_review_at")
+  missingSeoMetadata Boolean   @default(false) @map("missing_seo_metadata")
+  unsubscribed       Boolean   @default(false)
+  doNotContact       Boolean   @default(false) @map("do_not_contact")
+  archived           Boolean   @default(false)
+  consentStatus      String    @default("legitimate_interest") @map("consent_status")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  regionRef       Region?        @relation(fields: [region], references: [name])
+  contacts        LeadContact[]
+  outreachLogs    OutreachLog[]
+  inboxReplies    InboxReply[]
+  aiReplyDrafts   AiReplyDraft[]
+  notifications   Notification[]
+  checklist       LeadChecklist?
+  opportunities   Opportunity[]
+
+  @@index([region])
+  @@index([email])
+  @@map("leads")
+}
+
+model LeadChecklist {
+  id                  String   @id @default(cuid())
+  leadId              String   @unique @map("lead_id")
+  websiteChecked      Boolean  @default(false) @map("website_checked")
+  gbpChecked          Boolean  @default(false) @map("gbp_checked")
+  reviewsChecked      Boolean  @default(false) @map("reviews_checked")
+  contactFormChecked  Boolean  @default(false) @map("contact_form_checked")
+  decisionMakerSearched Boolean @default(false) @map("decision_maker_searched")
+  notes               String?
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  lead                Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("lead_checklists")
+}
+
+model Opportunity {
+  id          String   @id @default(cuid())
+  leadId      String   @map("lead_id")
+  title       String
+  stage       String   @default("New")
+  value       Int      @default(0)
+  notes       String?
+  nextActionAt DateTime? @map("next_action_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("opportunities")
+}
+
+model LeadContact {
+  id        String   @id @default(cuid())
+  leadId    String   @map("lead_id")
+  type      String
+  value     String
+  status    String   @default("unverified")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("lead_contacts")
+}
+
+model OutreachLog {
+  id            String    @id @default(cuid())
+  leadId        String    @map("lead_id")
+  channel       String
+  action        String
+  status        String
+  providerId    String?   @map("provider_id")
+  message       String?
+  metadata      Json?
+  openedAt      DateTime? @map("opened_at")
+  lastOpenedAt  DateTime? @map("last_opened_at")
+  openCount     Int       @default(0) @map("open_count")
+  clickedAt     DateTime? @map("clicked_at")
+  lastClickedAt DateTime? @map("last_clicked_at")
+  clickCount    Int       @default(0) @map("click_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("outreach_logs")
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  category  String
+  subject   String
+  body      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("email_templates")
+}
+
+model WhatsappTemplate {
+  id           String   @id @default(cuid())
+  name         String
+  providerName String   @map("provider_name")
+  language     String   @default("en")
+  body         String
+  approved     Boolean  @default(false)
+  dailyCap      Int      @default(100)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_templates")
+}
+
+model InboxReply {
+  id          String   @id @default(cuid())
+  leadId      String?  @map("lead_id")
+  fromEmail   String   @map("from_email")
+  subject     String?
+  body        String
+  providerId  String?  @map("provider_id")
+  receivedAt  DateTime @default(now()) @map("received_at")
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+
+  @@map("inbox_replies")
+}
+
+model AiReplyDraft {
+  id        String   @id @default(cuid())
+  leadId    String   @map("lead_id")
+  replyId   String?  @map("reply_id")
+  draft     String
+  status    String   @default("needs_review")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("ai_reply_drafts")
+}
+
+model AutomationRun {
+  id           String    @id @default(cuid())
+  region       String
+  status       String
+  startedAt    DateTime  @default(now()) @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  leadsFetched Int       @default(0) @map("leads_fetched")
+  emailsSent   Int       @default(0) @map("emails_sent")
+  whatsappSent Int       @default(0) @map("whatsapp_sent")
+  failedCount  Int       @default(0) @map("failed_count")
+  log          Json?
+
+  @@map("automation_runs")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  leadId    String?  @map("lead_id")
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+
+  @@map("notifications")
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}

@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: direct-optimize-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: direct_optimize
+      POSTGRES_PASSWORD: direct_optimize
+      POSTGRES_DB: direct_optimize
+    ports:
+      - "5432:5432"
+    volumes:
+      - direct_optimize_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U direct_optimize -d direct_optimize"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: direct-optimize-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - direct_optimize_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  direct_optimize_postgres:
+  direct_optimize_redis:

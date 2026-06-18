@@ -1,0 +1,70 @@
+import { completeDbAutomation, createDbDemoLeads, createDbLeadsFromPlaces, discoverEmailForLead, sendTrackedEmailOutreach } from "@/lib/dbStore";
+import { fetchPlacesLeads } from "@/lib/providers";
+import type { AutomationResult } from "@/lib/types";
+
+const DAILY_EMAIL_CAP = 150;
+
+export async function runAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number }): Promise<AutomationResult> {
+  const logs: string[] = [];
+  let emailsSent = 0;
+  let failedCount = 0;
+
+  try {
+    const places = await fetchPlacesLeads(region, options);
+    if (places.warning) logs.push(places.warning);
+    logs.push(`Lead discovery source: ${places.provider}.`);
+
+    const newLeads = places.records.length
+      ? await createDbLeadsFromPlaces(region, places.records)
+      : await createDbDemoLeads(region);
+    logs.push(`Stored ${newLeads.length} new lead(s) for ${region}.`);
+
+    for (const lead of newLeads) {
+      const discovery = await discoverEmailForLead(lead);
+      if (discovery.updated) {
+        lead.email = discovery.email ?? lead.email;
+        lead.lead_score = Math.min(100, lead.lead_score + 15);
+      }
+      logs.push(`Enriched ${lead.company_name}: website=${lead.website ? "yes" : "no"}, phone=${lead.phone ? "yes" : "no"}, email=${lead.email ? "yes" : "no"}, score=${lead.lead_score}.`);
+
+      if (emailsSent < DAILY_EMAIL_CAP) {
+        const emailResult = await sendTrackedEmailOutreach(lead);
+        if (emailResult.sent) {
+          emailsSent += 1;
+          logs.push(`Email ${emailResult.status} for ${lead.company_name}.`);
+        } else {
+          if (emailResult.status === "failed") failedCount += 1;
+          logs.push(`Email skipped for ${lead.company_name}: ${emailResult.reason}.`);
+        }
+      }
+
+      logs.push(`WhatsApp number identification ${lead.phone ? "available from phone data" : "pending phone data"} for ${lead.company_name}.`);
+    }
+
+    const result: AutomationResult = {
+      region,
+      status: "completed",
+      leadsFetched: newLeads.length,
+      emailsSent,
+      whatsappSent: 0,
+      failedCount,
+      logs
+    };
+    await completeDbAutomation(result);
+    return result;
+  } catch (error) {
+    failedCount += 1;
+    logs.push(error instanceof Error ? error.message : "Unknown automation failure.");
+    const result: AutomationResult = {
+      region,
+      status: "failed",
+      leadsFetched: 0,
+      emailsSent,
+      whatsappSent: 0,
+      failedCount,
+      logs
+    };
+    await completeDbAutomation(result);
+    return result;
+  }
+}
