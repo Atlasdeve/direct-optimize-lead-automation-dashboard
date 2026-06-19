@@ -28,6 +28,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
   }
 
+  const userCount = await prisma.user.count();
+  const registrationEnabled = process.env.AUTH_REGISTRATION_ENABLED === "true";
+  if (userCount > 0 && !registrationEnabled) {
+    return NextResponse.json({ error: "Registration is disabled. Ask an admin to enable AUTH_REGISTRATION_ENABLED." }, { status: 403 });
+  }
+
   const existing = await prisma.user.findFirst({
     where: { OR: [{ username }, { email }] },
     select: { id: true }

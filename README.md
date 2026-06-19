@@ -41,6 +41,34 @@ npm run scheduler
 
 When `REDIS_URL` is set, automation jobs are queued through BullMQ. Without Redis, the Start Automation button runs the compliant demo flow in-process.
 
+## Railway deployment
+
+The repository includes `railway.json` for the web service.
+
+Recommended Railway services:
+
+- Web service from this GitHub repo
+- PostgreSQL database
+- Redis database
+- Worker service from the same GitHub repo
+
+Web service commands:
+
+```bash
+npm run railway:build
+npm run railway:start
+```
+
+Worker service start command:
+
+```bash
+npm run railway:worker
+```
+
+Set `APP_PUBLIC_URL` to the public Railway/domain URL so email open and click tracking works outside your computer.
+
+For first production login, registration is allowed only when the users table is empty. After that, registration is disabled unless `AUTH_REGISTRATION_ENABLED="true"`.
+
 ## Provider configuration
 
 Live sending and discovery require official provider credentials in `.env`:
