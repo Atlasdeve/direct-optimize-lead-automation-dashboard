@@ -5,7 +5,7 @@
     "buildCommand": "npm ci && npm run railway:build"
   },
   "deploy": {
-    "startCommand": "npm run railway:start",
+    "startCommand": "npm run railway:worker",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
