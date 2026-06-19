@@ -396,6 +396,7 @@ function isDemoRecipient(email: string) {
 
 function createSmtpTransport() {
   const port = Number(process.env.SMTP_PORT || 587);
+  const timeout = Number(process.env.SMTP_TIMEOUT_MS || 30000);
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port,
@@ -405,9 +406,9 @@ function createSmtpTransport() {
       pass: process.env.SMTP_PASS
     },
     requireTLS: port === 587,
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000
+    connectionTimeout: timeout,
+    greetingTimeout: timeout,
+    socketTimeout: timeout
   });
 }
 

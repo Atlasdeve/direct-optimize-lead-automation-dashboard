@@ -1,0 +1,162 @@
+services:
+  - type: web
+    name: direct-optimize-web
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: npm ci && npm run render:build
+    startCommand: npm run render:start
+    autoDeployTrigger: commit
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: direct-optimize-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: direct-optimize-redis
+          property: connectionString
+      - key: APP_PUBLIC_URL
+        value: https://direct-optimize-web.onrender.com
+      - key: AUTH_REGISTRATION_ENABLED
+        value: "false"
+      - key: SMTP_TIMEOUT_MS
+        value: "30000"
+      - key: OUTREACH_EMAIL_SEND_ENABLED
+        value: "true"
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: GOOGLE_PLACES_MAX_RESULTS
+        value: "6"
+      - key: GOOGLE_PLACES_QUERY_COUNT
+        value: "2"
+      - key: GOOGLE_SEARCH_API_KEY
+        sync: false
+      - key: GOOGLE_SEARCH_CX
+        sync: false
+      - key: HUNTER_API_KEY
+        sync: false
+      - key: BUILTWITH_API_KEY
+        sync: false
+      - key: LEAD_ENRICHMENT_TIMEOUT_MS
+        value: "12000"
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: EMAIL_DISCOVERY_MAX_PAGES
+        value: "4"
+      - key: EMAIL_DISCOVERY_TIMEOUT_MS
+        value: "8000"
+      - key: IMAP_HOST
+        sync: false
+      - key: IMAP_PORT
+        sync: false
+      - key: IMAP_USER
+        sync: false
+      - key: IMAP_PASS
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ADMIN_WHATSAPP_NUMBER
+        sync: false
+
+  - type: worker
+    name: direct-optimize-worker
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: npm ci && npm run render:build
+    startCommand: npm run render:worker
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: direct-optimize-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: direct-optimize-redis
+          property: connectionString
+      - key: APP_PUBLIC_URL
+        value: https://direct-optimize-web.onrender.com
+      - key: AUTH_REGISTRATION_ENABLED
+        value: "false"
+      - key: SMTP_TIMEOUT_MS
+        value: "30000"
+      - key: OUTREACH_EMAIL_SEND_ENABLED
+        value: "true"
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: GOOGLE_PLACES_MAX_RESULTS
+        value: "6"
+      - key: GOOGLE_PLACES_QUERY_COUNT
+        value: "2"
+      - key: GOOGLE_SEARCH_API_KEY
+        sync: false
+      - key: GOOGLE_SEARCH_CX
+        sync: false
+      - key: HUNTER_API_KEY
+        sync: false
+      - key: BUILTWITH_API_KEY
+        sync: false
+      - key: LEAD_ENRICHMENT_TIMEOUT_MS
+        value: "12000"
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: EMAIL_DISCOVERY_MAX_PAGES
+        value: "4"
+      - key: EMAIL_DISCOVERY_TIMEOUT_MS
+        value: "8000"
+      - key: IMAP_HOST
+        sync: false
+      - key: IMAP_PORT
+        sync: false
+      - key: IMAP_USER
+        sync: false
+      - key: IMAP_PASS
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ADMIN_WHATSAPP_NUMBER
+        sync: false
+
+  - type: keyvalue
+    name: direct-optimize-redis
+    region: singapore
+    plan: starter
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+
+databases:
+  - name: direct-optimize-db
+    databaseName: direct_optimize
+    user: direct_optimize
+    region: singapore
+    plan: basic-256mb
+    postgresMajorVersion: "17"
