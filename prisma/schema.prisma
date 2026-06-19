@@ -152,6 +152,28 @@ model OutreachLog {
   @@map("outreach_logs")
 }
 
+model ComposeEmailLog {
+  id            String    @id @default(cuid())
+  toEmail       String    @map("to_email")
+  subject       String
+  heading       String?
+  status        String
+  providerId    String?   @map("provider_id")
+  message       String?
+  metadata      Json?
+  openedAt      DateTime? @map("opened_at")
+  lastOpenedAt  DateTime? @map("last_opened_at")
+  openCount     Int       @default(0) @map("open_count")
+  clickedAt     DateTime? @map("clicked_at")
+  lastClickedAt DateTime? @map("last_clicked_at")
+  clickCount    Int       @default(0) @map("click_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([toEmail])
+  @@map("compose_email_logs")
+}
+
 model EmailTemplate {
   id        String   @id @default(cuid())
   name      String

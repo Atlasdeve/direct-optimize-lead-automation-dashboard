@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createComposeEmailLog, updateComposeEmailLogResult } from "@/lib/dbStore";
 import { sendComposedEmail } from "@/lib/providers";
 
 function cleanString(value: unknown) {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Message should be at least 10 characters." }, { status: 400 });
   }
 
-  const result = await sendComposedEmail({
+  const log = await createComposeEmailLog({
     to,
     subject,
     heading,
@@ -40,9 +41,20 @@ export async function POST(request: NextRequest) {
     ctaUrl: ctaUrl || undefined
   });
 
+  const result = await sendComposedEmail({
+    to,
+    subject,
+    heading,
+    body: message,
+    ctaLabel: ctaLabel || undefined,
+    ctaUrl: ctaUrl || undefined
+  }, { trackingLogId: log.id });
+
+  await updateComposeEmailLogResult(log.id, result);
+
   if (!result.sent) {
-    return NextResponse.json({ error: result.reason ?? "Email send failed.", result }, { status: 400 });
+    return NextResponse.json({ error: result.reason ?? "Email send failed.", result: { ...result, logId: log.id } }, { status: 400 });
   }
 
-  return NextResponse.json({ result });
+  return NextResponse.json({ result: { ...result, logId: log.id, trackingEnabled: true } });
 }

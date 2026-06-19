@@ -340,7 +340,10 @@ function smtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
-export async function sendComposedEmail(input: { to: string; subject: string; heading: string; body: string; ctaLabel?: string; ctaUrl?: string }) {
+export async function sendComposedEmail(
+  input: { to: string; subject: string; heading: string; body: string; ctaLabel?: string; ctaUrl?: string },
+  options?: { trackingLogId?: string }
+) {
   if (!smtpConfigured()) {
     return { sent: false, status: "failed", reason: "SMTP_HOST, SMTP_USER, or SMTP_PASS is missing." };
   }
@@ -349,7 +352,9 @@ export async function sendComposedEmail(input: { to: string; subject: string; he
     heading: input.heading,
     body: input.body,
     ctaLabel: input.ctaLabel,
-    ctaUrl: input.ctaUrl
+    ctaUrl: input.ctaUrl,
+    trackingPixelUrl: options?.trackingLogId ? `${appBaseUrl()}/api/email/open/${encodeURIComponent(options.trackingLogId)}` : undefined,
+    clickTrackingBaseUrl: options?.trackingLogId ? `${appBaseUrl()}/api/email/click/${encodeURIComponent(options.trackingLogId)}` : undefined
   });
   const text = renderPlainTextEmail({
     heading: input.heading,
@@ -366,7 +371,8 @@ export async function sendComposedEmail(input: { to: string; subject: string; he
       text,
       html,
       headers: {
-        "X-Entity-Ref-ID": "manual-compose"
+        "X-Entity-Ref-ID": "manual-compose",
+        "X-Direct-Optimize-Log-ID": options?.trackingLogId ?? "manual-compose"
       }
     });
     return { sent: true, status: "sent", providerId: info.messageId };
