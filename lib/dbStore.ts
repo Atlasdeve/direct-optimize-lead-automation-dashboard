@@ -777,6 +777,24 @@ export async function updateComposeEmailLogResult(
   });
 }
 
+export async function listComposeEmailLogs() {
+  const logs = await prisma.composeEmailLog.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 12
+  });
+  return logs.map((log) => ({
+    id: log.id,
+    toEmail: log.toEmail,
+    subject: log.subject,
+    status: log.status,
+    openCount: log.openCount,
+    clickCount: log.clickCount,
+    lastOpenedAt: log.lastOpenedAt?.toISOString() ?? null,
+    lastClickedAt: log.lastClickedAt?.toISOString() ?? null,
+    createdAt: log.createdAt.toISOString()
+  }));
+}
+
 export async function approveLeadForOutreach(leadId: string) {
   const lead = await prisma.lead.update({
     where: { id: leadId },
