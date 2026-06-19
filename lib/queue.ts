@@ -12,7 +12,7 @@ export const automationQueue = connection
   : null;
 
 export async function enqueueAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number }) {
-  if (!automationQueue) {
+  if (!automationQueue || process.env.AUTOMATION_INLINE === "true") {
     return runAutomation(region, options);
   }
   await automationQueue.add("run-region", { region, options }, {

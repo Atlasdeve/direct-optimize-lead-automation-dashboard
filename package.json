@@ -15,6 +15,8 @@
     "render:build": "prisma generate && next build",
     "render:start": "prisma migrate deploy && next start -p ${PORT:-10000}",
     "render:worker": "prisma migrate deploy && tsx lib/scheduler.ts",
+    "cpanel:build": "prisma generate && next build",
+    "cpanel:start": "prisma migrate deploy && NODE_ENV=production node cpanel-server.js",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
