@@ -43,7 +43,12 @@ export function ComposeEmailForm() {
       setStatus({ type: "error", text: data.error ?? "Email could not be sent." });
       return;
     }
-    setStatus({ type: "success", text: `Email sent to ${to}.` });
+    setStatus({
+      type: "success",
+      text: data.result?.trackingEnabled
+        ? `Email sent to ${to}. Open and click tracking is enabled.`
+        : `Email sent to ${to}.`
+    });
   }
 
   return (

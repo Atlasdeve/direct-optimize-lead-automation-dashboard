@@ -645,16 +645,37 @@ export async function sendTrackedEmailOutreach(lead: Lead) {
 
 export async function recordEmailOpen(logId: string, requestMeta: { userAgent?: string | null; ip?: string | null }) {
   const existing = await prisma.outreachLog.findUnique({ where: { id: logId } });
-  if (!existing || existing.channel !== "email") return { recorded: false };
   const now = new Date();
-  await prisma.outreachLog.update({
+  if (existing?.channel === "email") {
+    await prisma.outreachLog.update({
+      where: { id: logId },
+      data: {
+        openedAt: existing.openedAt ?? now,
+        lastOpenedAt: now,
+        openCount: { increment: 1 },
+        metadata: {
+          ...((existing.metadata as Record<string, unknown> | null) ?? {}),
+          lastOpen: {
+            at: now.toISOString(),
+            userAgent: requestMeta.userAgent ?? null,
+            ip: requestMeta.ip ?? null
+          }
+        }
+      }
+    });
+    return { recorded: true, source: "outreach" };
+  }
+
+  const composeLog = await prisma.composeEmailLog.findUnique({ where: { id: logId } });
+  if (!composeLog) return { recorded: false };
+  await prisma.composeEmailLog.update({
     where: { id: logId },
     data: {
-      openedAt: existing.openedAt ?? now,
+      openedAt: composeLog.openedAt ?? now,
       lastOpenedAt: now,
       openCount: { increment: 1 },
       metadata: {
-        ...((existing.metadata as Record<string, unknown> | null) ?? {}),
+        ...((composeLog.metadata as Record<string, unknown> | null) ?? {}),
         lastOpen: {
           at: now.toISOString(),
           userAgent: requestMeta.userAgent ?? null,
@@ -663,21 +684,43 @@ export async function recordEmailOpen(logId: string, requestMeta: { userAgent?: 
       }
     }
   });
-  return { recorded: true };
+  return { recorded: true, source: "compose" };
 }
 
 export async function recordEmailClick(logId: string, url: string, requestMeta: { userAgent?: string | null; ip?: string | null }) {
   const existing = await prisma.outreachLog.findUnique({ where: { id: logId } });
-  if (!existing || existing.channel !== "email") return { recorded: false };
   const now = new Date();
-  await prisma.outreachLog.update({
+  if (existing?.channel === "email") {
+    await prisma.outreachLog.update({
+      where: { id: logId },
+      data: {
+        clickedAt: existing.clickedAt ?? now,
+        lastClickedAt: now,
+        clickCount: { increment: 1 },
+        metadata: {
+          ...((existing.metadata as Record<string, unknown> | null) ?? {}),
+          lastClick: {
+            at: now.toISOString(),
+            url,
+            userAgent: requestMeta.userAgent ?? null,
+            ip: requestMeta.ip ?? null
+          }
+        }
+      }
+    });
+    return { recorded: true, source: "outreach" };
+  }
+
+  const composeLog = await prisma.composeEmailLog.findUnique({ where: { id: logId } });
+  if (!composeLog) return { recorded: false };
+  await prisma.composeEmailLog.update({
     where: { id: logId },
     data: {
-      clickedAt: existing.clickedAt ?? now,
+      clickedAt: composeLog.clickedAt ?? now,
       lastClickedAt: now,
       clickCount: { increment: 1 },
       metadata: {
-        ...((existing.metadata as Record<string, unknown> | null) ?? {}),
+        ...((composeLog.metadata as Record<string, unknown> | null) ?? {}),
         lastClick: {
           at: now.toISOString(),
           url,
@@ -687,7 +730,51 @@ export async function recordEmailClick(logId: string, url: string, requestMeta: 
       }
     }
   });
-  return { recorded: true };
+  return { recorded: true, source: "compose" };
+}
+
+export async function createComposeEmailLog(input: {
+  to: string;
+  subject: string;
+  heading: string;
+  body: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+}) {
+  return prisma.composeEmailLog.create({
+    data: {
+      toEmail: input.to,
+      subject: input.subject,
+      heading: input.heading,
+      status: "pending",
+      message: "Manual compose email queued for SMTP delivery.",
+      metadata: {
+        body: input.body,
+        ctaLabel: input.ctaLabel ?? null,
+        ctaUrl: input.ctaUrl ?? null,
+        trackingEnabled: true
+      }
+    }
+  });
+}
+
+export async function updateComposeEmailLogResult(
+  logId: string,
+  result: { sent: boolean; status: string; providerId?: string; reason?: string }
+) {
+  return prisma.composeEmailLog.update({
+    where: { id: logId },
+    data: {
+      status: result.status,
+      providerId: result.providerId,
+      message: result.sent ? "Manual compose email sent with open tracking enabled." : result.reason ?? "Manual compose email was not sent.",
+      metadata: {
+        providerStatus: result.status,
+        reason: result.reason ?? null,
+        trackingEnabled: result.sent
+      }
+    }
+  });
 }
 
 export async function approveLeadForOutreach(leadId: string) {
