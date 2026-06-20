@@ -1,4 +1,5 @@
 const { createServer } = require("http");
+const { spawnSync } = require("child_process");
 const next = require("next");
 
 const dev = process.env.NODE_ENV !== "production";
@@ -7,6 +8,16 @@ const port = Number(process.env.PORT || 3000);
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
+
+if (!dev) {
+  const migration = spawnSync("npx", ["prisma", "migrate", "deploy"], {
+    stdio: "inherit",
+    shell: true
+  });
+  if (migration.status !== 0) {
+    process.exit(migration.status || 1);
+  }
+}
 
 app.prepare().then(() => {
   createServer((req, res) => {
