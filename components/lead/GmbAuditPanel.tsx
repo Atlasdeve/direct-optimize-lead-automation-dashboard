@@ -5,6 +5,7 @@ import MapIcon from "@mui/icons-material/Map";
 import StarIcon from "@mui/icons-material/Star";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import ScheduleIcon from "@mui/icons-material/Schedule";
+import DownloadIcon from "@mui/icons-material/Download";
 import type { GmbAudit } from "@/lib/gmbAudit";
 
 export function GmbAuditPanel({ leadId }: { leadId: string }) {
@@ -43,13 +44,31 @@ export function GmbAuditPanel({ leadId }: { leadId: string }) {
           </div>
           <p className="mt-1 text-sm text-slate-400">Profile completeness, reviews, categories, hours, photos, and GMB opportunity flags.</p>
         </div>
-        <button
-          onClick={runAudit}
-          disabled={running}
-          className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-400 px-4 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60"
-        >
-          {running ? "Auditing..." : audit ? "Refresh GMB Audit" : "Run GMB Audit"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={runAudit}
+            disabled={running}
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-400 px-4 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60"
+          >
+            {running ? "Auditing..." : audit ? "Refresh GMB Audit" : "Run GMB Audit"}
+          </button>
+          {audit ? (
+            <a
+              href={`/api/leads/${leadId}/gmb-audit/pdf`}
+              download
+              title="Download GMB audit PDF"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white/8 px-4 text-sm font-semibold text-white soft-border hover:bg-white/12"
+            >
+              <DownloadIcon fontSize="small" />
+              Download PDF
+            </a>
+          ) : (
+            <button disabled title="Run the GMB audit first" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white/8 px-4 text-sm font-semibold text-white opacity-45 soft-border">
+              <DownloadIcon fontSize="small" />
+              Download PDF
+            </button>
+          )}
+        </div>
       </div>
 
       {loading && <div className="mt-5 rounded-lg bg-white/6 p-4 text-sm text-slate-300 soft-border">Loading latest GMB audit...</div>}

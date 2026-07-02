@@ -71,5 +71,10 @@ export type PlaceLeadCandidate = {
   phone?: string | null;
   rating?: number | null;
   reviewCount?: number | null;
+  businessStatus?: string | null;
+  missingSeoMetadata?: boolean;
+  websiteAuditFlags?: string[];
+  qualificationReasons?: string[];
+  qualificationScore?: number;
   sourceQuery: string;
 };

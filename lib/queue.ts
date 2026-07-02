@@ -12,7 +12,7 @@ export const automationQueue = connection
   : null;
 
 export async function enqueueAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number }) {
-  if (!automationQueue || process.env.AUTOMATION_INLINE === "true") {
+  if (!automationQueue || process.env.AUTOMATION_INLINE !== "false") {
     return runAutomation(region, options);
   }
   await automationQueue.add("run-region", { region, options }, {
@@ -28,7 +28,7 @@ export async function enqueueAutomation(region: string, options?: { city?: strin
     emailsSent: 0,
     whatsappSent: 0,
     failedCount: 0,
-    logs: ["Automation queued in BullMQ."]
+    logs: ["Automation queued in BullMQ. A running scheduler worker will process it."]
   };
 }
 

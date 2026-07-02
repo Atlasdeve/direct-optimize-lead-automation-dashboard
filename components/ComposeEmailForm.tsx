@@ -45,9 +45,13 @@ export function ComposeEmailForm() {
     }
     setStatus({
       type: "success",
-      text: data.result?.trackingEnabled
-        ? `Email sent to ${to}. Open and click tracking is enabled.`
-        : `Email sent to ${to}.`
+      text: data.result?.provider === "brevo"
+        ? `Brevo accepted ${to}. Inbox delivery now depends on recipient spam filters and domain authentication.`
+        : data.result?.accepted?.length
+        ? `SMTP accepted ${to}. Inbox delivery now depends on recipient spam filters and domain authentication.`
+        : data.result?.trackingEnabled
+          ? `Email sent to ${to}. Open and click tracking is enabled.`
+          : `Email sent to ${to}. Tracking will activate after APP_PUBLIC_URL is set to your public HTTPS app URL.`
     });
   }
 
@@ -56,7 +60,7 @@ export function ComposeEmailForm() {
       <section className="glass rounded-xl p-5">
         <div className="mb-5">
           <h2 className="font-semibold text-white">Compose message</h2>
-          <p className="mt-1 text-sm text-slate-400">Send a branded Direct Optimize email through your configured SMTP server.</p>
+          <p className="mt-1 text-sm text-slate-400">Send a branded Direct Optimize email through your configured Brevo or SMTP sender.</p>
         </div>
         <form onSubmit={sendEmail} className="space-y-4">
           <label className="block text-sm text-slate-300">

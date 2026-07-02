@@ -1,5 +1,6 @@
 import { completeDbAutomation, createDbDemoLeads, createDbLeadsFromPlaces, discoverEmailForLead, sendTrackedEmailOutreach } from "@/lib/dbStore";
 import { fetchPlacesLeads } from "@/lib/providers";
+import { qualifyPlaceCandidates } from "@/lib/leadQualification";
 import type { AutomationResult } from "@/lib/types";
 
 const DAILY_EMAIL_CAP = 150;
@@ -14,8 +15,16 @@ export async function runAutomation(region: string, options?: { city?: string; c
     if (places.warning) logs.push(places.warning);
     logs.push(`Lead discovery source: ${places.provider}.`);
 
+    const qualification = places.records.length ? await qualifyPlaceCandidates(places.records) : null;
+    if (qualification) {
+      logs.push(`Qualified ${qualification.qualified.length} of ${places.records.length} discovered businesses as genuine service opportunities.`);
+      if (qualification.rejected.length) {
+        logs.push(`Rejected ${qualification.rejected.length} healthy, unreachable, or low-opportunity businesses.`);
+      }
+    }
+
     const newLeads = places.records.length
-      ? await createDbLeadsFromPlaces(region, places.records)
+      ? await createDbLeadsFromPlaces(region, (qualification?.qualified ?? []).slice(0, places.requestedResults))
       : await createDbDemoLeads(region);
     logs.push(`Stored ${newLeads.length} new lead(s) for ${region}.`);
 

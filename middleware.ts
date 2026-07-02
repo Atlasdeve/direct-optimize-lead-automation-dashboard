@@ -4,7 +4,9 @@ const authCookieName = "direct_optimize_session";
 
 const publicPrefixes = [
   "/login",
+  "/client-register",
   "/api/auth",
+  "/api/client/register",
   "/api/email/open",
   "/api/email/click",
   "/_next",

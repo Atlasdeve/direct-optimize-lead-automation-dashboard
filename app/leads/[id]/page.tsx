@@ -5,7 +5,7 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import LanguageIcon from "@mui/icons-material/Language";
 import ContactPageIcon from "@mui/icons-material/ContactPage";
 import { StatusBadge } from "@/components/StatusBadge";
-import { getDbLead, getDbLeadContacts, getLeadEmailTracking } from "@/lib/dbStore";
+import { getDbLead, getDbLeadContacts, getLatestGmbAudit, getLatestLeadIntelligence, getLeadEmailTracking, runGmbAudit, runLeadIntelligenceAudit } from "@/lib/dbStore";
 import { LeadOutreachControls } from "@/components/lead/LeadOutreachControls";
 import { LeadScoreBreakdown } from "@/components/lead/LeadScoreBreakdown";
 import { LeadResearchChecklist } from "@/components/lead/LeadResearchChecklist";
@@ -14,6 +14,10 @@ import { LeadIntelligencePanel } from "@/components/lead/LeadIntelligencePanel";
 import { GmbAuditPanel } from "@/components/lead/GmbAuditPanel";
 import { buildPersonalizedEmail } from "@/lib/providers";
 import { whatsappNumberFromPhone } from "@/lib/whatsappIdentification";
+import { leadOpportunitySummary } from "@/lib/leadStrategy";
+import { CreateProjectFromLeadButton } from "@/components/portal/CreateProjectFromLeadButton";
+import { getProjectByLeadId } from "@/lib/portalStore";
+import { LeadCallingPanel } from "@/components/lead/LeadCallingPanel";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -45,8 +49,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const contacts = await getDbLeadContacts(lead.id);
   const emailTracking = await getLeadEmailTracking(lead.id);
   const contactForms = contacts.filter((contact) => contact.type === "contact_form");
-  const preview = buildPersonalizedEmail(lead);
+  const [websiteAudit, gmbAudit] = await Promise.all([
+    getLatestLeadIntelligence(lead.id).then((audit) => audit ?? runLeadIntelligenceAudit(lead.id)),
+    getLatestGmbAudit(lead.id).then((audit) => audit ?? runGmbAudit(lead.id))
+  ]);
+  const preview = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit });
   const whatsappNumber = whatsappNumberFromPhone(lead.phone);
+  const opportunitySummary = leadOpportunitySummary(lead);
+  const existingProject = await getProjectByLeadId(lead.id);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -56,6 +66,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <div>
             <h1 className="text-4xl font-semibold text-white">{lead.company_name}</h1>
             <p className="mt-2 text-slate-400">{lead.city}, {lead.country} · {lead.category}</p>
+            <CreateProjectFromLeadButton lead={lead} existingProjectId={existingProject?.id ?? null} />
           </div>
           <StatusBadge status={lead.outreach_status} />
         </div>
@@ -110,6 +121,36 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <div className="rounded-lg bg-white/6 p-3 text-sm text-slate-300 soft-border">Unsubscribed: {lead.unsubscribed ? "Yes" : "No"}</div>
           <div className="rounded-lg bg-white/6 p-3 text-sm text-slate-300 soft-border">Email sent: {lead.email_sent ? "Yes" : "No"}</div>
           <div className="rounded-lg bg-white/6 p-3 text-sm text-slate-300 soft-border">WhatsApp signal: {whatsappNumber ? "Phone shortcut available" : "No usable phone"}</div>
+        </div>
+      </section>
+
+      <LeadCallingPanel
+        leadId={lead.id}
+        phone={lead.phone}
+        region={lead.region}
+        companyName={lead.company_name}
+        websiteFlags={websiteAudit.seoFlags}
+        gmbFlags={gmbAudit.gmbFlags}
+      />
+
+      <section className="glass rounded-xl p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="font-semibold text-white">Recommended sequence</h2>
+            <p className="mt-1 text-sm text-slate-400">{opportunitySummary.action}</p>
+          </div>
+          <div className="rounded-lg bg-sky-400/12 px-3 py-2 text-sm font-semibold text-sky-100 soft-border">
+            {opportunitySummary.temperature} · {opportunitySummary.quality}
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {opportunitySummary.sequence.map((step) => (
+            <div key={step.day} className="rounded-lg bg-white/6 p-3 soft-border">
+              <div className="text-xs uppercase text-slate-500">{step.day}</div>
+              <div className="mt-1 font-semibold text-white">{step.channel}</div>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{step.action}</p>
+            </div>
+          ))}
         </div>
       </section>
 

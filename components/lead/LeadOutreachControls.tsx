@@ -39,6 +39,9 @@ export function LeadOutreachControls({
           <p className="mt-1 text-sm text-slate-400">
             {approved ? "Approved for reviewed email outreach." : blocked ? "Lead is blocked from outreach." : "Review the message before approving outreach."}
           </p>
+          <p className="mt-1 text-xs text-sky-200">
+            Preview includes current GMB performance, website audit findings, and the PDF audit attachments used during send.
+          </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button

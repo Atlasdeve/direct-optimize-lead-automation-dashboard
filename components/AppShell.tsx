@@ -22,6 +22,11 @@ import WorkIcon from "@mui/icons-material/Work";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ShieldIcon from "@mui/icons-material/Shield";
 import LogoutIcon from "@mui/icons-material/Logout";
+import GroupsIcon from "@mui/icons-material/Groups";
+import BadgeIcon from "@mui/icons-material/Badge";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
+import DialpadIcon from "@mui/icons-material/Dialpad";
 import { clsx } from "clsx";
 
 const nav = [
@@ -29,11 +34,17 @@ const nav = [
   { href: "/dashboard", label: "Region Leads", icon: PublicIcon },
   { href: "/automation", label: "Automation", icon: PlayCircleIcon },
   { href: "/campaigns", label: "Campaigns", icon: CampaignIcon },
+  { href: "/calls", label: "Calls", icon: PhoneInTalkIcon },
+  { href: "/compose-call", label: "Compose Call", icon: DialpadIcon },
   { href: "/reports", label: "Reports", icon: AssessmentIcon },
   { href: "/pipeline", label: "Pipeline", icon: ViewKanbanIcon },
   { href: "/review", label: "Review Queue", icon: FactCheckIcon },
   { href: "/contact-forms", label: "Contact Forms", icon: ContactPageIcon },
   { href: "/opportunities", label: "Opportunities", icon: WorkIcon },
+  { href: "/projects", label: "Client Projects", icon: GroupsIcon },
+  { href: "/portal-users", label: "Portal Users", icon: AccountCircleIcon },
+  { href: "/employee-portal", label: "Employee Portal", icon: BadgeIcon },
+  { href: "/client-portal", label: "Client Portal", icon: AccountCircleIcon },
   { href: "/duplicates", label: "Duplicates", icon: ContentCopyIcon },
   { href: "/export", label: "CSV Export", icon: DownloadIcon },
   { href: "/compose-email", label: "Compose Email", icon: MarkEmailReadIcon },
@@ -49,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/client-register") {
     return <main className="px-4 py-4 lg:px-8 lg:py-8">{children}</main>;
   }
 

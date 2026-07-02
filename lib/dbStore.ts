@@ -489,7 +489,7 @@ export async function createDbLeadsFromPlaces(regionName: string, candidates: Pl
 
     if (duplicate) continue;
 
-    const leadScore = scoreLead({
+    const leadScore = candidate.qualificationScore ?? scoreLead({
       company_name: candidate.companyName,
       region: candidate.region,
       country: candidate.country,
@@ -513,7 +513,7 @@ export async function createDbLeadsFromPlaces(regionName: string, candidates: Pl
       updated_at: new Date().toISOString(),
       rating: candidate.rating ?? undefined,
       review_count: candidate.reviewCount ?? undefined,
-      missing_seo_metadata: false
+      missing_seo_metadata: candidate.missingSeoMetadata ?? false
     });
 
     const lead = await prisma.lead.create({
@@ -533,9 +533,14 @@ export async function createDbLeadsFromPlaces(regionName: string, candidates: Pl
         sourcePlatform: `google_places:${candidate.placeId}`,
         leadScore,
         outreachStatus: "New",
-        notes: `Imported from Google Places Text Search. Query: ${candidate.sourceQuery}`,
+        notes: [
+          `Imported from Google Places Text Search. Query: ${candidate.sourceQuery}`,
+          candidate.qualificationReasons?.length ? `Qualified opportunity: ${candidate.qualificationReasons.join("; ")}.` : null,
+          candidate.websiteAuditFlags?.length ? `Website audit flags: ${candidate.websiteAuditFlags.join("; ")}.` : null
+        ].filter(Boolean).join("\n"),
         rating: candidate.rating,
         reviewCount: candidate.reviewCount,
+        missingSeoMetadata: candidate.missingSeoMetadata ?? false,
         consentStatus: "legitimate_interest"
       }
     });
@@ -617,6 +622,9 @@ export async function sendTrackedEmailOutreach(lead: Lead) {
         metadata: {
           to: lead.email,
           subject: result.message?.subject ?? null,
+          auditAttachments: result.auditAttachments ?? [],
+          gmbAuditStatus: result.gmbAudit?.error ? "failed" : "completed",
+          websiteAuditStatus: result.websiteAudit?.error ? "failed" : "completed",
           trackingEnabled: true,
           providerStatus: result.status
         }
@@ -760,18 +768,27 @@ export async function createComposeEmailLog(input: {
 
 export async function updateComposeEmailLogResult(
   logId: string,
-  result: { sent: boolean; status: string; providerId?: string; reason?: string }
+  result: { sent: boolean; status: string; provider?: string; providerId?: string; reason?: string; trackingEnabled?: boolean; accepted?: string[]; rejected?: string[]; pending?: string[]; response?: string }
 ) {
   return prisma.composeEmailLog.update({
     where: { id: logId },
     data: {
       status: result.status,
       providerId: result.providerId,
-      message: result.sent ? "Manual compose email sent with open tracking enabled." : result.reason ?? "Manual compose email was not sent.",
+      message: result.sent
+        ? result.trackingEnabled
+          ? "Manual compose email sent with open tracking enabled."
+          : "Manual compose email sent. Tracking is disabled until APP_PUBLIC_URL points to a public HTTPS app URL."
+        : result.reason ?? "Manual compose email was not sent.",
       metadata: {
         providerStatus: result.status,
+        provider: result.provider ?? null,
         reason: result.reason ?? null,
-        trackingEnabled: result.sent
+        trackingEnabled: Boolean(result.sent && result.trackingEnabled),
+        accepted: result.accepted ?? [],
+        rejected: result.rejected ?? [],
+        pending: result.pending ?? [],
+        response: result.response ?? null
       }
     }
   });
@@ -1359,6 +1376,20 @@ export async function completeDbAutomation(result: AutomationResult) {
 
 export async function dbAnalytics() {
   const leads = await listDbLeads();
+  const today = new Date();
+  const daily = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - index));
+    const key = date.toISOString().slice(0, 10);
+    const dayLeads = leads.filter((lead) => lead.created_at?.slice(0, 10) === key);
+    return {
+      day: date.toLocaleDateString("en", { weekday: "short" }),
+      leads: dayLeads.length,
+      emails: dayLeads.filter((lead) => lead.email_sent).length,
+      whatsapp: dayLeads.filter((lead) => lead.whatsapp_sent).length,
+      replies: dayLeads.filter((lead) => lead.replied).length
+    };
+  });
   const regions = ["Canada", "USA", "UK", "UAE", "Qatar"].map((region) => {
     const regionLeads = leads.filter((lead) => lead.region === region);
     return {
@@ -1370,13 +1401,7 @@ export async function dbAnalytics() {
   });
 
   return {
-    daily: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => ({
-      day,
-      leads: Math.max(1, leads.length - 6 + index),
-      emails: Math.max(0, leads.filter((lead) => lead.email_sent).length - 3 + index),
-      whatsapp: Math.max(0, leads.filter((lead) => lead.whatsapp_sent).length - 3 + index),
-      replies: Math.max(0, leads.filter((lead) => lead.replied).length - 2 + index)
-    })),
+    daily,
     regions,
     funnel: [
       { name: "New Lead", value: leads.length },
@@ -1384,6 +1409,11 @@ export async function dbAnalytics() {
       { name: "Replied", value: leads.filter((lead) => lead.replied).length },
       { name: "Meeting Booked", value: leads.filter((lead) => lead.outreach_status === "Meeting Booked").length },
       { name: "Client", value: leads.filter((lead) => lead.outreach_status === "Closed").length }
+    ],
+    scoreTiers: [
+      { name: "Hot", value: leads.filter((lead) => lead.lead_score >= 75).length },
+      { name: "Warm", value: leads.filter((lead) => lead.lead_score >= 45 && lead.lead_score < 75).length },
+      { name: "Cold", value: leads.filter((lead) => lead.lead_score < 45).length }
     ],
     remaining: {
       emails: 450,

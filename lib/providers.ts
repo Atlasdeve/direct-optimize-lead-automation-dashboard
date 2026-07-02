@@ -1,7 +1,10 @@
 import OpenAI from "openai";
 import nodemailer from "nodemailer";
 import { getRegion } from "@/lib/regions";
+import { buildGmbAuditPdf, buildWebsiteAuditPdf, type AuditAttachment } from "@/lib/auditPdf";
 import { renderBrandedEmailHtml, renderPlainTextEmail } from "@/lib/brandedEmailTemplate";
+import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
+import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntelligence";
 import type { Lead, PlaceLeadCandidate } from "@/lib/types";
 
 const placesCategories = [
@@ -25,6 +28,7 @@ type GooglePlace = {
   googleMapsUri?: string;
   rating?: number;
   userRatingCount?: number;
+  businessStatus?: string;
   primaryTypeDisplayName?: { text?: string };
   types?: string[];
   addressComponents?: Array<{
@@ -53,6 +57,7 @@ type LegacyDetailsResult = {
   url?: string;
   rating?: number;
   user_ratings_total?: number;
+  business_status?: string;
   types?: string[];
   address_components?: Array<{
     long_name?: string;
@@ -110,6 +115,7 @@ async function fetchLegacyPlaceDetails(placeId: string) {
     "url",
     "rating",
     "user_ratings_total",
+    "business_status",
     "types",
     "address_components"
   ].join(","));
@@ -169,6 +175,7 @@ async function fetchLegacyPlacesLeads(region: string, config: ReturnType<typeof 
           phone: details.international_phone_number ?? details.formatted_phone_number ?? null,
           rating: details.rating ?? item.rating ?? null,
           reviewCount: details.user_ratings_total ?? item.user_ratings_total ?? null,
+          businessStatus: details.business_status ?? null,
           sourceQuery: textQuery
         });
       } catch (error) {
@@ -188,15 +195,17 @@ async function fetchLegacyPlacesLeads(region: string, config: ReturnType<typeof 
 
 export async function fetchPlacesLeads(region: string, options?: { city?: string; categories?: string[]; maxResults?: number }) {
   const config = getRegion(region);
+  const maxResults = Math.max(1, Math.min(options?.maxResults ?? Number(process.env.GOOGLE_PLACES_MAX_RESULTS || 6), 20));
   if (!process.env.GOOGLE_PLACES_API_KEY) {
     return {
       provider: "demo_google_places",
       warning: "GOOGLE_PLACES_API_KEY is not configured; using demo-safe lead generation.",
+      requestedResults: maxResults,
       records: [] as PlaceLeadCandidate[]
     };
   }
 
-  const maxResults = Math.max(1, Math.min(options?.maxResults ?? Number(process.env.GOOGLE_PLACES_MAX_RESULTS || 6), 20));
+  const candidateLimit = Math.min(60, maxResults * 3);
   const queryCount = Math.max(1, Math.min(Number(process.env.GOOGLE_PLACES_QUERY_COUNT || 2), placesCategories.length));
   const categories = (options?.categories?.length ? options.categories : placesCategories.slice(0, queryCount))
     .map((category) => category.trim())
@@ -224,6 +233,7 @@ export async function fetchPlacesLeads(region: string, options?: { city?: string
           "places.googleMapsUri",
           "places.rating",
           "places.userRatingCount",
+          "places.businessStatus",
           "places.primaryTypeDisplayName",
           "places.types",
           "places.addressComponents"
@@ -231,7 +241,7 @@ export async function fetchPlacesLeads(region: string, options?: { city?: string
       },
       body: JSON.stringify({
         textQuery,
-        pageSize: Math.min(maxResults, 10),
+        pageSize: Math.min(20, Math.max(1, candidateLimit - records.size)),
         languageCode: "en"
       })
     });
@@ -262,17 +272,19 @@ export async function fetchPlacesLeads(region: string, options?: { city?: string
         phone: place.internationalPhoneNumber ?? place.nationalPhoneNumber ?? null,
         rating: place.rating ?? null,
         reviewCount: place.userRatingCount ?? null,
+        businessStatus: place.businessStatus ?? null,
         sourceQuery: textQuery
       });
-      if (records.size >= maxResults) break;
+      if (records.size >= candidateLimit) break;
     }
-    if (records.size >= maxResults) break;
+    if (records.size >= candidateLimit) break;
   }
 
   if (records.size === 0 && permissionDenied) {
-    const legacy = await fetchLegacyPlacesLeads(region, config, maxResults, categories, city);
+    const legacy = await fetchLegacyPlacesLeads(region, config, candidateLimit, categories, city);
     return {
       ...legacy,
+      requestedResults: maxResults,
       warning: [
         "Places API (New) Text Search is blocked for this key, so legacy Places endpoints were used.",
         legacy.warning
@@ -283,6 +295,7 @@ export async function fetchPlacesLeads(region: string, options?: { city?: string
   return {
     provider: "google_places",
     warning: errors.length ? `Some Places queries failed: ${errors.join(" | ")}` : null,
+    requestedResults: maxResults,
     records: [...records.values()]
   };
 }
@@ -299,18 +312,92 @@ export async function findPublicContactEmail(website?: string | null) {
   return null;
 }
 
-export function buildPersonalizedEmail(lead: Lead, templateCategory = "SEO services") {
+function yesNo(value: boolean) {
+  return value ? "yes" : "no";
+}
+
+function shortList(items: string[], fallback: string, limit = 4) {
+  return items.length ? items.slice(0, limit).join("; ") : fallback;
+}
+
+function publicAction(value: string) {
+  return value
+    .replace(/^Pitch\s+/i, "")
+    .replace(/^Lead with a\s+/i, "start with a ")
+    .replace(/^Lead with an\s+/i, "start with an ")
+    .replace(/^Lead with\s+/i, "start with ")
+    .replace(/\.$/, "");
+}
+
+function websiteAuditSummary(lead: Lead, websiteAudit?: LeadIntelligenceAudit) {
+  if (!websiteAudit) return "";
+  if (!lead.website) {
+    return [
+      "Current website performance:",
+      "- Website status: no dedicated website detected from the public business profile.",
+      "- Visibility impact: this can limit local search traffic, trust signals, service-page ranking, and quote requests.",
+      "- Recommended website structure: fast homepage, service pages, city/local landing content, visible call/quote actions, review proof, and Google Business Profile connection.",
+      "- Priority proposal: create a lightweight conversion-focused website first, then expand SEO pages around the services and locations that bring buyers.",
+      "",
+      "I attached a website creation proposal PDF showing the first structure I would recommend."
+    ].join("\n");
+  }
+
+  const flags = websiteAudit.seoFlags.slice(0, 3);
+  return [
+    "Current website performance:",
+    `- Website reviewed: ${websiteAudit.website ?? lead.website}.`,
+    `- Homepage speed signal: ${websiteAudit.roughSpeedScore}/100 quick score.`,
+    `- Title tag: ${websiteAudit.title || "missing or not detected"}.`,
+    `- Meta description: ${websiteAudit.metaDescription ? "present" : "missing or weak"}.`,
+    `- H1 headline: ${websiteAudit.h1 || "missing or not detected"}.`,
+    `- Technical basics: mobile viewport ${yesNo(websiteAudit.hasViewportMeta)}, schema ${yesNo(websiteAudit.hasSchema)}, sitemap ${yesNo(websiteAudit.hasSitemapXml)}, robots.txt ${yesNo(websiteAudit.hasRobotsTxt)}.`,
+    `- Conversion signals: phone visible ${yesNo(websiteAudit.hasPhoneOnPage)}, email visible ${yesNo(websiteAudit.hasEmailOnPage)}, forms found ${websiteAudit.formsCount}.`,
+    `- Detected technology: ${shortList(websiteAudit.techStack, "no major platform signals detected")}.`,
+    `- Main website opportunities: ${shortList(flags, "conversion and local visibility improvements")}.`,
+    `- Suggested website next step: ${publicAction(websiteAudit.recommendedPitch)}.`,
+    "",
+    "I attached a website audit PDF with the full details."
+  ].join("\n");
+}
+
+function gmbAuditSummary(gmbAudit?: GmbAudit) {
+  if (!gmbAudit) return "";
+  const flags = gmbAudit.gmbFlags.slice(0, 3);
+  return [
+    "Current Google Business Profile performance:",
+    `- Profile completeness: ${gmbAudit.profileCompleteness}/100 quick score.`,
+    `- Business status: ${gmbAudit.businessStatus || "not returned"}.`,
+    `- Rating and reviews: ${gmbAudit.rating ? `${gmbAudit.rating} stars` : "rating not returned"} with ${gmbAudit.reviewCount ?? "unknown"} reviews.`,
+    `- Profile media: ${gmbAudit.photosCount} photo${gmbAudit.photosCount === 1 ? "" : "s"} returned.`,
+    `- Hours: ${gmbAudit.weekdayText.length ? "business hours are listed" : "business hours were not returned"}.`,
+    `- Categories: ${shortList(gmbAudit.categories, "categories not returned")}.`,
+    `- Main GMB opportunities: ${shortList(flags, "profile conversion and local visibility improvements")}.`,
+    `- Review performance: ${gmbAudit.reviewSummary}`,
+    `- Suggested GMB next step: ${publicAction(gmbAudit.recommendedAction)}.`,
+    "",
+    "I attached a GMB audit PDF with the full details."
+  ].join("\n");
+}
+
+export function buildPersonalizedEmail(
+  lead: Lead,
+  templateCategory = "SEO services",
+  audits?: { website?: LeadIntelligenceAudit; gmb?: GmbAudit }
+) {
   const missingWebsite = !lead.website;
   const subject = missingWebsite
     ? `${lead.company_name}: website and local visibility idea`
     : `${lead.company_name}: quick local visibility wins`;
+  const auditDetails = [gmbAuditSummary(audits?.gmb), websiteAuditSummary(lead, audits?.website)].filter(Boolean);
   const body = [
     `Hi ${lead.manager_name ?? lead.owner_name ?? "there"},`,
     "",
-    `I was reviewing ${lead.company_name} in ${lead.city}, ${lead.region} and noticed a few opportunities around ${templateCategory.toLowerCase()}.`,
+    `I was reviewing ${lead.company_name} in ${lead.city}, ${lead.region} and noticed a few opportunities around ${templateCategory}.`,
     missingWebsite
-      ? "Because I could not find a live website, there may be a strong opportunity to capture more search traffic with a fast service-focused site."
+      ? "Because I could not find a live website, there may be a strong opportunity to capture more search traffic with a fast service-focused site connected to your Google Business Profile."
       : "Your existing website gives us a foundation, but there may be room to improve local SEO metadata, search intent coverage, and Google Business Profile conversion.",
+    ...auditDetails.flatMap((detail) => ["", detail]),
     "Would you be open to a short audit with the first few fixes I would prioritize?",
     "",
     "Best,",
@@ -325,14 +412,28 @@ function appBaseUrl() {
   return (process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
+function publicTrackingBaseUrl() {
+  const configuredUrl = process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL;
+  if (!configuredUrl) return undefined;
+  try {
+    const url = new URL(configuredUrl);
+    const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+    if (url.protocol !== "https:" || isLocalHost) return undefined;
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return undefined;
+  }
+}
+
 function buildTrackedEmailHtml(body: string, logId?: string) {
+  const trackingBaseUrl = publicTrackingBaseUrl();
   return renderBrandedEmailHtml({
     heading: "Quick local visibility wins",
     body,
     ctaLabel: "View Direct Optimize",
     ctaUrl: appBaseUrl(),
-    trackingPixelUrl: logId ? `${appBaseUrl()}/api/email/open/${encodeURIComponent(logId)}` : undefined,
-    clickTrackingBaseUrl: logId ? `${appBaseUrl()}/api/email/click/${encodeURIComponent(logId)}` : undefined
+    trackingPixelUrl: logId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/open/${encodeURIComponent(logId)}` : undefined,
+    clickTrackingBaseUrl: logId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/click/${encodeURIComponent(logId)}` : undefined
   });
 }
 
@@ -340,21 +441,84 @@ function smtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 }
 
+function brevoConfigured() {
+  return Boolean(process.env.BREVO_API_KEY);
+}
+
+function parseSender() {
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER || "Direct Optimize <hello@directoptimize.com>";
+  const match = from.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  if (match) {
+    return {
+      name: match[1]?.replace(/^"|"$/g, "").trim() || "Direct Optimize",
+      email: match[2]?.trim()
+    };
+  }
+  return {
+    name: process.env.SMTP_FROM_NAME || "Direct Optimize",
+    email: from.trim()
+  };
+}
+
+async function sendViaBrevo(input: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  tags?: string[];
+  attachments?: AuditAttachment[];
+}) {
+  const sender = parseSender();
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "api-key": process.env.BREVO_API_KEY ?? "",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      sender,
+      to: [{ email: input.to }],
+      subject: input.subject,
+      textContent: input.text,
+      htmlContent: input.html,
+      tags: input.tags,
+      attachment: input.attachments?.map((attachment) => ({
+        name: attachment.filename,
+        content: attachment.content.toString("base64")
+      }))
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = typeof data?.message === "string" ? data.message : `Brevo API failed with HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  return {
+    messageId: typeof data?.messageId === "string" ? data.messageId : undefined,
+    response: `Brevo API accepted ${input.to}`
+  };
+}
+
 export async function sendComposedEmail(
   input: { to: string; subject: string; heading: string; body: string; ctaLabel?: string; ctaUrl?: string },
   options?: { trackingLogId?: string }
 ) {
-  if (!smtpConfigured()) {
-    return { sent: false, status: "failed", reason: "SMTP_HOST, SMTP_USER, or SMTP_PASS is missing." };
+  if (!brevoConfigured() && !smtpConfigured()) {
+    return { sent: false, status: "failed", reason: "BREVO_API_KEY or SMTP_HOST, SMTP_USER, and SMTP_PASS is missing." };
   }
 
+  const trackingBaseUrl = publicTrackingBaseUrl();
+  const trackingEnabled = Boolean(options?.trackingLogId && trackingBaseUrl);
   const html = renderBrandedEmailHtml({
     heading: input.heading,
     body: input.body,
     ctaLabel: input.ctaLabel,
     ctaUrl: input.ctaUrl,
-    trackingPixelUrl: options?.trackingLogId ? `${appBaseUrl()}/api/email/open/${encodeURIComponent(options.trackingLogId)}` : undefined,
-    clickTrackingBaseUrl: options?.trackingLogId ? `${appBaseUrl()}/api/email/click/${encodeURIComponent(options.trackingLogId)}` : undefined
+    trackingPixelUrl: options?.trackingLogId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/open/${encodeURIComponent(options.trackingLogId)}` : undefined,
+    clickTrackingBaseUrl: options?.trackingLogId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/click/${encodeURIComponent(options.trackingLogId)}` : undefined
   });
   const text = renderPlainTextEmail({
     heading: input.heading,
@@ -364,6 +528,27 @@ export async function sendComposedEmail(
   });
 
   try {
+    if (brevoConfigured()) {
+      const info = await sendViaBrevo({
+        to: input.to,
+        subject: input.subject,
+        text,
+        html,
+        tags: ["manual-compose"]
+      });
+      return {
+        sent: true,
+        status: "sent",
+        provider: "brevo",
+        providerId: info.messageId,
+        trackingEnabled,
+        accepted: [input.to],
+        rejected: [],
+        pending: [],
+        response: info.response
+      };
+    }
+
     const info = await createSmtpTransport().sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to: input.to,
@@ -375,11 +560,22 @@ export async function sendComposedEmail(
         "X-Direct-Optimize-Log-ID": options?.trackingLogId ?? "manual-compose"
       }
     });
-    return { sent: true, status: "sent", providerId: info.messageId };
+    return {
+      sent: true,
+      status: "sent",
+      provider: "smtp",
+      providerId: info.messageId,
+      trackingEnabled,
+      accepted: (info.accepted ?? []).map(String),
+      rejected: (info.rejected ?? []).map(String),
+      pending: (info.pending ?? []).map(String),
+      response: info.response
+    };
   } catch (error) {
     return {
       sent: false,
       status: "failed",
+      trackingEnabled,
       reason: error instanceof Error ? error.message : "SMTP send failed"
     };
   }
@@ -416,31 +612,65 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
   if (lead.unsubscribed || !lead.email) {
     return { sent: false, status: "skipped", reason: "Missing email or unsubscribed" };
   }
-  const message = buildPersonalizedEmail(lead);
 
   if (!emailSendingEnabled()) {
+    const message = buildPersonalizedEmail(lead);
     return { sent: false, status: "skipped", reason: "Live email sending is disabled by OUTREACH_EMAIL_SEND_ENABLED", message };
   }
 
   if (isDemoRecipient(lead.email)) {
+    const message = buildPersonalizedEmail(lead);
     return { sent: false, status: "skipped", reason: "Demo/reserved recipient domain", message };
   }
 
-  if (!smtpConfigured() && !process.env.GMAIL_CLIENT_ID) {
+  if (!brevoConfigured() && !smtpConfigured() && !process.env.GMAIL_CLIENT_ID) {
+    const message = buildPersonalizedEmail(lead);
     return { sent: true, status: "simulated", providerId: `demo_email_${lead.id}`, message };
   }
 
-  if (!smtpConfigured()) {
+  if (!brevoConfigured() && !smtpConfigured()) {
+    const message = buildPersonalizedEmail(lead);
     return { sent: false, status: "skipped", reason: "SMTP is not configured; Gmail API sending is not implemented in this cPanel setup", message };
   }
 
   try {
+    const [websiteAudit, gmbAudit] = await Promise.all([
+      auditLeadWebsite(lead),
+      auditGmbProfile(lead)
+    ]);
+    const message = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit });
+    const attachments = await Promise.all([
+      buildGmbAuditPdf(lead, gmbAudit),
+      buildWebsiteAuditPdf(lead, websiteAudit)
+    ]);
+    if (brevoConfigured()) {
+      const info = await sendViaBrevo({
+        to: lead.email,
+        subject: message.subject,
+        text: message.body,
+        html: buildTrackedEmailHtml(message.body, options?.trackingLogId),
+        attachments,
+        tags: ["lead-outreach"]
+      });
+      return {
+        sent: true,
+        status: "sent",
+        provider: "brevo",
+        providerId: info.messageId,
+        message,
+        auditAttachments: attachments.map((attachment) => attachment.filename),
+        websiteAudit,
+        gmbAudit
+      };
+    }
+
     const info = await createSmtpTransport().sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to: lead.email,
       subject: message.subject,
       text: message.body,
       html: buildTrackedEmailHtml(message.body, options?.trackingLogId),
+      attachments,
       headers: {
         "X-Entity-Ref-ID": lead.id,
         "X-Direct-Optimize-Log-ID": options?.trackingLogId ?? lead.id,
@@ -450,15 +680,19 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
     return {
       sent: true,
       status: "sent",
+      provider: "smtp",
       providerId: info.messageId,
-      message
+      message,
+      auditAttachments: attachments.map((attachment) => attachment.filename),
+      websiteAudit,
+      gmbAudit
     };
   } catch (error) {
     return {
       sent: false,
       status: "failed",
       reason: error instanceof Error ? error.message : "SMTP send failed",
-      message
+      message: buildPersonalizedEmail(lead)
     };
   }
 }

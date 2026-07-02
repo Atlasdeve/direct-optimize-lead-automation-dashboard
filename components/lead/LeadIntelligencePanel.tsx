@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import InsightsIcon from "@mui/icons-material/Insights";
 import TravelExploreIcon from "@mui/icons-material/TravelExplore";
 import SpeedIcon from "@mui/icons-material/Speed";
+import DownloadIcon from "@mui/icons-material/Download";
 import type { LeadIntelligenceAudit } from "@/lib/leadIntelligence";
 
 export function LeadIntelligencePanel({ leadId }: { leadId: string }) {
@@ -42,14 +43,32 @@ export function LeadIntelligencePanel({ leadId }: { leadId: string }) {
           </div>
           <p className="mt-1 text-sm text-slate-400">Website audit snapshot, SEO opportunity flags, and recommended pitch angle.</p>
         </div>
-        <button
-          onClick={runAudit}
-          disabled={running}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-300 disabled:opacity-60"
-        >
-          <TravelExploreIcon fontSize="small" />
-          {running ? "Auditing..." : audit ? "Refresh Audit" : "Run Audit"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={runAudit}
+            disabled={running}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-300 disabled:opacity-60"
+          >
+            <TravelExploreIcon fontSize="small" />
+            {running ? "Auditing..." : audit ? "Refresh Website Audit" : "Run Website Audit"}
+          </button>
+          {audit ? (
+            <a
+              href={`/api/leads/${leadId}/intelligence/pdf`}
+              download
+              title="Download website audit PDF"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white/8 px-4 text-sm font-semibold text-white soft-border hover:bg-white/12"
+            >
+              <DownloadIcon fontSize="small" />
+              Download PDF
+            </a>
+          ) : (
+            <button disabled title="Run the website audit first" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white/8 px-4 text-sm font-semibold text-white opacity-45 soft-border">
+              <DownloadIcon fontSize="small" />
+              Download PDF
+            </button>
+          )}
+        </div>
       </div>
 
       {loading && <div className="mt-5 rounded-lg bg-white/6 p-4 text-sm text-slate-300 soft-border">Loading latest audit...</div>}

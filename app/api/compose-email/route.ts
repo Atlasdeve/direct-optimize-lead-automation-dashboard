@@ -56,5 +56,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: result.reason ?? "Email send failed.", result: { ...result, logId: log.id } }, { status: 400 });
   }
 
-  return NextResponse.json({ result: { ...result, logId: log.id, trackingEnabled: true } });
+  return NextResponse.json({ result: { ...result, logId: log.id, trackingEnabled: Boolean(result.trackingEnabled) } });
 }
