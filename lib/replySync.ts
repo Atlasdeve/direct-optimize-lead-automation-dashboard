@@ -1,6 +1,7 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { prisma } from "@/lib/prisma";
+import { createAppNotification } from "@/lib/appNotifications";
 import { toLead } from "@/lib/dbStore";
 import { draftAiReply } from "@/lib/providers";
 import { classifyReply } from "@/lib/replyClassifier";
@@ -136,13 +137,12 @@ export async function syncInboxReplies() {
         }
       });
 
-      await prisma.notification.create({
-        data: {
-          leadId: lead.id,
-          type: "reply",
-          title: "Email reply received",
-          message: `${lead.companyName} replied from ${fromAddress}. Classification: ${classification.replaceAll("_", " ")}.`
-        }
+      await createAppNotification({
+        leadId: lead.id,
+        type: "reply",
+        title: "Email reply received",
+        message: `${lead.companyName} replied from ${fromAddress}. Classification: ${classification.replaceAll("_", " ")}.`,
+        actionUrl: `/leads/${lead.id}`
       });
 
       await prisma.outreachLog.create({

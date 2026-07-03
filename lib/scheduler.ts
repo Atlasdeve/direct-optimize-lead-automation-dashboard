@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { regions } from "@/lib/regions";
 import { enqueueAutomation, startAutomationWorker } from "@/lib/queue";
 import { syncInboxReplies } from "@/lib/replySync";
+import { sendDailyEmployeeWorkReminders } from "@/lib/employeeReminders";
 
 startAutomationWorker();
 
@@ -22,4 +23,9 @@ cron.schedule("*/15 * * * *", async () => {
   }
 });
 
-console.log("Direct Optimize scheduler started for Canada, USA, UK, UAE, Qatar morning runs, and 15-minute reply sync.");
+cron.schedule("0 17 * * *", async () => {
+  const result = await sendDailyEmployeeWorkReminders();
+  if (result.sent > 0) console.log(`Sent ${result.sent} employee work reminder(s).`);
+}, { timezone: "Asia/Karachi" });
+
+console.log("Direct Optimize scheduler started for regional runs, reply sync, and daily employee reminders.");

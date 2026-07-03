@@ -1,21 +1,13 @@
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { createAppNotification } from "@/lib/appNotifications";
 import type { Lead } from "@/lib/types";
 
 export type PortalRole = "admin" | "employee" | "client";
 
 async function notifyAdmin(input: { type: string; title: string; message: string; actionUrl?: string; leadId?: string; recipientUserId?: string }) {
-  await prisma.notification.create({
-    data: {
-      type: input.type,
-      title: input.title.slice(0, 180),
-      message: input.message.slice(0, 500),
-      actionUrl: input.actionUrl,
-      leadId: input.leadId,
-      recipientUserId: input.recipientUserId
-    }
-  }).catch(() => null);
+  await createAppNotification(input).catch(() => null);
 }
 
 export function normalizeEmail(value: unknown) {
@@ -213,7 +205,7 @@ export async function registerClientPortal(input: {
   if (!websiteUrl && !gmbUrl) throw new Error("Add a website URL, Google Business Profile URL, or both.");
   const passwordHash = await bcrypt.hash(password, 12);
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const existing = await tx.user.findFirst({ where: { OR: [{ email }, { username }] }, select: { id: true } });
     if (existing) throw new Error("A user with that email or username already exists.");
     await tx.region.upsert({
@@ -257,17 +249,16 @@ export async function registerClientPortal(input: {
     await tx.outreachLog.create({
       data: { leadId: lead.id, channel: "system", action: "client_registered", status: "completed", message: "Client registration created a linked lead and project." }
     });
-    await tx.notification.create({
-      data: {
-        leadId: lead.id,
-        type: "client_registration",
-        title: `New client registration: ${companyName}`,
-        message: `${name || username} registered in ${input.region} and submitted business properties.`,
-        actionUrl: `/leads/${lead.id}`
-      }
-    });
     return { user, leadId: lead.id, projectId: project.id };
   });
+  await notifyAdmin({
+    leadId: result.leadId,
+    type: "client_registration",
+    title: `New client registration: ${companyName}`,
+    message: `${name || username} registered in ${input.region} and submitted business properties.`,
+    actionUrl: `/leads/${result.leadId}`
+  });
+  return result;
 }
 
 export async function listProjectsForUser(user: { id: string; role: string }) {
@@ -305,7 +296,7 @@ export async function updateClientProfile(userId: string, input: {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address.");
   if (!websiteUrl && !gmbUrl) throw new Error("Add a primary website or Google Business Profile URL.");
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const project = await tx.clientProject.findFirst({ where: { id: projectId, clientUserId: userId } });
     if (!project) throw new Error("Client project not found.");
     const duplicateEmail = await tx.user.findFirst({ where: { email, id: { not: userId } }, select: { id: true } });
@@ -325,17 +316,16 @@ export async function updateClientProfile(userId: string, input: {
         data: { ownerName: name, email, phone, website: websiteUrl, googleMapsUrl: gmbUrl }
       });
     }
-    await tx.notification.create({
-      data: {
-        leadId: project.leadId,
-        type: "client_profile",
-        title: `Client profile updated: ${project.companyName}`,
-        message: `${name} changed contact or business property information.`,
-        actionUrl: project.leadId ? `/leads/${project.leadId}` : `/projects/${project.id}`
-      }
-    });
-    return { user, project: updatedProject };
+    return { user, project: updatedProject, companyName: project.companyName, leadId: project.leadId };
   });
+  await notifyAdmin({
+    leadId: result.leadId || undefined,
+    type: "client_profile",
+    title: `Client profile updated: ${result.companyName}`,
+    message: `${name} changed contact or business property information.`,
+    actionUrl: result.leadId ? `/leads/${result.leadId}` : `/projects/${result.project.id}`
+  });
+  return { user: result.user, project: result.project };
 }
 
 export async function getProjectForUser(projectId: string, user: { id: string; role: string }) {

@@ -30,6 +30,7 @@ import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import DialpadIcon from "@mui/icons-material/Dialpad";
 import { clsx } from "clsx";
 import { AdminNotificationCenter } from "@/components/AdminNotificationCenter";
+import { PushNotificationControl } from "@/components/PushNotificationControl";
 
 const nav = [
   { href: "/", label: "Overview", icon: DashboardIcon },
@@ -137,6 +138,9 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
         <div className="mt-6 rounded-lg bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
           {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : "Official APIs only. Rate limits, unsubscribe handling, consent fields, and outreach logs are built in."}
         </div>
+        <div className="mt-4">
+          <PushNotificationControl />
+        </div>
         <button
           onClick={logout}
           className="mt-4 flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-slate-300 transition soft-border hover:bg-white/7 hover:text-white"
@@ -145,6 +149,11 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
           Sign out
         </button>
       </aside>
+      {userRole && (
+        <div className="fixed left-4 top-4 z-40 w-48 lg:hidden">
+          <PushNotificationControl compact />
+        </div>
+      )}
       <main className="px-4 py-4 lg:ml-72 lg:px-8 lg:py-8">
         {children}
       </main>

@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { createAppNotification } from "@/lib/appNotifications";
 import { getRegion } from "@/lib/regions";
 import { scoreLead } from "@/lib/scoring";
 import { discoverEmailsFromWebsite } from "@/lib/emailDiscovery";
@@ -1380,12 +1381,10 @@ export async function completeDbAutomation(result: AutomationResult) {
       log: result.logs
     }
   });
-  await prisma.notification.create({
-    data: {
-      type: result.status === "completed" ? "automation" : "failure",
-      title: result.status === "completed" ? "Automation completed" : "Automation failed",
-      message: `${result.region}: ${result.leadsFetched} leads, ${result.emailsSent} emails.`
-    }
+  await createAppNotification({
+    type: result.status === "completed" ? "automation" : "failure",
+    title: result.status === "completed" ? "Automation completed" : "Automation failed",
+    message: `${result.region}: ${result.leadsFetched} leads, ${result.emailsSent} emails.`
   });
 }
 

@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (session.role === "client") {
-    const allowed = pathname.startsWith("/client-portal") || pathname.startsWith("/client-profile") || pathname.startsWith("/api/portal") || pathname.startsWith("/api/auth") || pathname.startsWith("/api/notifications");
+    const allowed = pathname.startsWith("/client-portal") || pathname.startsWith("/client-profile") || pathname.startsWith("/api/portal") || pathname.startsWith("/api/auth") || pathname.startsWith("/api/notifications") || pathname.startsWith("/api/push");
     if (!allowed) {
       if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Client accounts cannot access this resource." }, { status: 403 });
       return NextResponse.redirect(new URL("/client-portal", request.url));
@@ -58,7 +58,7 @@ export async function middleware(request: NextRequest) {
 
   if (session.role === "employee") {
     const allowedPage = matchesPrefix(pathname, "/employee-portal") || matchesPrefix(pathname, "/projects");
-    const allowedApi = matchesPrefix(pathname, "/api/portal") || matchesPrefix(pathname, "/api/auth") || matchesPrefix(pathname, "/api/calls") || matchesPrefix(pathname, "/api/notifications");
+    const allowedApi = matchesPrefix(pathname, "/api/portal") || matchesPrefix(pathname, "/api/auth") || matchesPrefix(pathname, "/api/calls") || matchesPrefix(pathname, "/api/notifications") || matchesPrefix(pathname, "/api/push");
     if (!allowedPage && !allowedApi) {
       if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Employee accounts cannot access this resource." }, { status: 403 });
       return NextResponse.redirect(new URL("/employee-portal", request.url));
