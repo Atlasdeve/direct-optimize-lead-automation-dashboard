@@ -1,4 +1,5 @@
 import { providerSettings } from "@/lib/templates";
+import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 
 export default function SettingsPage() {
   const settings = providerSettings();
@@ -6,6 +7,10 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <h1 className="text-3xl font-semibold text-white">Settings</h1>
+      <section className="glass rounded-xl p-5">
+        <h2 className="mb-4 font-semibold text-white">Account security</h2>
+        <ChangePasswordForm />
+      </section>
       <section className="glass rounded-xl p-5">
         <h2 className="mb-4 font-semibold text-white">Provider readiness</h2>
         <div className="grid gap-3 md:grid-cols-2">

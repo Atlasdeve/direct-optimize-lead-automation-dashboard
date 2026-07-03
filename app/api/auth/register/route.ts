@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 import { authCookieName, authCookieOptions, createSessionToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, requestFingerprint } from "@/lib/security";
 
 function normalizeUsername(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -12,6 +13,8 @@ function normalizeEmail(value: unknown) {
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit(requestFingerprint(request, "admin-register"), 3, 60 * 60 * 1000);
+  if (!rateLimit.allowed) return NextResponse.json({ error: "Too many registration attempts." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } });
   const body = await request.json().catch(() => ({}));
   const username = normalizeUsername(body.username);
   const email = normalizeEmail(body.email);
@@ -24,8 +27,8 @@ export async function POST(request: NextRequest) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
-  if (password.length < 8) {
-    return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
+  if (password.length < 12) {
+    return NextResponse.json({ error: "Password must be at least 12 characters." }, { status: 400 });
   }
 
   const userCount = await prisma.user.count();

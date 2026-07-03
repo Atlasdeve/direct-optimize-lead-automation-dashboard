@@ -123,7 +123,7 @@ export function ComposeCallForm() {
       setActiveLogId(callLogId);
 
       const { TelnyxRTC } = await import("@telnyx/webrtc");
-      const client = new TelnyxRTC({ login_token: tokenData.token, enableCallReports: true });
+      const client = new TelnyxRTC({ login_token: tokenData.token, enableCallReports: false });
       clientRef.current = client;
       await new Promise<void>((resolve, reject) => {
         let settled = false;

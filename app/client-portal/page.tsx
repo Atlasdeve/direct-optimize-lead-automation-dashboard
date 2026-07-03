@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { listProjectsForUser } from "@/lib/portalStore";
-import { ProjectProgressView } from "@/components/portal/ProjectProgressView";
+import { LivePortalProjects } from "@/components/portal/LivePortalProjects";
 
 export default async function ClientPortalPage() {
   const user = await currentUser();
@@ -15,8 +15,7 @@ export default async function ClientPortalPage() {
         <h1 className="mt-2 text-4xl font-semibold text-white">Work progress</h1>
         <p className="mt-2 text-sm text-slate-400">Transparent daily updates, time spent, screenshots, and progress graphs.</p>
       </header>
-      {projects.length === 0 && <div className="glass rounded-xl p-5 text-sm text-slate-300">No client project is connected to your account yet.</div>}
-      {projects.map((project) => <ProjectProgressView key={project.id} project={project} viewer="client" />)}
+      <LivePortalProjects initialProjects={projects} viewer="client" />
     </div>
   );
 }

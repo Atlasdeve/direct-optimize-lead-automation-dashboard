@@ -26,3 +26,5 @@ pnpm-debug.log*
 work/
 outputs/
 tmp/
+storage/
+public/uploads/

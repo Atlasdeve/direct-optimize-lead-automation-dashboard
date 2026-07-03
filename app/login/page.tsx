@@ -18,9 +18,6 @@ export default function LoginPage() {
         <Suspense fallback={<div className="rounded-lg bg-white/6 p-4 text-sm text-slate-300 soft-border">Loading auth form...</div>}>
           <AuthForm />
         </Suspense>
-        <p className="mt-4 text-xs leading-5 text-slate-500">
-          Default seeded admin is username admin with password password. Change it before production use.
-        </p>
       </section>
     </div>
   );

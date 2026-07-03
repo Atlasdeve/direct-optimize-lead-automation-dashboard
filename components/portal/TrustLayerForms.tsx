@@ -27,13 +27,16 @@ export function TrustLayerForms({ projectId, role }: { projectId: string; role: 
     const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error ?? "Action failed.");
-    window.location.reload();
+    window.dispatchEvent(new CustomEvent("portal-data-refresh"));
+    return data;
   }
 
   async function submitComment(type = "comment", approved = false) {
     setMessage(null);
     try {
       await postJson(`/api/portal/projects/${projectId}/comments`, { body: comment, type, approved });
+      setComment("");
+      setMessage(approved ? "Approval sent." : "Comment sent.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Comment failed.");
     }

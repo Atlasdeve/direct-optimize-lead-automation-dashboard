@@ -13,7 +13,9 @@ type SessionPayload = {
 };
 
 function secret() {
-  return process.env.NEXTAUTH_SECRET || "direct-optimize-dev-secret";
+  const value = process.env.NEXTAUTH_SECRET;
+  if (!value || value.length < 32) throw new Error("NEXTAUTH_SECRET must contain at least 32 characters.");
+  return value;
 }
 
 function sign(value: string) {
@@ -23,7 +25,7 @@ function sign(value: string) {
 export function createSessionToken(payload: Omit<SessionPayload, "exp">) {
   const body = Buffer.from(JSON.stringify({
     ...payload,
-    exp: Date.now() + 7 * 24 * 60 * 60 * 1000
+    exp: Date.now() + 12 * 60 * 60 * 1000
   })).toString("base64url");
   return `${body}.${sign(body)}`;
 }
@@ -31,10 +33,13 @@ export function createSessionToken(payload: Omit<SessionPayload, "exp">) {
 export function verifySessionToken(token?: string | null): SessionPayload | null {
   if (!token) return null;
   const [body, signature] = token.split(".");
-  if (!body || !signature || sign(body) !== signature) return null;
+  if (!body || !signature) return null;
   try {
+    const expected = Buffer.from(sign(body));
+    const received = Buffer.from(signature);
+    if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) return null;
     const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as SessionPayload;
-    if (!payload.userId || payload.exp < Date.now()) return null;
+    if (!payload.userId || !["admin", "employee", "client"].includes(payload.role) || payload.exp < Date.now()) return null;
     return payload;
   } catch {
     return null;
@@ -51,7 +56,7 @@ export async function currentUser() {
   if (!session) return null;
   return prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, email: true, username: true, name: true, role: true }
+    select: { id: true, email: true, username: true, name: true, phone: true, role: true }
   });
 }
 
@@ -61,6 +66,6 @@ export function authCookieOptions() {
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 7 * 24 * 60 * 60
+    maxAge: 12 * 60 * 60
   };
 }

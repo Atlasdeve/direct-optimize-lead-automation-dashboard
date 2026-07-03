@@ -12,6 +12,7 @@ model User {
   email        String   @unique
   username     String?  @unique
   name         String?
+  phone        String?
   passwordHash String
   role         String   @default("admin")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -21,6 +22,7 @@ model User {
   workLogs         WorkLog[]       @relation("EmployeeWorkLogs")
   projectComments  ProjectComment[]
   callLogs         CallLog[]
+  notifications    Notification[] @relation("UserNotifications")
 
   @@map("users")
 }
@@ -131,6 +133,8 @@ model ClientProject {
   companyName     String    @map("company_name")
   websiteUrl      String?   @map("website_url")
   gmbUrl          String?   @map("gmb_url")
+  additionalWebsiteUrls String[] @default([]) @map("additional_website_urls")
+  additionalGmbUrls     String[] @default([]) @map("additional_gmb_urls")
   status          String    @default("Onboarding")
   progress        Int       @default(0)
   estimatedMinutes Int      @default(0) @map("estimated_minutes")
@@ -395,13 +399,17 @@ model AutomationRun {
 model Notification {
   id        String   @id @default(cuid())
   leadId    String?  @map("lead_id")
+  recipientUserId String? @map("recipient_user_id")
   type      String
   title     String
   message   String
+  actionUrl String?  @map("action_url")
   read      Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at")
-  lead      Lead?    @relation(fields: [leadId], references: [id])
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  recipient User?    @relation("UserNotifications", fields: [recipientUserId], references: [id], onDelete: Cascade)
 
+  @@index([recipientUserId, createdAt])
   @@map("notifications")
 }
 

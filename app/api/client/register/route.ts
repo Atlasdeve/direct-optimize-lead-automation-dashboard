@@ -1,25 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authCookieName, authCookieOptions, createSessionToken } from "@/lib/auth";
-import { createPortalUser, createProject } from "@/lib/portalStore";
+import { registerClientPortal } from "@/lib/portalStore";
+import { regions } from "@/lib/regions";
+import { checkRateLimit, requestFingerprint } from "@/lib/security";
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit(requestFingerprint(request, "client-register"), 5, 60 * 60 * 1000);
+  if (!rateLimit.allowed) return NextResponse.json({ error: "Too many registration attempts. Try again later." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } });
   const body = await request.json().catch(() => ({}));
   try {
-    const user = await createPortalUser({
+    const region = regions.find((item) => item.name === body.region);
+    if (!region) throw new Error("Select a valid region.");
+    const { user } = await registerClientPortal({
       email: body.email,
       username: body.username,
       name: body.name,
+      phone: body.phone,
       password: body.password,
-      role: "client"
-    });
-    await createProject({
-      clientUserId: user.id,
-      companyName: body.companyName || user.name || "Client project",
+      companyName: body.companyName,
+      region: region.name,
+      country: region.country,
+      timezone: region.timezone,
       websiteUrl: body.websiteUrl,
-      gmbUrl: body.gmbUrl,
-      status: "Client onboarding",
-      progress: 5,
-      notes: "Client self-registered and submitted initial website/GMB details."
+      gmbUrl: body.gmbUrl
     });
     const response = NextResponse.json({ user });
     response.cookies.set(authCookieName, createSessionToken({

@@ -7,6 +7,10 @@ import { emailTemplates, providerSettings } from "../lib/templates";
 const prisma = new PrismaClient();
 
 async function main() {
+  const initialAdminPassword = process.env.ADMIN_INITIAL_PASSWORD;
+  if (!initialAdminPassword || initialAdminPassword.length < 12) {
+    throw new Error("Set ADMIN_INITIAL_PASSWORD to at least 12 characters before seeding.");
+  }
   await prisma.user.upsert({
     where: { email: "admin@directoptimize.local" },
     update: { username: "admin" },
@@ -14,7 +18,7 @@ async function main() {
       email: "admin@directoptimize.local",
       username: "admin",
       name: "Direct Optimize Admin",
-      passwordHash: await bcrypt.hash("password", 10),
+      passwordHash: await bcrypt.hash(initialAdminPassword, 12),
       role: "admin"
     }
   });

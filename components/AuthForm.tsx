@@ -11,7 +11,7 @@ export function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
-  const [identifier, setIdentifier] = useState("admin");
+  const [identifier, setIdentifier] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -38,7 +38,8 @@ export function AuthForm() {
       setError(data.error ?? "Authentication failed.");
       return;
     }
-    router.push(searchParams.get("next") || "/");
+    const next = searchParams.get("next");
+    router.push(next?.startsWith("/") && !next.startsWith("//") ? next : "/");
     router.refresh();
   }
 

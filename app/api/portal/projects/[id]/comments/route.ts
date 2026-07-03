@@ -10,9 +10,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
   const body = await request.json().catch(() => ({}));
   try {
+    const comment = String(body.body || "").trim();
+    if (!comment) return NextResponse.json({ error: "Comment cannot be empty." }, { status: 400 });
+    if (comment.length > 2000) return NextResponse.json({ error: "Comment must be 2,000 characters or fewer." }, { status: 400 });
     return NextResponse.json({
       project: await addProjectComment(id, user, {
-        body: String(body.body || ""),
+        body: comment,
         type: body.type === "approval" ? "approval" : "comment",
         approved: Boolean(body.approved),
         clientVisible: body.clientVisible !== false

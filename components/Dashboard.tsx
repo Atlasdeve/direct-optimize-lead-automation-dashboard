@@ -217,6 +217,15 @@ export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
     };
   }, [selectedRegion]);
 
+  useEffect(() => {
+    function receiveNotification(event: Event) {
+      const item = (event as CustomEvent<NotificationItem>).detail;
+      setNotifications((current) => [item, ...current.filter((entry) => entry.id !== item.id)].slice(0, 20));
+    }
+    window.addEventListener("admin-notification", receiveNotification);
+    return () => window.removeEventListener("admin-notification", receiveNotification);
+  }, []);
+
   async function startAutomation() {
     setRunning(true);
     const response = await fetch("/api/automation/start", {

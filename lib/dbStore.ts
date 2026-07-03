@@ -126,6 +126,17 @@ export async function getDbLead(id: string) {
   return lead ? toLead(lead) : null;
 }
 
+export async function deleteDbLead(id: string) {
+  const lead = await prisma.lead.findUnique({
+    where: { id },
+    select: { id: true, companyName: true }
+  });
+  if (!lead) return null;
+
+  await prisma.lead.delete({ where: { id } });
+  return lead;
+}
+
 export async function getDbLeadContacts(leadId: string) {
   return prisma.leadContact.findMany({
     where: { leadId },
@@ -385,8 +396,12 @@ export async function createOpportunity(input: {
   return opportunity;
 }
 
-export async function listDbNotifications() {
-  return prisma.notification.findMany({ orderBy: { createdAt: "desc" }, take: 8 });
+export async function listDbNotifications(user: { id: string; role: string }) {
+  return prisma.notification.findMany({
+    where: user.role === "admin" ? { recipientUserId: null } : { recipientUserId: user.id },
+    orderBy: { createdAt: "desc" },
+    take: 20
+  });
 }
 
 export async function listDbReplies() {

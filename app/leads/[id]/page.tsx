@@ -18,6 +18,7 @@ import { leadOpportunitySummary } from "@/lib/leadStrategy";
 import { CreateProjectFromLeadButton } from "@/components/portal/CreateProjectFromLeadButton";
 import { getProjectByLeadId } from "@/lib/portalStore";
 import { LeadCallingPanel } from "@/components/lead/LeadCallingPanel";
+import { DeleteLeadButton } from "@/components/lead/DeleteLeadButton";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -68,7 +69,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <p className="mt-2 text-slate-400">{lead.city}, {lead.country} · {lead.category}</p>
             <CreateProjectFromLeadButton lead={lead} existingProjectId={existingProject?.id ?? null} />
           </div>
-          <StatusBadge status={lead.outreach_status} />
+          <div className="flex flex-col items-stretch gap-3 sm:items-end">
+            <StatusBadge status={lead.outreach_status} />
+            <DeleteLeadButton leadId={lead.id} companyName={lead.company_name} />
+          </div>
         </div>
       </div>
 

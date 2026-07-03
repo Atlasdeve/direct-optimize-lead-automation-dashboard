@@ -25,9 +25,11 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import GroupsIcon from "@mui/icons-material/Groups";
 import BadgeIcon from "@mui/icons-material/Badge";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import DialpadIcon from "@mui/icons-material/Dialpad";
 import { clsx } from "clsx";
+import { AdminNotificationCenter } from "@/components/AdminNotificationCenter";
 
 const nav = [
   { href: "/", label: "Overview", icon: DashboardIcon },
@@ -56,11 +58,36 @@ const nav = [
   { href: "/settings", label: "Settings", icon: SettingsIcon }
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+const clientNav = [
+  { href: "/client-portal", label: "Progress Portal", icon: AccountCircleIcon },
+  { href: "/client-profile", label: "Client Profile", icon: ManageAccountsIcon }
+];
+
+const employeeNav = [
+  { href: "/employee-portal", label: "Employee Portal", icon: BadgeIcon }
+];
+
+export function AppShell({ children, userRole, userName }: { children: React.ReactNode; userRole?: string; userName?: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const isClient = userRole === "client";
+  const isEmployee = userRole === "employee";
+  const navigation = isClient ? clientNav : isEmployee ? employeeNav : nav;
 
-  if (pathname === "/login" || pathname === "/client-register") {
+  function isActiveRoute(href: string) {
+    if (href === "/") return pathname === "/";
+    if (pathname === href || pathname.startsWith(`${href}/`)) return true;
+    if (!isClient && !isEmployee && href === "/dashboard") return pathname.startsWith("/leads/");
+    if (isClient && href === "/client-portal") return pathname.startsWith("/projects/");
+    if (isEmployee && href === "/employee-portal") return pathname.startsWith("/projects/");
+    return false;
+  }
+
+  if (pathname === "/client-register") {
+    return <>{children}</>;
+  }
+
+  if (pathname === "/login") {
     return <main className="px-4 py-4 lg:px-8 lg:py-8">{children}</main>;
   }
 
@@ -72,6 +99,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
+      {userRole && <AdminNotificationCenter userRole={userRole} />}
       <aside className="fixed inset-y-0 left-0 hidden w-72 overflow-y-auto border-r border-line bg-black/28 p-5 backdrop-blur-2xl lg:block">
         <div className="mb-8 flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-400/15 text-sky-200 soft-border">
@@ -79,30 +107,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <div className="text-sm text-slate-400">Direct Optimize</div>
-            <div className="font-semibold leading-tight text-white">Lead Automation</div>
+            <div className="font-semibold leading-tight text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : "Lead Automation"}</div>
           </div>
         </div>
         <nav className="space-y-2">
-          {nav.map((item) => {
+          {navigation.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active = isActiveRoute(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 className={clsx(
-                  "flex h-11 items-center gap-3 rounded-lg px-3 text-sm transition",
-                  active ? "bg-sky-400/18 text-white soft-border" : "text-slate-300 hover:bg-white/7 hover:text-white"
+                  "relative flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition",
+                  active
+                    ? "bg-sky-400 text-slate-950 shadow-[0_8px_24px_rgba(56,189,248,0.18)]"
+                    : "text-slate-300 hover:bg-white/7 hover:text-white"
                 )}
               >
-                <Icon fontSize="small" />
+                <span className={clsx("grid h-7 w-7 shrink-0 place-items-center rounded-md", active ? "bg-slate-950/12" : "bg-white/5")}>
+                  <Icon fontSize="small" />
+                </span>
                 {item.label}
               </Link>
             );
           })}
         </nav>
         <div className="mt-6 rounded-lg bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
-          Official APIs only. Rate limits, unsubscribe handling, consent fields, and outreach logs are built in.
+          {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : "Official APIs only. Rate limits, unsubscribe handling, consent fields, and outreach logs are built in."}
         </div>
         <button
           onClick={logout}
