@@ -7,10 +7,14 @@ export function LiveProjectProgress({ initialProject, viewer }: { initialProject
   const [project, setProject] = useState(initialProject);
 
   const refresh = useCallback(async () => {
-    const response = await fetch(`/api/portal/projects/${initialProject.id}`, { cache: "no-store" });
-    if (!response.ok) return;
-    const data = await response.json();
-    if (data.project) setProject(data.project);
+    try {
+      const response = await fetch(`/api/portal/projects/${initialProject.id}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data.project) setProject(data.project);
+    } catch {
+      // A later focus, notification, or fallback interval retries the sync.
+    }
   }, [initialProject.id]);
 
   useEffect(() => {

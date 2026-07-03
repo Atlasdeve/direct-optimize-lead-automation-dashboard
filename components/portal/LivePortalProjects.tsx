@@ -9,10 +9,14 @@ export function LivePortalProjects({ initialProjects, viewer }: { initialProject
   const [projects, setProjects] = useState(initialProjects);
 
   const refresh = useCallback(async () => {
-    const response = await fetch("/api/portal/projects", { cache: "no-store" });
-    if (!response.ok) return;
-    const data = await response.json();
-    setProjects(data.projects ?? []);
+    try {
+      const response = await fetch("/api/portal/projects", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      setProjects(data.projects ?? []);
+    } catch {
+      // A later focus, notification, or fallback interval retries the sync.
+    }
   }, []);
 
   useEffect(() => {
