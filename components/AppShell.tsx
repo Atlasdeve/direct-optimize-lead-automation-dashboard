@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PublicIcon from "@mui/icons-material/Public";
 import PlayCircleIcon from "@mui/icons-material/PlayCircle";
@@ -28,6 +29,8 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import DialpadIcon from "@mui/icons-material/Dialpad";
+import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
 import { clsx } from "clsx";
 import { AdminNotificationCenter } from "@/components/AdminNotificationCenter";
 import { PushNotificationControl } from "@/components/PushNotificationControl";
@@ -71,9 +74,26 @@ const employeeNav = [
 export function AppShell({ children, userRole, userName }: { children: React.ReactNode; userRole?: string; userName?: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const isClient = userRole === "client";
   const isEmployee = userRole === "employee";
   const navigation = isClient ? clientNav : isEmployee ? employeeNav : nav;
+
+  useEffect(() => setMobileOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileOpen]);
 
   function isActiveRoute(href: string) {
     if (href === "/") return pathname === "/";
@@ -98,6 +118,32 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
     router.refresh();
   }
 
+  function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
+    return navigation.map((item) => {
+      const Icon = item.icon;
+      const active = isActiveRoute(item.href);
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          aria-current={active ? "page" : undefined}
+          onClick={onNavigate}
+          className={clsx(
+            "relative flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition",
+            active
+              ? "bg-sky-400 text-slate-950 shadow-[0_8px_24px_rgba(56,189,248,0.18)]"
+              : "text-slate-300 hover:bg-white/7 hover:text-white"
+          )}
+        >
+          <span className={clsx("grid h-7 w-7 shrink-0 place-items-center rounded-md", active ? "bg-slate-950/12" : "bg-white/5")}>
+            <Icon fontSize="small" />
+          </span>
+          {item.label}
+        </Link>
+      );
+    });
+  }
+
   return (
     <div className="min-h-screen">
       {userRole && <AdminNotificationCenter userRole={userRole} />}
@@ -112,28 +158,7 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
           </div>
         </div>
         <nav className="space-y-2">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const active = isActiveRoute(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={clsx(
-                  "relative flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition",
-                  active
-                    ? "bg-sky-400 text-slate-950 shadow-[0_8px_24px_rgba(56,189,248,0.18)]"
-                    : "text-slate-300 hover:bg-white/7 hover:text-white"
-                )}
-              >
-                <span className={clsx("grid h-7 w-7 shrink-0 place-items-center rounded-md", active ? "bg-slate-950/12" : "bg-white/5")}>
-                  <Icon fontSize="small" />
-                </span>
-                {item.label}
-              </Link>
-            );
-          })}
+          <NavigationLinks />
         </nav>
         <div className="mt-6 rounded-lg bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
           {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : "Official APIs only. Rate limits, unsubscribe handling, consent fields, and outreach logs are built in."}
@@ -150,11 +175,50 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
         </button>
       </aside>
       {userRole && (
-        <div className="fixed left-4 top-4 z-40 w-48 lg:hidden">
-          <PushNotificationControl compact />
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation menu"
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-navigation"
+          className="fixed left-4 top-4 z-40 grid h-11 w-11 place-items-center rounded-lg border border-line bg-[#091629]/95 text-slate-100 shadow-xl backdrop-blur-xl hover:bg-[#10213a] lg:hidden"
+        >
+          <MenuIcon />
+        </button>
+      )}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/65 backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)}>
+          <aside
+            id="mobile-navigation"
+            aria-label="Mobile navigation"
+            className="h-full w-[min(20rem,88vw)] overflow-y-auto border-r border-line bg-[#071426] p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-400/15 text-sky-200 soft-border"><ShieldIcon /></div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm text-slate-400">Direct Optimize</div>
+                  <div className="truncate font-semibold text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : "Lead Automation"}</div>
+                </div>
+              </div>
+              <button type="button" onClick={() => setMobileOpen(false)} aria-label="Close navigation menu" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-slate-300 hover:bg-white/7 hover:text-white">
+                <CloseIcon />
+              </button>
+            </div>
+            <nav className="space-y-2"><NavigationLinks onNavigate={() => setMobileOpen(false)} /></nav>
+            <div className="mt-6 rounded-lg bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
+              {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : "Manage leads, outreach, projects, and delivery from your mobile device."}
+            </div>
+            <div className="mt-4"><PushNotificationControl /></div>
+            <button onClick={logout} className="mt-4 flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-slate-300 transition soft-border hover:bg-white/7 hover:text-white">
+              <LogoutIcon fontSize="small" />
+              Sign out
+            </button>
+          </aside>
         </div>
       )}
-      <main className="px-4 py-4 lg:ml-72 lg:px-8 lg:py-8">
+      <main className="px-4 pb-4 pt-20 lg:ml-72 lg:px-8 lg:py-8">
         {children}
       </main>
     </div>
