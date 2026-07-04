@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const identifier = typeof body.identifier === "string" ? body.identifier.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
+  const remember = body.remember === true;
   const rateLimit = checkRateLimit(requestFingerprint(request, "login", identifier), 8, 15 * 60 * 1000);
   if (!rateLimit.allowed) {
     return NextResponse.json({ error: "Too many sign-in attempts. Try again later." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } });
@@ -36,6 +37,6 @@ export async function POST(request: NextRequest) {
     username: user.username,
     email: user.email,
     role: user.role
-  }), authCookieOptions());
+  }, remember), authCookieOptions(remember));
   return response;
 }

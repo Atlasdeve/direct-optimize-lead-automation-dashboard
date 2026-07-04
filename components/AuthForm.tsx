@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import LoginIcon from "@mui/icons-material/Login";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
 type Mode = "login" | "register";
 
@@ -16,6 +18,8 @@ export function AuthForm() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +32,7 @@ export function AuthForm() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
         mode === "login"
-          ? { identifier, password }
+          ? { identifier, password, remember }
           : { username, email, name, password }
       )
     });
@@ -108,14 +112,37 @@ export function AuthForm() {
 
         <label className="block">
           <span className="text-sm text-slate-300">Password</span>
-          <input
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="mt-2 h-11 w-full rounded-lg border border-line bg-white/7 px-3 text-white outline-none focus:border-sky-300"
-            type="password"
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-          />
+          <span className="relative mt-2 block">
+            <input
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="h-11 w-full rounded-lg border border-line bg-white/7 px-3 pr-11 text-white outline-none focus:border-sky-300"
+              type={showPassword ? "text" : "password"}
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 transition hover:text-white"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+            </button>
+          </span>
         </label>
+
+        {mode === "login" && (
+          <label className="flex cursor-pointer items-center gap-3 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(event) => setRemember(event.target.checked)}
+              className="h-4 w-4 accent-sky-400"
+            />
+            <span>Remember me for 30 days</span>
+          </label>
+        )}
 
         {error && <div className="rounded-lg bg-rose-400/12 p-3 text-sm text-rose-100 soft-border">{error}</div>}
 

@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
 export const authCookieName = "direct_optimize_session";
+const standardSessionSeconds = 12 * 60 * 60;
+const rememberedSessionSeconds = 30 * 24 * 60 * 60;
 
 type SessionPayload = {
   userId: string;
@@ -22,10 +24,11 @@ function sign(value: string) {
   return crypto.createHmac("sha256", secret()).update(value).digest("base64url");
 }
 
-export function createSessionToken(payload: Omit<SessionPayload, "exp">) {
+export function createSessionToken(payload: Omit<SessionPayload, "exp">, remember = false) {
+  const maxAge = remember ? rememberedSessionSeconds : standardSessionSeconds;
   const body = Buffer.from(JSON.stringify({
     ...payload,
-    exp: Date.now() + 12 * 60 * 60 * 1000
+    exp: Date.now() + maxAge * 1000
   })).toString("base64url");
   return `${body}.${sign(body)}`;
 }
@@ -60,12 +63,12 @@ export async function currentUser() {
   });
 }
 
-export function authCookieOptions() {
+export function authCookieOptions(remember = false) {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 12 * 60 * 60
+    maxAge: remember ? rememberedSessionSeconds : standardSessionSeconds
   };
 }
