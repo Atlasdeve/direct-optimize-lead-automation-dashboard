@@ -1,0 +1,152 @@
+<style>
+  #direct-optimize-portal .dop__reveal {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  #direct-optimize-portal .dop__section--dark h1,
+  #direct-optimize-portal .dop__section--dark h2,
+  #direct-optimize-portal .dop__section--dark h3,
+  #direct-optimize-portal .dop__section--dark strong,
+  #direct-optimize-portal .dop__section--dark b,
+  #direct-optimize-portal .dop__roi h2,
+  #direct-optimize-portal .dop__register h2,
+  #direct-optimize-portal .dop__promise h2,
+  #direct-optimize-portal .dop__promise h3 {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    opacity: 1 !important;
+    filter: none !important;
+  }
+
+  #direct-optimize-portal .dop__title span,
+  #direct-optimize-portal .dop__hero h1 span,
+  #direct-optimize-portal .dop__icon,
+  #direct-optimize-portal .dop__visual-copy small,
+  #direct-optimize-portal .dop__principles span {
+    color: #53e79a !important;
+    -webkit-text-fill-color: #53e79a !important;
+  }
+
+  /* Direct Optimize portal: protect text colors from WordPress theme styles. */
+  #direct-optimize-portal .dop__section--dark .dop__title,
+  #direct-optimize-portal .dop__roi .dop__title,
+  #direct-optimize-portal .dop__register .dop__title,
+  #direct-optimize-portal .dop__promise .dop__title {
+    color: #ffffff !important;
+  }
+
+  #direct-optimize-portal .dop__section--dark .dop__lead,
+  #direct-optimize-portal .dop__roi .dop__lead,
+  #direct-optimize-portal .dop__register .dop__lead,
+  #direct-optimize-portal .dop__promise .dop__lead {
+    color: #959d98 !important;
+  }
+
+  #direct-optimize-portal .dop__section--dark .dop__eyebrow,
+  #direct-optimize-portal .dop__roi .dop__eyebrow,
+  #direct-optimize-portal .dop__register .dop__eyebrow,
+  #direct-optimize-portal .dop__promise .dop__eyebrow {
+    color: #b7beb9 !important;
+  }
+
+  /* Dark-section card titles, labels and highlighted values. */
+  #direct-optimize-portal .dop__section--dark h3,
+  #direct-optimize-portal .dop__section--dark b,
+  #direct-optimize-portal .dop__section--dark strong,
+  #direct-optimize-portal .dop__visual-copy h3,
+  #direct-optimize-portal .dop__mini h3,
+  #direct-optimize-portal .dop__quote b,
+  #direct-optimize-portal .dop__split h3,
+  #direct-optimize-portal .dop__roi h3,
+  #direct-optimize-portal .dop__register h3,
+  #direct-optimize-portal .dop__promise h3,
+  #direct-optimize-portal .dop__promise-card h3 {
+    color: #ffffff !important;
+  }
+
+  #direct-optimize-portal .dop__section--dark .dop__mini p,
+  #direct-optimize-portal .dop__section--dark .dop__visual-copy p,
+  #direct-optimize-portal .dop__section--dark .dop__quote p,
+  #direct-optimize-portal .dop__split p,
+  #direct-optimize-portal .dop__register p,
+  #direct-optimize-portal .dop__promise p,
+  #direct-optimize-portal .dop__promise-card p {
+    color: #9da6a0 !important;
+  }
+
+  #direct-optimize-portal .dop__chip,
+  #direct-optimize-portal .dop__principles li,
+  #direct-optimize-portal .dop__capabilities p {
+    color: #b2bab5 !important;
+  }
+
+  #direct-optimize-portal .dop__mini .dop__icon,
+  #direct-optimize-portal .dop__visual-copy small,
+  #direct-optimize-portal .dop__principles span,
+  #direct-optimize-portal .dop__metric-card strong {
+    color: #53e79a !important;
+  }
+
+  #direct-optimize-portal .dop__metric-card--blue strong {
+    color: #67b4ff !important;
+  }
+
+  #direct-optimize-portal .dop__section--paper .dop__title {
+    color: #0b0e0d !important;
+  }
+
+  #direct-optimize-portal .dop__section--paper .dop__lead {
+    color: #69716c !important;
+  }
+
+  #direct-optimize-portal .dop__section--paper .dop__eyebrow {
+    color: #555e58 !important;
+  }
+
+  /* Light-section cards must remain dark even if the theme colors headings. */
+  #direct-optimize-portal .dop__section--paper h3,
+  #direct-optimize-portal .dop__section--paper b,
+  #direct-optimize-portal .dop__section--paper strong,
+  #direct-optimize-portal .dop__section--paper .dop__step h3,
+  #direct-optimize-portal .dop__section--paper .dop__industry h3 {
+    color: #0b0e0d !important;
+  }
+
+  #direct-optimize-portal .dop__section--paper .dop__feature p,
+  #direct-optimize-portal .dop__section--paper .dop__industry p,
+  #direct-optimize-portal .dop__section--paper .dop__step p {
+    color: #69716c !important;
+  }
+
+  /* Preserve white text on intentionally dark/blue cards inside light bands. */
+  #direct-optimize-portal .dop__section--paper .dop__feature:nth-child(1) b,
+  #direct-optimize-portal .dop__section--paper .dop__feature:nth-child(4) b,
+  #direct-optimize-portal .dop__section--paper .dop__feature:nth-child(8) b,
+  #direct-optimize-portal .dop__section--paper .dop__feature:nth-child(1) p,
+  #direct-optimize-portal .dop__section--paper .dop__feature:nth-child(4) p,
+  #direct-optimize-portal .dop__section--paper .dop__feature:nth-child(8) p {
+    color: #ffffff !important;
+  }
+
+  #direct-optimize-portal .dop__process {
+    align-items: start !important;
+  }
+
+  #direct-optimize-portal .dop__process-card {
+    align-self: start !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  #direct-optimize-portal .dop__process-card img {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: 560px !important;
+    object-fit: cover !important;
+    object-position: top center !important;
+  }
+</style>

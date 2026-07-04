@@ -416,8 +416,27 @@ export async function listDbAiDrafts() {
   });
 }
 
-export async function createDbDemoLeads(regionName: string) {
+async function ensureDbRegion(regionName: string) {
   const region = getRegion(regionName);
+  await prisma.region.upsert({
+    where: { name: region.name },
+    update: {
+      country: region.country,
+      timezone: region.timezone,
+      enabled: true
+    },
+    create: {
+      name: region.name,
+      country: region.country,
+      timezone: region.timezone,
+      enabled: true
+    }
+  });
+  return region;
+}
+
+export async function createDbDemoLeads(regionName: string) {
+  const region = await ensureDbRegion(regionName);
   const city = region.name === "USA" ? "Austin" : region.name === "Canada" ? "Vancouver" : region.name === "UK" ? "Manchester" : region.name === "UAE" ? "Abu Dhabi" : "Doha";
   const base = {
     id: `lead_${region.name.toLowerCase()}_${Date.now()}`,
@@ -489,6 +508,7 @@ export async function createDbDemoLeads(regionName: string) {
 
 export async function createDbLeadsFromPlaces(regionName: string, candidates: PlaceLeadCandidate[]) {
   const created: Lead[] = [];
+  const region = await ensureDbRegion(regionName);
 
   for (const candidate of candidates) {
     const duplicate = await prisma.lead.findFirst({
@@ -497,7 +517,7 @@ export async function createDbLeadsFromPlaces(regionName: string, candidates: Pl
           candidate.googleMapsUrl ? { googleMapsUrl: candidate.googleMapsUrl } : undefined,
           {
             companyName: candidate.companyName,
-            region: regionName
+            region: region.name
           }
         ].filter(Boolean) as Prisma.LeadWhereInput[]
       }
@@ -535,7 +555,7 @@ export async function createDbLeadsFromPlaces(regionName: string, candidates: Pl
     const lead = await prisma.lead.create({
       data: {
         companyName: candidate.companyName,
-        region: regionName,
+        region: region.name,
         country: candidate.country,
         city: candidate.city,
         category: candidate.category,
@@ -1384,7 +1404,10 @@ export async function completeDbAutomation(result: AutomationResult) {
   await createAppNotification({
     type: result.status === "completed" ? "automation" : "failure",
     title: result.status === "completed" ? "Automation completed" : "Automation failed",
-    message: `${result.region}: ${result.leadsFetched} leads, ${result.emailsSent} emails.`
+    message: [
+      `${result.region}: ${result.leadsFetched} leads, ${result.emailsSent} emails.`,
+      result.status === "failed" ? result.logs.at(-1) : null
+    ].filter(Boolean).join(" ")
   });
 }
 

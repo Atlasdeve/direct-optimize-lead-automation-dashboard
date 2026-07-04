@@ -61,6 +61,31 @@ export function LeadCallingPanel({
   const callRef = useRef<Call | null>(null);
   const connectedAtRef = useRef<number | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  function stopLocalAudio() {
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
+    localStreamRef.current = null;
+  }
+
+  async function requestMicrophone() {
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Mobile browser calling requires the secure HTTPS portal in Safari on iPhone or Chrome on Android.");
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false
+      });
+      localStreamRef.current = stream;
+      return stream;
+    } catch (error) {
+      const denied = error instanceof DOMException && ["NotAllowedError", "SecurityError"].includes(error.name);
+      throw new Error(denied
+        ? "Microphone access is blocked. Allow microphone access for this site in your phone settings, then try again."
+        : "The microphone is unavailable. Close other calling apps and try again.");
+    }
+  }
 
   async function playRemoteAudio(activeCall: Call | null) {
     const audio = remoteAudioRef.current;
@@ -103,6 +128,7 @@ export function LeadCallingPanel({
           await activeCall.hangup().catch(() => undefined);
         }
         await activeClient?.disconnect().catch(() => undefined);
+        stopLocalAudio();
       })();
     };
   }, [leadId]);
@@ -121,6 +147,7 @@ export function LeadCallingPanel({
     setCallState("connecting");
     let callLogId = "";
     try {
+      const localStream = await requestMicrophone();
       const tokenResponse = await fetch("/api/calls/token");
       const tokenData = await tokenResponse.json();
       if (!tokenResponse.ok) throw new Error(tokenData.error || "Unable to initialize Telnyx.");
@@ -160,6 +187,7 @@ export function LeadCallingPanel({
         destinationNumber: callablePhone,
         callerNumber: tokenData.callerNumber,
         audio: true,
+        localStream,
         remoteElement: remoteAudioRef.current ?? undefined,
         customHeaders: [{ name: "X-Call-Log-ID", value: callLogId }]
       });
@@ -180,6 +208,7 @@ export function LeadCallingPanel({
         setCallState("idle");
         setMessage(wasConnected ? "Call ended. Add an outcome while the conversation is fresh." : `Call failed${code ? ` (${code})` : ""}: ${reason}`);
         callRef.current = null;
+        stopLocalAudio();
         setShowManual(true);
         void loadCalls();
       };
@@ -211,6 +240,7 @@ export function LeadCallingPanel({
       await clientRef.current?.disconnect().catch(() => undefined);
       clientRef.current = null;
       callRef.current = null;
+      stopLocalAudio();
       setCallState("idle");
       setMessage(error instanceof Error ? error.message : "Unable to start the call.");
       if (callLogId) await patchCall(callLogId, { status: "failed" });
