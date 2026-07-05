@@ -1,9 +1,7 @@
-import { completeDbAutomation, createDbDemoLeads, createDbLeadsFromPlaces, discoverEmailForLead, sendTrackedEmailOutreach } from "@/lib/dbStore";
+import { completeDbAutomation, createDbDemoLeads, createDbLeadsFromPlaces, discoverEmailForLead } from "@/lib/dbStore";
 import { fetchPlacesLeads } from "@/lib/providers";
 import { qualifyPlaceCandidates } from "@/lib/leadQualification";
 import type { AutomationResult } from "@/lib/types";
-
-const DAILY_EMAIL_CAP = 150;
 
 export async function runAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number }): Promise<AutomationResult> {
   const logs: string[] = [];
@@ -36,16 +34,7 @@ export async function runAutomation(region: string, options?: { city?: string; c
       }
       logs.push(`Enriched ${lead.company_name}: website=${lead.website ? "yes" : "no"}, phone=${lead.phone ? "yes" : "no"}, email=${lead.email ? "yes" : "no"}, score=${lead.lead_score}.`);
 
-      if (emailsSent < DAILY_EMAIL_CAP) {
-        const emailResult = await sendTrackedEmailOutreach(lead);
-        if (emailResult.sent) {
-          emailsSent += 1;
-          logs.push(`Email ${emailResult.status} for ${lead.company_name}.`);
-        } else {
-          if (emailResult.status === "failed") failedCount += 1;
-          logs.push(`Email skipped for ${lead.company_name}: ${emailResult.reason}.`);
-        }
-      }
+      logs.push(`Outreach for ${lead.company_name} is waiting for admin approval.`);
 
       logs.push(`WhatsApp number identification ${lead.phone ? "available from phone data" : "pending phone data"} for ${lead.company_name}.`);
     }

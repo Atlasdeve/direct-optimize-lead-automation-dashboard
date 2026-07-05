@@ -697,6 +697,81 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
   }
 }
 
+export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: { trackingLogId?: string }) {
+  if (lead.unsubscribed || lead.do_not_contact || !lead.email) {
+    return { sent: false, status: "skipped", reason: "Missing email, unsubscribed, or do-not-contact" };
+  }
+  if (!emailSendingEnabled()) {
+    return { sent: false, status: "skipped", reason: "Live email sending is disabled by OUTREACH_EMAIL_SEND_ENABLED" };
+  }
+  if (isDemoRecipient(lead.email)) {
+    return { sent: false, status: "skipped", reason: "Demo/reserved recipient domain" };
+  }
+  if (!brevoConfigured() && !smtpConfigured()) {
+    return { sent: false, status: "skipped", reason: "Brevo or SMTP is not configured" };
+  }
+
+  const greetingName = lead.manager_name ?? lead.owner_name ?? lead.decision_maker_name ?? "there";
+  const original = buildPersonalizedEmail(lead);
+  const subject = `Re: ${original.subject}`;
+  const body = stage === 1
+    ? [
+        `Hi ${greetingName},`,
+        "",
+        `I wanted to follow up on the visibility audit I sent for ${lead.company_name}.`,
+        "The audit highlights the website and Google Business Profile improvements most likely to strengthen local enquiries.",
+        "",
+        "Would a short call this week be useful to review the highest-priority fixes?",
+        "",
+        "Best,",
+        "Direct Optimize",
+        "",
+        "To opt out of future messages, reply with Unsubscribe."
+      ].join("\n")
+    : [
+        `Hi ${greetingName},`,
+        "",
+        `I am closing the loop on the audit for ${lead.company_name}.`,
+        "If improving local search visibility, the website, or Google Business Profile becomes a priority, I would be happy to walk you through the recommendations.",
+        "",
+        "Should I keep this open for a future conversation?",
+        "",
+        "Best,",
+        "Direct Optimize",
+        "",
+        "To opt out of future messages, reply with Unsubscribe."
+      ].join("\n");
+
+  try {
+    if (brevoConfigured()) {
+      const info = await sendViaBrevo({
+        to: lead.email,
+        subject,
+        text: body,
+        html: buildTrackedEmailHtml(body, options?.trackingLogId),
+        tags: [`lead-follow-up-${stage}`]
+      });
+      return { sent: true, status: "sent", provider: "brevo", providerId: info.messageId, message: { subject, body } };
+    }
+
+    const info = await createSmtpTransport().sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: lead.email,
+      subject,
+      text: body,
+      html: buildTrackedEmailHtml(body, options?.trackingLogId),
+      headers: {
+        "X-Entity-Ref-ID": lead.id,
+        "X-Direct-Optimize-Log-ID": options?.trackingLogId ?? lead.id,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+      }
+    });
+    return { sent: true, status: "sent", provider: "smtp", providerId: info.messageId, message: { subject, body } };
+  } catch (error) {
+    return { sent: false, status: "failed", reason: error instanceof Error ? error.message : "Follow-up email failed", message: { subject, body } };
+  }
+}
+
 export async function verifySmtpConnection() {
   if (!smtpConfigured()) {
     return { ok: false, reason: "SMTP_HOST, SMTP_USER, or SMTP_PASS is missing" };

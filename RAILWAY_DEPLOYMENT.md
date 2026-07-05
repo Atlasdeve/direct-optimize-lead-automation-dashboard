@@ -98,7 +98,7 @@ IMAP_USER=
 IMAP_PASS=
 ```
 
-The worker runs scheduled lead discovery and reply sync.
+The worker runs scheduled lead discovery, approved outreach every 10 minutes, day-3/day-7 follow-ups, reply sync, and employee reminders.
 
 ## 5. First login
 

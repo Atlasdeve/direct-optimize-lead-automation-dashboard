@@ -5,7 +5,7 @@ import Link from "next/link";
 import { RegionTabs } from "@/components/RegionTabs";
 import type { Lead } from "@/lib/types";
 
-const columns = ["New", "Follow-up", "Contacted", "Replied", "Meeting Booked", "Closed", "Failed"];
+const columns = ["New", "Approved", "Contacted", "Follow-up", "Replied", "Meeting Booked", "Closed", "Failed"];
 
 export function PipelineBoard() {
   const [region, setRegion] = useState("Canada");
@@ -27,7 +27,7 @@ export function PipelineBoard() {
         <h1 className="mt-2 text-4xl font-semibold text-white">Lead pipeline board</h1>
       </header>
       <RegionTabs selected={region} onSelect={setRegion} />
-      <section className="grid gap-4 xl:grid-cols-7">
+      <section className="grid gap-4 xl:grid-cols-4 2xl:grid-cols-8">
         {columns.map((column) => (
           <div key={column} className="glass min-h-60 rounded-xl p-3">
             <div className="mb-3 flex items-center justify-between">

@@ -8,7 +8,7 @@ import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntellig
 import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { enrichLeadWithProviders } from "@/lib/leadEnrichment";
 import { hasWhatsappContactSignal } from "@/lib/whatsappIdentification";
-import { sendEmailOutreach } from "@/lib/providers";
+import { sendEmailFollowUp, sendEmailOutreach } from "@/lib/providers";
 import type { AutomationResult, Lead, PlaceLeadCandidate } from "@/lib/types";
 
 type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
@@ -16,6 +16,48 @@ type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
 };
 
 export type ReviewQueueKey = "needs_review" | "approved" | "do_not_contact" | "contacted" | "replied" | "contact_forms";
+
+export type OutreachAutomationSettings = {
+  firstFollowUpDays: number;
+  finalFollowUpDays: number;
+  batchSize: number;
+};
+
+const outreachSettingsKey = "outreach_automation";
+
+export async function getOutreachAutomationSettings(): Promise<OutreachAutomationSettings> {
+  const defaults: OutreachAutomationSettings = {
+    firstFollowUpDays: Number(process.env.FIRST_FOLLOW_UP_DAYS || 3),
+    finalFollowUpDays: Number(process.env.FINAL_FOLLOW_UP_DAYS || 7),
+    batchSize: Number(process.env.OUTREACH_AUTOMATION_BATCH_SIZE || 10)
+  };
+  const setting = await prisma.setting.findUnique({ where: { key: outreachSettingsKey } });
+  const value = setting?.value && typeof setting.value === "object" && !Array.isArray(setting.value)
+    ? setting.value as Record<string, unknown>
+    : {};
+  const firstFollowUpDays = Math.max(1, Math.min(14, Number(value.firstFollowUpDays) || defaults.firstFollowUpDays));
+  return {
+    firstFollowUpDays,
+    finalFollowUpDays: Math.max(firstFollowUpDays + 1, Math.min(30, Number(value.finalFollowUpDays) || defaults.finalFollowUpDays)),
+    batchSize: Math.max(1, Math.min(50, Number(value.batchSize) || defaults.batchSize))
+  };
+}
+
+export async function saveOutreachAutomationSettings(input: Partial<OutreachAutomationSettings>) {
+  const current = await getOutreachAutomationSettings();
+  const firstFollowUpDays = Math.max(1, Math.min(14, Number(input.firstFollowUpDays) || current.firstFollowUpDays));
+  const value: OutreachAutomationSettings = {
+    firstFollowUpDays,
+    finalFollowUpDays: Math.max(firstFollowUpDays + 1, Math.min(30, Number(input.finalFollowUpDays) || current.finalFollowUpDays)),
+    batchSize: Math.max(1, Math.min(50, Number(input.batchSize) || current.batchSize))
+  };
+  await prisma.setting.upsert({
+    where: { key: outreachSettingsKey },
+    update: { value },
+    create: { key: outreachSettingsKey, value }
+  });
+  return value;
+}
 
 export function toLead(lead: DbLead): Lead {
   return {
@@ -36,6 +78,10 @@ export function toLead(lead: DbLead): Lead {
     ceo_name: lead.ceoName,
     manager_name: lead.managerName,
     linkedin_url: lead.linkedinUrl,
+    decision_maker_name: lead.decisionMakerName,
+    decision_maker_title: lead.decisionMakerTitle,
+    decision_maker_source: lead.decisionMakerSource,
+    decision_maker_confidence: lead.decisionMakerConfidence,
     source_platform: lead.sourcePlatform,
     lead_score: lead.leadScore,
     outreach_status: lead.outreachStatus as Lead["outreach_status"],
@@ -640,13 +686,14 @@ export async function sendTrackedEmailOutreach(lead: Lead) {
 
   if (result.sent) {
     const now = new Date();
+    const schedule = await getOutreachAutomationSettings();
     await prisma.lead.update({
       where: { id: lead.id },
       data: {
         outreachStatus: "Contacted",
         emailSent: true,
         lastContactedAt: now,
-        nextFollowUpAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+        nextFollowUpAt: new Date(now.getTime() + schedule.firstFollowUpDays * 24 * 60 * 60 * 1000)
       }
     });
     await prisma.outreachLog.update({
@@ -856,7 +903,7 @@ export async function approveLeadForOutreach(leadId: string) {
       outreachApprovedAt: new Date(),
       doNotContact: false,
       unsubscribed: false,
-      outreachStatus: "Follow-up"
+      outreachStatus: "Approved"
     },
     include: {
       contacts: {
@@ -1048,6 +1095,7 @@ export async function enrichLeadForDetails(lead: Lead) {
   const hunterEmail = enrichment.hunter.emails
     .filter((email) => email.value)
     .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))[0]?.value;
+  const decisionMaker = enrichment.hunter.decisionMaker;
   const nextWebsite = lead.website ?? place.website ?? null;
   const nextPhone = lead.phone ?? place.phone ?? null;
   const nextEmail = lead.email ?? hunterEmail ?? null;
@@ -1080,6 +1128,14 @@ export async function enrichLeadForDetails(lead: Lead) {
       googleMapsUrl: lead.google_maps_url ?? place.googleMapsUrl ?? null,
       phone: nextPhone,
       email: nextEmail,
+      ownerName: decisionMaker?.roleGroup === "owner" ? decisionMaker.name : lead.owner_name,
+      ceoName: decisionMaker?.roleGroup === "executive" ? decisionMaker.name : lead.ceo_name,
+      managerName: decisionMaker?.roleGroup === "manager" ? decisionMaker.name : lead.manager_name,
+      linkedinUrl: decisionMaker?.linkedinUrl ?? lead.linkedin_url,
+      decisionMakerName: decisionMaker?.name ?? lead.decision_maker_name,
+      decisionMakerTitle: decisionMaker?.title ?? lead.decision_maker_title,
+      decisionMakerSource: decisionMaker ? "Hunter Domain Search" : lead.decision_maker_source,
+      decisionMakerConfidence: decisionMaker?.confidence ?? lead.decision_maker_confidence,
       whatsappAvailable: hasWhatsappContactSignal(nextPhone),
       whatsappStatus: hasWhatsappContactSignal(nextPhone) ? "available" : lead.whatsapp_status,
       rating: nextRating,
@@ -1133,7 +1189,7 @@ export async function enrichLeadForDetails(lead: Lead) {
       status: place.error && enrichment.hunter.error && enrichment.builtWith.error ? "failed" : "completed",
       message: [
         place.error ? `Google: ${place.error}` : "Google Places details checked",
-        enrichment.hunter.error ? `Hunter: ${enrichment.hunter.error}` : `Hunter emails: ${enrichment.hunter.emails.length}`,
+        enrichment.hunter.error ? `Hunter: ${enrichment.hunter.error}` : `Hunter contacts: ${enrichment.hunter.emails.length}; decision maker: ${decisionMaker?.name ?? "not found"}`,
         enrichment.builtWith.error ? `BuiltWith: ${enrichment.builtWith.error}` : `BuiltWith tech: ${enrichment.builtWith.technologies.length}`
       ].join(" | "),
       metadata: {
@@ -1149,6 +1205,7 @@ export async function enrichLeadForDetails(lead: Lead) {
           domain: enrichment.hunter.domain,
           organization: enrichment.hunter.organization,
           emails: enrichment.hunter.emails.slice(0, 5),
+          decisionMaker,
           error: enrichment.hunter.error
         },
         builtWith: {
@@ -1173,6 +1230,7 @@ export async function enrichLeadForDetails(lead: Lead) {
     emailAdded: !lead.email && Boolean(nextEmail),
     websiteAdded: !lead.website && Boolean(nextWebsite),
     phoneAdded: !lead.phone && Boolean(nextPhone),
+    decisionMakerFound: Boolean(decisionMaker),
     providerErrors: [place.error, enrichment.hunter.configured ? enrichment.hunter.error : null, enrichment.builtWith.configured ? enrichment.builtWith.error : null].filter(Boolean) as string[]
   };
 }
@@ -1245,33 +1303,44 @@ export async function outreachReadiness(region?: string) {
   };
 }
 
-function sendingWindowStatus() {
+function sendingWindowStatus(region?: string) {
   const businessHoursOnly = process.env.OUTREACH_EMAIL_BUSINESS_HOURS_ONLY !== "false";
-  const now = new Date();
-  const hour = now.getHours();
-  const day = now.getDay();
-  const inBusinessWindow = day >= 1 && day <= 5 && hour >= 9 && hour < 17;
+  const timezone = region ? getRegion(region).timezone : "UTC";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    weekday: "short",
+    hour: "2-digit",
+    hour12: false
+  }).formatToParts(new Date());
+  const weekday = parts.find((part) => part.type === "weekday")?.value ?? "Sun";
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const inBusinessWindow = ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(weekday) && hour >= 9 && hour < 17;
   return {
     businessHoursOnly,
     inBusinessWindow,
-    allowed: !businessHoursOnly || inBusinessWindow
+    allowed: !businessHoursOnly || inBusinessWindow,
+    timezone
   };
 }
 
-export async function sendApprovedEmails({ region, limit = 25 }: { region?: string; limit?: number }) {
+async function remainingDailyEmailAllowance() {
   const dailyCap = Number(process.env.DAILY_EMAIL_CAP || 150);
-  const window = sendingWindowStatus();
   const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  startOfDay.setUTCHours(0, 0, 0, 0);
   const sentToday = await prisma.outreachLog.count({
     where: {
       channel: "email",
-      action: "send_outreach",
+      action: { in: ["send_outreach", "send_follow_up_1", "send_follow_up_2"] },
       status: "completed",
       createdAt: { gte: startOfDay }
     }
   });
-  const remaining = Math.max(0, dailyCap - sentToday);
+  return Math.max(0, dailyCap - sentToday);
+}
+
+export async function sendApprovedEmails({ region, limit = 25 }: { region?: string; limit?: number }) {
+  const window = sendingWindowStatus(region);
+  const remaining = await remainingDailyEmailAllowance();
   const take = Math.max(0, Math.min(limit, remaining));
 
   if (!window.allowed) {
@@ -1282,7 +1351,7 @@ export async function sendApprovedEmails({ region, limit = 25 }: { region?: stri
       failed: 0,
       remaining,
       liveSendingEnabled: process.env.OUTREACH_EMAIL_SEND_ENABLED === "true",
-      logs: ["Business-hours safety is enabled; sending is paused outside Monday-Friday 9:00-17:00 server time."]
+      logs: [`Business-hours safety is enabled; sending is paused outside Monday-Friday 9:00-17:00 in ${window.timezone}.`]
     };
   }
 
@@ -1346,6 +1415,129 @@ export async function sendApprovedEmails({ region, limit = 25 }: { region?: stri
     liveSendingEnabled: process.env.OUTREACH_EMAIL_SEND_ENABLED === "true",
     logs
   };
+}
+
+export async function processDueFollowUps({ region, limit = 25 }: { region?: string; limit?: number }) {
+  const window = sendingWindowStatus(region);
+  const remaining = await remainingDailyEmailAllowance();
+  const take = Math.max(0, Math.min(limit, remaining));
+  if (!window.allowed) {
+    return { attempted: 0, sent: 0, skipped: 0, failed: 0, remaining, logs: [`Follow-ups are paused outside Monday-Friday 9:00-17:00 in ${window.timezone}.`] };
+  }
+  if (take === 0) {
+    return { attempted: 0, sent: 0, skipped: 0, failed: 0, remaining, logs: ["Daily email cap reached or follow-up limit is zero."] };
+  }
+
+  const rows = await prisma.lead.findMany({
+    where: {
+      ...(region ? { region } : {}),
+      outreachApproved: true,
+      email: { not: null },
+      emailSent: true,
+      replied: false,
+      unsubscribed: false,
+      doNotContact: false,
+      nextFollowUpAt: { lte: new Date() }
+    },
+    include: {
+      contacts: {
+        where: { type: "contact_form" },
+        select: { type: true, value: true }
+      },
+      outreachLogs: {
+        where: { action: { in: ["send_follow_up_1", "send_follow_up_2"] }, status: { in: ["pending", "completed"] } },
+        select: { action: true, status: true },
+        orderBy: { createdAt: "asc" }
+      }
+    },
+    orderBy: { nextFollowUpAt: "asc" },
+    take
+  });
+
+  const schedule = await getOutreachAutomationSettings();
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+  const logs: string[] = [];
+
+  for (const row of rows) {
+    const completed = row.outreachLogs.filter((log) => log.status === "completed");
+    const hasPending = row.outreachLogs.some((log) => log.status === "pending");
+    if (hasPending) {
+      skipped += 1;
+      logs.push(`${row.companyName}: a follow-up delivery is already pending.`);
+      continue;
+    }
+    if (completed.length >= 2) {
+      await prisma.lead.update({ where: { id: row.id }, data: { nextFollowUpAt: null } });
+      skipped += 1;
+      continue;
+    }
+
+    const stage = (completed.length + 1) as 1 | 2;
+    const action = `send_follow_up_${stage}`;
+    const pendingLog = await prisma.outreachLog.create({
+      data: {
+        leadId: row.id,
+        channel: "email",
+        action,
+        status: "pending",
+        message: `Follow-up ${stage} queued for delivery.`,
+        metadata: { to: row.email, stage, trackingEnabled: true }
+      }
+    });
+    const result = await sendEmailFollowUp(toLead(row), stage, { trackingLogId: pendingLog.id });
+    if (result.sent) {
+      const now = new Date();
+      const gapDays = Math.max(1, schedule.finalFollowUpDays - schedule.firstFollowUpDays);
+      await prisma.lead.update({
+        where: { id: row.id },
+        data: {
+          outreachStatus: "Follow-up",
+          lastContactedAt: now,
+          nextFollowUpAt: stage === 1 ? new Date(now.getTime() + gapDays * 24 * 60 * 60 * 1000) : null
+        }
+      });
+      await prisma.outreachLog.update({
+        where: { id: pendingLog.id },
+        data: {
+          status: "completed",
+          providerId: result.providerId,
+          message: `Follow-up ${stage} sent with open tracking enabled.`,
+          metadata: { to: row.email, stage, subject: result.message?.subject ?? null, trackingEnabled: true, providerStatus: result.status }
+        }
+      });
+      sent += 1;
+      logs.push(`Sent follow-up ${stage} to ${row.companyName}.`);
+    } else {
+      await prisma.outreachLog.update({
+        where: { id: pendingLog.id },
+        data: { status: result.status, message: result.reason ?? `Follow-up ${stage} was not sent.` }
+      });
+      if (result.status === "failed") failed += 1;
+      else skipped += 1;
+      logs.push(`${row.companyName}: ${result.reason ?? result.status}.`);
+    }
+  }
+
+  return { attempted: rows.length, sent, skipped, failed, remaining: Math.max(0, remaining - sent), logs };
+}
+
+export async function runOutreachAutomationCycle(region: string) {
+  const settings = await getOutreachAutomationSettings();
+  const initial = await sendApprovedEmails({ region, limit: settings.batchSize });
+  const followUps = await processDueFollowUps({ region, limit: Math.max(0, settings.batchSize - initial.sent) });
+  const sent = initial.sent + followUps.sent;
+  const failed = initial.failed + followUps.failed;
+  if (sent > 0 || failed > 0) {
+    await createAppNotification({
+      type: failed > 0 ? "failure" : "automation",
+      title: failed > 0 ? "Outreach automation needs attention" : "Outreach automation completed",
+      message: `${region}: ${initial.sent} initial email(s), ${followUps.sent} follow-up(s), ${failed} failure(s).`,
+      actionUrl: "/automation"
+    });
+  }
+  return { region, initial, followUps, sent, failed };
 }
 
 export async function duplicateLeadSignals(region?: string) {

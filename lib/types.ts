@@ -18,9 +18,13 @@ export type Lead = {
   ceo_name?: string | null;
   manager_name?: string | null;
   linkedin_url?: string | null;
+  decision_maker_name?: string | null;
+  decision_maker_title?: string | null;
+  decision_maker_source?: string | null;
+  decision_maker_confidence?: number | null;
   source_platform: string;
   lead_score: number;
-  outreach_status: "New" | "Contacted" | "Replied" | "Follow-up" | "Meeting Booked" | "Closed" | "Failed";
+  outreach_status: "New" | "Approved" | "Contacted" | "Replied" | "Follow-up" | "Meeting Booked" | "Closed" | "Failed";
   outreach_approved: boolean;
   outreach_approved_at?: string | null;
   email_sent: boolean;

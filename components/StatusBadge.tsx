@@ -2,6 +2,7 @@ import { clsx } from "clsx";
 
 const colors: Record<string, string> = {
   New: "bg-sky-400/14 text-sky-100",
+  Approved: "bg-cyan-400/14 text-cyan-100",
   Contacted: "bg-indigo-400/14 text-indigo-100",
   Replied: "bg-emerald-400/14 text-emerald-100",
   "Follow-up": "bg-amber-400/14 text-amber-100",

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
 import SendIcon from "@mui/icons-material/Send";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
 import EventRepeatIcon from "@mui/icons-material/EventRepeat";
+import SaveIcon from "@mui/icons-material/Save";
 import { RegionTabs } from "@/components/RegionTabs";
 import type { AutomationResult } from "@/lib/types";
 
@@ -17,7 +18,41 @@ export function CampaignBuilder() {
   const [followUpDelay, setFollowUpDelay] = useState(3);
   const [finalDelay, setFinalDelay] = useState(7);
   const [running, setRunning] = useState<"discover" | "enrich" | "emails" | "send" | null>(null);
+  const [savingSchedule, setSavingSchedule] = useState(false);
   const [result, setResult] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/outreach/settings")
+      .then((response) => response.json())
+      .then((data) => {
+        if (!data.settings) return;
+        setFollowUpDelay(data.settings.firstFollowUpDays);
+        setFinalDelay(data.settings.finalFollowUpDays);
+        setDailyLimit(data.settings.batchSize);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  async function saveSchedule() {
+    setSavingSchedule(true);
+    try {
+      const response = await fetch("/api/outreach/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstFollowUpDays: followUpDelay, finalFollowUpDays: finalDelay, batchSize: dailyLimit })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to save the automation schedule.");
+      setFollowUpDelay(data.settings.firstFollowUpDays);
+      setFinalDelay(data.settings.finalFollowUpDays);
+      setDailyLimit(data.settings.batchSize);
+      setResult([`Automation schedule saved: first follow-up after ${data.settings.firstFollowUpDays} days, final follow-up on day ${data.settings.finalFollowUpDays}, batch size ${data.settings.batchSize}.`]);
+    } catch (error) {
+      setResult([error instanceof Error ? error.message : "Unable to save the automation schedule."]);
+    } finally {
+      setSavingSchedule(false);
+    }
+  }
 
   async function runDiscovery() {
     setRunning("discover");
@@ -132,7 +167,7 @@ export function CampaignBuilder() {
               <EventRepeatIcon fontSize="small" className="text-sky-200" />
               Day 1 outreach
             </div>
-            <p className="mt-2 text-sm leading-6 text-slate-400">Send approved personalized email or use contact-form queue when email is missing.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-400">The worker sends approved personalized emails automatically during regional business hours.</p>
           </div>
           <label className="rounded-lg bg-white/6 p-3 text-sm text-slate-300 soft-border">
             Follow-up delay
@@ -163,6 +198,11 @@ export function CampaignBuilder() {
             </div>
           </label>
         </div>
+
+        <button onClick={saveSchedule} disabled={savingSchedule || Boolean(running)} className="mt-3 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white/8 px-4 text-sm font-semibold text-white soft-border hover:bg-white/12 disabled:opacity-60">
+          <SaveIcon fontSize="small" />
+          {savingSchedule ? "Saving..." : "Save automation schedule"}
+        </button>
 
         <div className="mt-5 grid gap-3 md:grid-cols-4">
           <button onClick={runDiscovery} disabled={Boolean(running)} className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 font-semibold text-slate-950 hover:bg-sky-300 disabled:opacity-60">

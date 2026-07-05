@@ -19,6 +19,7 @@ import { CreateProjectFromLeadButton } from "@/components/portal/CreateProjectFr
 import { getProjectByLeadId } from "@/lib/portalStore";
 import { LeadCallingPanel } from "@/components/lead/LeadCallingPanel";
 import { DeleteLeadButton } from "@/components/lead/DeleteLeadButton";
+import { DecisionMakerPanel } from "@/components/lead/DecisionMakerPanel";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -117,6 +118,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </div>
         </section>
       </div>
+
+      <DecisionMakerPanel
+        leadId={lead.id}
+        name={lead.decision_maker_name}
+        title={lead.decision_maker_title}
+        source={lead.decision_maker_source}
+        confidence={lead.decision_maker_confidence}
+        linkedinUrl={lead.linkedin_url}
+      />
 
       <section className="glass rounded-xl p-5">
         <h2 className="mb-3 font-semibold text-white">Notes and compliance</h2>

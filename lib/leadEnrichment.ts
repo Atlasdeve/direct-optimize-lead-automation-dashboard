@@ -27,7 +27,16 @@ export type HunterEnrichment = {
     firstName?: string | null;
     lastName?: string | null;
     position?: string | null;
+    linkedinUrl?: string | null;
   }>;
+  decisionMaker?: {
+    name: string;
+    title: string;
+    email: string;
+    confidence: number;
+    linkedinUrl?: string | null;
+    roleGroup: "owner" | "executive" | "manager";
+  } | null;
   error?: string;
 };
 
@@ -92,10 +101,40 @@ type HunterDomainSearchResponse = {
       first_name?: string;
       last_name?: string;
       position?: string;
+      linkedin?: string;
     }>;
   };
   errors?: Array<{ details?: string; code?: number; id?: string }>;
 };
+
+const decisionMakerRoles: Array<{ pattern: RegExp; score: number; group: "owner" | "executive" | "manager" }> = [
+  { pattern: /\b(owner|founder|co-founder|proprietor)\b/i, score: 100, group: "owner" },
+  { pattern: /\b(chief executive officer|ceo|president)\b/i, score: 90, group: "executive" },
+  { pattern: /\b(managing director|director|partner|principal)\b/i, score: 80, group: "executive" },
+  { pattern: /\b(general manager|office manager|marketing manager|manager)\b/i, score: 65, group: "manager" }
+];
+
+function selectDecisionMaker(emails: HunterEnrichment["emails"]): HunterEnrichment["decisionMaker"] {
+  return emails
+    .map((contact) => {
+      const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ").trim();
+      const title = contact.position?.trim() ?? "";
+      const role = decisionMakerRoles.find((candidate) => candidate.pattern.test(title));
+      if (!name || !title || !role) return null;
+      return {
+        name,
+        title,
+        email: contact.value,
+        confidence: Math.max(0, Math.min(100, contact.confidence ?? 0)),
+        linkedinUrl: contact.linkedinUrl ?? null,
+        roleGroup: role.group,
+        rank: role.score + Math.round((contact.confidence ?? 0) / 10)
+      };
+    })
+    .filter((contact): contact is NonNullable<typeof contact> => Boolean(contact))
+    .sort((a, b) => b.rank - a.rank)
+    .map(({ rank: _rank, ...contact }) => contact)[0] ?? null;
+}
 
 function providerTimeoutMs() {
   return Math.max(3000, Math.min(Number(process.env.LEAD_ENRICHMENT_TIMEOUT_MS || 12000), 30000));
@@ -250,21 +289,24 @@ export async function fetchHunterDomainData(lead: Lead): Promise<HunterEnrichmen
         error: json.errors?.[0]?.details ?? `Hunter failed with ${response.status}.`
       };
     }
+    const emails = (json.data?.emails ?? [])
+      .map((email) => ({
+        value: email.value?.toLowerCase() ?? "",
+        type: email.type ?? null,
+        confidence: email.confidence ?? null,
+        firstName: email.first_name ?? null,
+        lastName: email.last_name ?? null,
+        position: email.position ?? null,
+        linkedinUrl: email.linkedin ?? null
+      }))
+      .filter((email) => Boolean(email.value));
     return {
       provider: "hunter",
       configured: true,
       domain,
       organization: json.data?.organization ?? null,
-      emails: (json.data?.emails ?? [])
-        .map((email) => ({
-          value: email.value?.toLowerCase() ?? "",
-          type: email.type ?? null,
-          confidence: email.confidence ?? null,
-          firstName: email.first_name ?? null,
-          lastName: email.last_name ?? null,
-          position: email.position ?? null
-        }))
-        .filter((email) => Boolean(email.value))
+      emails,
+      decisionMaker: selectDecisionMaker(emails)
     };
   } catch (error) {
     return {
