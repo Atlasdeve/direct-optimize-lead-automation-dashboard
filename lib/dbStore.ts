@@ -184,6 +184,74 @@ export async function deleteDbLead(id: string) {
   return lead;
 }
 
+export type EditableLeadDetails = {
+  companyName: string;
+  city: string | null;
+  category: string | null;
+  businessType: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  googleMapsUrl: string | null;
+  ownerName: string | null;
+  ceoName: string | null;
+  managerName: string | null;
+  decisionMakerName: string | null;
+  decisionMakerTitle: string | null;
+  linkedinUrl: string | null;
+};
+
+export async function updateDbLeadDetails(id: string, details: EditableLeadDetails) {
+  const existing = await prisma.lead.findUnique({ where: { id } });
+  if (!existing) return null;
+
+  const changedFields = Object.entries(details)
+    .filter(([key, value]) => existing[key as keyof typeof existing] !== value)
+    .map(([key]) => key);
+  const phoneHasWhatsapp = hasWhatsappContactSignal(details.phone);
+  const decisionMakerChanged = existing.decisionMakerName !== details.decisionMakerName || existing.decisionMakerTitle !== details.decisionMakerTitle;
+
+  const updated = await prisma.lead.update({
+    where: { id },
+    data: {
+      ...details,
+      whatsappAvailable: phoneHasWhatsapp,
+      whatsappStatus: phoneHasWhatsapp ? "available" : "unknown",
+      decisionMakerSource: decisionMakerChanged && details.decisionMakerName ? "Manual edit" : existing.decisionMakerSource,
+      decisionMakerConfidence: decisionMakerChanged && details.decisionMakerName ? 100 : existing.decisionMakerConfidence
+    },
+    include: {
+      contacts: {
+        where: { type: "contact_form" },
+        select: { type: true, value: true }
+      }
+    }
+  });
+
+  if (details.email && details.email !== existing.email) {
+    await prisma.leadContact.upsert({
+      where: { id: enrichmentContactId("email", id, details.email) },
+      update: { status: "manual" },
+      create: { id: enrichmentContactId("email", id, details.email), leadId: id, type: "email", value: details.email, status: "manual" }
+    });
+  }
+
+  if (changedFields.length > 0) {
+    await prisma.outreachLog.create({
+      data: {
+        leadId: id,
+        channel: "system",
+        action: "lead_details_updated",
+        status: "completed",
+        message: `Lead details updated manually: ${changedFields.join(", ")}.`,
+        metadata: { changedFields }
+      }
+    });
+  }
+
+  return toLead(updated);
+}
+
 export async function getDbLeadContacts(leadId: string) {
   return prisma.leadContact.findMany({
     where: { leadId },

@@ -155,17 +155,29 @@ export async function syncInboxReplies() {
         }
       });
 
-      const draft = await draftAiReply(toLead(lead), body);
-      if (draft) {
-        await prisma.aiReplyDraft.create({
+      try {
+        const draft = await draftAiReply(toLead(lead), body);
+        if (draft) {
+          await prisma.aiReplyDraft.create({
+            data: {
+              leadId: lead.id,
+              replyId: reply.id,
+              draft,
+              status: "needs_review"
+            }
+          });
+          drafted += 1;
+        }
+      } catch (error) {
+        await prisma.outreachLog.create({
           data: {
             leadId: lead.id,
-            replyId: reply.id,
-            draft,
-            status: "needs_review"
+            channel: "system",
+            action: "ai_reply_draft",
+            status: "failed",
+            message: error instanceof Error ? `Reply stored, but AI drafting failed: ${error.message}` : "Reply stored, but AI drafting failed."
           }
         });
-        drafted += 1;
       }
     }
 

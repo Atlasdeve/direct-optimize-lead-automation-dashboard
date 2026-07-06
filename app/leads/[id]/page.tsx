@@ -20,6 +20,7 @@ import { getProjectByLeadId } from "@/lib/portalStore";
 import { LeadCallingPanel } from "@/components/lead/LeadCallingPanel";
 import { DeleteLeadButton } from "@/components/lead/DeleteLeadButton";
 import { DecisionMakerPanel } from "@/components/lead/DecisionMakerPanel";
+import { EditLeadDetailsButton } from "@/components/lead/EditLeadDetailsButton";
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -72,7 +73,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </div>
           <div className="flex flex-col items-stretch gap-3 sm:items-end">
             <StatusBadge status={lead.outreach_status} />
-            <DeleteLeadButton leadId={lead.id} companyName={lead.company_name} />
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <EditLeadDetailsButton lead={lead} />
+              <DeleteLeadButton leadId={lead.id} companyName={lead.company_name} />
+            </div>
           </div>
         </div>
       </div>
