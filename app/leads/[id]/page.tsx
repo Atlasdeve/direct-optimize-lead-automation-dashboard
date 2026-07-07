@@ -64,7 +64,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="glass rounded-xl p-6">
-        <Link href="/" className="text-sm text-sky-200">Back to dashboard</Link>
+        <Link href={`/dashboard?region=${encodeURIComponent(lead.region)}`} className="text-sm text-sky-200">Back to {lead.region} leads</Link>
         <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <h1 className="text-4xl font-semibold text-white">{lead.company_name}</h1>

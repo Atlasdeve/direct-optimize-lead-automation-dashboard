@@ -28,6 +28,8 @@ export type Lead = {
   outreach_approved: boolean;
   outreach_approved_at?: string | null;
   email_sent: boolean;
+  email_opened?: boolean;
+  voice_called?: boolean;
   whatsapp_sent: boolean;
   replied: boolean;
   last_contacted_at?: string | null;

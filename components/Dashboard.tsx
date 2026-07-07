@@ -6,7 +6,9 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import EmailIcon from "@mui/icons-material/Email";
+import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead";
 import PhoneIcon from "@mui/icons-material/Phone";
+import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import LanguageIcon from "@mui/icons-material/Language";
 import ContactPageIcon from "@mui/icons-material/ContactPage";
 import PlaceIcon from "@mui/icons-material/Place";
@@ -124,8 +126,22 @@ function ChannelIconLink({
   );
 }
 
-export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
-  const [selectedRegion, setSelectedRegion] = useState("Canada");
+function ActivityFlag({ active, label, children }: { active: boolean; label: string; children: React.ReactNode }) {
+  return (
+    <span
+      aria-label={`${label}: ${active ? "yes" : "no"}`}
+      title={`${label}: ${active ? "Yes" : "No"}`}
+      className={active
+        ? "grid h-7 w-7 place-items-center rounded-md bg-emerald-400/14 text-emerald-200 soft-border"
+        : "grid h-7 w-7 place-items-center rounded-md bg-white/5 text-slate-600 soft-border"}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mode?: DashboardMode; initialRegion?: string }) {
+  const [selectedRegion, setSelectedRegion] = useState(() => getRegion(initialRegion).name);
   const [leads, setLeads] = useState(() => listLeads(selectedRegion));
   const [allLeads, setAllLeads] = useState(() => listLeads());
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => listNotifications());
@@ -191,6 +207,9 @@ export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
       if (contactFilter === "form" && (lead.contact_forms?.length ?? 0) === 0) return false;
       if (contactFilter === "whatsapp" && !whatsappNumberFromPhone(lead.phone)) return false;
       if (contactFilter === "missing_email" && lead.email) return false;
+      if (contactFilter === "email_sent" && !lead.email_sent) return false;
+      if (contactFilter === "email_opened" && !lead.email_opened) return false;
+      if (contactFilter === "voice_called" && !lead.voice_called) return false;
       if (scoreFilter === "high" && lead.lead_score < 70) return false;
       if (scoreFilter === "medium" && (lead.lead_score < 40 || lead.lead_score >= 70)) return false;
       if (scoreFilter === "low" && lead.lead_score >= 40) return false;
@@ -212,8 +231,10 @@ export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
       setNotifications(notificationData.notifications ?? []);
     }
     void loadRegionData();
+    const timer = window.setInterval(() => void loadRegionData(), 30000);
     return () => {
       active = false;
+      window.clearInterval(timer);
     };
   }, [selectedRegion]);
 
@@ -308,8 +329,14 @@ export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
   }
 
   function selectRegion(nextRegion: string) {
-    setSelectedRegion(nextRegion);
+    const normalizedRegion = getRegion(nextRegion).name;
+    setSelectedRegion(normalizedRegion);
     setResult(null);
+    if (mode === "leads") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("region", normalizedRegion);
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
+    }
   }
 
   return (
@@ -523,6 +550,7 @@ export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
                   <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 w-full rounded-lg border border-line bg-black/20 pl-10 pr-3 text-sm text-white outline-none focus:border-sky-300">
                     <option value="all">All statuses</option>
                     <option value="New">New</option>
+                    <option value="Approved">Approved</option>
                     <option value="Follow-up">Follow-up</option>
                     <option value="Contacted">Contacted</option>
                     <option value="Replied">Replied</option>
@@ -538,6 +566,9 @@ export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
                   <option value="phone">Has phone</option>
                   <option value="form">Has form</option>
                   <option value="whatsapp">WhatsApp shortcut</option>
+                  <option value="email_sent">Email sent</option>
+                  <option value="email_opened">Email opened</option>
+                  <option value="voice_called">Voice called</option>
                 </select>
                 <select value={scoreFilter} onChange={(event) => setScoreFilter(event.target.value)} className="h-11 rounded-lg border border-line bg-black/20 px-3 text-sm text-white outline-none focus:border-sky-300">
                   <option value="all">All scores</option>
@@ -549,11 +580,11 @@ export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
             )}
           </div>
           <div className="divide-y divide-line">
-            <div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(0,1.05fr)_90px_104px_minmax(0,1fr)] gap-3 bg-white/5 px-5 py-3 text-xs uppercase text-slate-400 lg:grid">
+            <div className="hidden grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_90px_170px_minmax(0,1fr)] gap-3 bg-white/5 px-5 py-3 text-xs uppercase text-slate-400 lg:grid">
               <div>Company</div>
               <div>Contact</div>
               <div>Score</div>
-              <div>Status</div>
+              <div>Status & activity</div>
               <div>Channels</div>
             </div>
             {filteredLeads.map((lead) => {
@@ -563,7 +594,7 @@ export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
               return (
                 <div
                   key={lead.id}
-                  className="grid gap-4 px-5 py-4 text-sm lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.05fr)_90px_104px_minmax(0,1fr)] lg:items-center lg:gap-3"
+                  className="grid gap-4 px-5 py-4 text-sm lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_90px_170px_minmax(0,1fr)] lg:items-center lg:gap-3"
                 >
                   <div className="min-w-0">
                     <Link href={`/leads/${lead.id}`} className="block truncate font-medium text-white hover:text-sky-200">
@@ -598,6 +629,11 @@ export function Dashboard({ mode = "overview" }: { mode?: DashboardMode }) {
 
                   <div>
                     <StatusBadge status={lead.outreach_status} />
+                    <div className="mt-2 flex gap-1.5">
+                      <ActivityFlag active={lead.email_sent} label="Email sent"><SendIcon sx={{ fontSize: 15 }} /></ActivityFlag>
+                      <ActivityFlag active={Boolean(lead.email_opened)} label="Email opened"><MarkEmailReadIcon sx={{ fontSize: 15 }} /></ActivityFlag>
+                      <ActivityFlag active={Boolean(lead.voice_called)} label="Voice called"><PhoneInTalkIcon sx={{ fontSize: 15 }} /></ActivityFlag>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap gap-2 text-slate-300">

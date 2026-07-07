@@ -1,5 +1,6 @@
 import { Dashboard } from "@/components/Dashboard";
 
-export default function DashboardPage() {
-  return <Dashboard mode="leads" />;
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ region?: string }> }) {
+  const { region } = await searchParams;
+  return <Dashboard mode="leads" initialRegion={region} />;
 }

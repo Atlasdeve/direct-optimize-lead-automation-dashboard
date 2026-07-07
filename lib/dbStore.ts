@@ -13,6 +13,8 @@ import type { AutomationResult, Lead, PlaceLeadCandidate } from "@/lib/types";
 
 type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
   contacts?: Array<{ type: string; value: string }>;
+  outreachLogs?: Array<{ openCount?: number; status?: string; action?: string }>;
+  callLogs?: Array<{ id: string }>;
 };
 
 export type ReviewQueueKey = "needs_review" | "approved" | "do_not_contact" | "contacted" | "replied" | "contact_forms";
@@ -88,6 +90,8 @@ export function toLead(lead: DbLead): Lead {
     outreach_approved: lead.outreachApproved,
     outreach_approved_at: lead.outreachApprovedAt?.toISOString() ?? null,
     email_sent: lead.emailSent,
+    email_opened: lead.outreachLogs?.some((log) => (log.openCount ?? 0) > 0) ?? false,
+    voice_called: (lead.callLogs?.length ?? 0) > 0,
     whatsapp_sent: lead.whatsappSent,
     replied: lead.replied,
     last_contacted_at: lead.lastContactedAt?.toISOString() ?? null,
@@ -113,6 +117,16 @@ export async function listDbLeads(region?: string) {
       contacts: {
         where: { type: "contact_form" },
         select: { type: true, value: true }
+      },
+      outreachLogs: {
+        where: { channel: "email", openCount: { gt: 0 } },
+        select: { openCount: true },
+        take: 1
+      },
+      callLogs: {
+        where: { status: { not: "planned" } },
+        select: { id: true },
+        take: 1
       }
     },
     orderBy: [{ createdAt: "desc" }]
