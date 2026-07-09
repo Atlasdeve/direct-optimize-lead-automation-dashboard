@@ -13,7 +13,7 @@ import type { AutomationResult, Lead, PlaceLeadCandidate } from "@/lib/types";
 
 type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
   contacts?: Array<{ type: string; value: string }>;
-  outreachLogs?: Array<{ openCount?: number; status?: string; action?: string }>;
+  outreachLogs?: Array<{ openCount?: number; clickCount?: number; status?: string; action?: string }>;
   callLogs?: Array<{ id: string }>;
 };
 
@@ -91,6 +91,7 @@ export function toLead(lead: DbLead): Lead {
     outreach_approved_at: lead.outreachApprovedAt?.toISOString() ?? null,
     email_sent: lead.emailSent,
     email_opened: lead.outreachLogs?.some((log) => (log.openCount ?? 0) > 0) ?? false,
+    email_clicked: lead.outreachLogs?.some((log) => (log.clickCount ?? 0) > 0) ?? false,
     voice_called: (lead.callLogs?.length ?? 0) > 0,
     whatsapp_sent: lead.whatsappSent,
     replied: lead.replied,
@@ -119,8 +120,8 @@ export async function listDbLeads(region?: string) {
         select: { type: true, value: true }
       },
       outreachLogs: {
-        where: { channel: "email", openCount: { gt: 0 } },
-        select: { openCount: true },
+        where: { channel: "email", OR: [{ openCount: { gt: 0 } }, { clickCount: { gt: 0 } }] },
+        select: { openCount: true, clickCount: true },
         take: 1
       },
       callLogs: {

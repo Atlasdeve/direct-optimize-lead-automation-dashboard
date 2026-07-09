@@ -7,6 +7,7 @@ import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import EmailIcon from "@mui/icons-material/Email";
 import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead";
+import AdsClickIcon from "@mui/icons-material/AdsClick";
 import PhoneIcon from "@mui/icons-material/Phone";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import LanguageIcon from "@mui/icons-material/Language";
@@ -209,6 +210,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
       if (contactFilter === "missing_email" && lead.email) return false;
       if (contactFilter === "email_sent" && !lead.email_sent) return false;
       if (contactFilter === "email_opened" && !lead.email_opened) return false;
+      if (contactFilter === "email_clicked" && !lead.email_clicked) return false;
       if (contactFilter === "voice_called" && !lead.voice_called) return false;
       if (scoreFilter === "high" && lead.lead_score < 70) return false;
       if (scoreFilter === "medium" && (lead.lead_score < 40 || lead.lead_score >= 70)) return false;
@@ -568,6 +570,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
                   <option value="whatsapp">WhatsApp shortcut</option>
                   <option value="email_sent">Email sent</option>
                   <option value="email_opened">Email opened</option>
+                  <option value="email_clicked">Email clicked</option>
                   <option value="voice_called">Voice called</option>
                 </select>
                 <select value={scoreFilter} onChange={(event) => setScoreFilter(event.target.value)} className="h-11 rounded-lg border border-line bg-black/20 px-3 text-sm text-white outline-none focus:border-sky-300">
@@ -632,6 +635,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
                     <div className="mt-2 flex gap-1.5">
                       <ActivityFlag active={lead.email_sent} label="Email sent"><SendIcon sx={{ fontSize: 15 }} /></ActivityFlag>
                       <ActivityFlag active={Boolean(lead.email_opened)} label="Email opened"><MarkEmailReadIcon sx={{ fontSize: 15 }} /></ActivityFlag>
+                      <ActivityFlag active={Boolean(lead.email_clicked)} label="Email clicked"><AdsClickIcon sx={{ fontSize: 15 }} /></ActivityFlag>
                       <ActivityFlag active={Boolean(lead.voice_called)} label="Voice called"><PhoneInTalkIcon sx={{ fontSize: 15 }} /></ActivityFlag>
                     </div>
                   </div>
