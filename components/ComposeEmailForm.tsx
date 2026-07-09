@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import SendIcon from "@mui/icons-material/Send";
 import PreviewIcon from "@mui/icons-material/Preview";
+import LanguageIcon from "@mui/icons-material/Language";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import { renderBrandedEmailHtml } from "@/lib/brandedEmailTemplate";
 
 const defaultMessage = `Hi there,
@@ -81,13 +83,27 @@ export function ComposeEmailForm() {
           </label>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="block text-sm text-slate-300">
-              CTA label
+              Extra CTA label
               <input value={ctaLabel} onChange={(event) => setCtaLabel(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-line bg-black/20 px-3 text-white outline-none focus:border-sky-300" />
             </label>
             <label className="block text-sm text-slate-300">
-              CTA URL
-              <input value={ctaUrl} onChange={(event) => setCtaUrl(event.target.value)} placeholder="https://directoptimize.com" className="mt-2 h-11 w-full rounded-lg border border-line bg-black/20 px-3 text-white outline-none focus:border-sky-300" />
+              Extra CTA URL
+              <input value={ctaUrl} onChange={(event) => setCtaUrl(event.target.value)} placeholder="Optional custom link" className="mt-2 h-11 w-full rounded-lg border border-line bg-black/20 px-3 text-white outline-none focus:border-sky-300" />
             </label>
+          </div>
+          <div className="rounded-xl border border-line bg-white/5 p-4">
+            <div className="text-sm font-semibold text-white">Default tracked buttons</div>
+            <p className="mt-1 text-sm text-slate-400">These buttons are automatically included in every compose email.</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <a href="https://directoptimize.com" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-300">
+                <LanguageIcon fontSize="small" />
+                Visit Direct Optimize
+              </a>
+              <a href="https://directoptimize.com/client-portal/" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-semibold text-emerald-950 hover:bg-emerald-300">
+                <PersonAddIcon fontSize="small" />
+                Create Your Portal
+              </a>
+            </div>
           </div>
 
           {status && (

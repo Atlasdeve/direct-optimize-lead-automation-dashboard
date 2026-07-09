@@ -4,6 +4,7 @@ export type BrandedEmailInput = {
   body: string;
   ctaLabel?: string;
   ctaUrl?: string;
+  ctas?: Array<{ label: string; url: string; variant?: "primary" | "secondary" }>;
   trackingPixelUrl?: string;
   clickTrackingBaseUrl?: string;
 };
@@ -52,14 +53,42 @@ function paragraphHtml(body: string, clickTrackingBaseUrl?: string) {
     .join("");
 }
 
+const defaultCtas = [
+  { label: "Visit Direct Optimize", url: "https://directoptimize.com", variant: "primary" as const },
+  { label: "Create Your Portal", url: "https://directoptimize.com/client-portal/", variant: "secondary" as const }
+];
+
+function emailCtas(input: BrandedEmailInput) {
+  const provided = [
+    ...(input.ctas ?? []),
+    input.ctaLabel && input.ctaUrl ? { label: input.ctaLabel, url: input.ctaUrl, variant: "primary" as const } : null
+  ].filter((item): item is { label: string; url: string; variant?: "primary" | "secondary" } => Boolean(item));
+
+  const merged = [...provided, ...defaultCtas];
+  const seen = new Set<string>();
+  return merged
+    .map((cta) => ({ ...cta, url: normalizeUrl(cta.url) }))
+    .filter((cta): cta is { label: string; url: string; variant?: "primary" | "secondary" } => {
+      if (!cta.url || seen.has(cta.url)) return false;
+      seen.add(cta.url);
+      return true;
+    });
+}
+
 export function renderBrandedEmailHtml(input: BrandedEmailInput) {
-  const ctaUrl = normalizeUrl(input.ctaUrl);
   const preheader = input.preheader || input.heading;
-  const cta = ctaUrl && input.ctaLabel
+  const ctaButtons = emailCtas(input);
+  const cta = ctaButtons.length
     ? `
       <tr>
         <td style="padding:10px 0 4px;">
-          <a href="${escapeHtml(trackedUrl(ctaUrl, input.clickTrackingBaseUrl))}" style="display:inline-block;background:#38bdf8;color:#020617;text-decoration:none;font-weight:700;border-radius:10px;padding:13px 18px;font-size:14px;">${escapeHtml(input.ctaLabel)}</a>
+          ${ctaButtons.map((button) => {
+            const isSecondary = button.variant === "secondary";
+            const style = isSecondary
+              ? "display:inline-block;background:#34d399;color:#022c22;text-decoration:none;font-weight:700;border-radius:10px;padding:13px 18px;font-size:14px;margin:0 10px 10px 0;"
+              : "display:inline-block;background:#38bdf8;color:#020617;text-decoration:none;font-weight:700;border-radius:10px;padding:13px 18px;font-size:14px;margin:0 10px 10px 0;";
+            return `<a href="${escapeHtml(trackedUrl(button.url, input.clickTrackingBaseUrl))}" style="${style}">${escapeHtml(button.label)}</a>`;
+          }).join("")}
         </td>
       </tr>`
     : "";
@@ -131,7 +160,7 @@ export function renderPlainTextEmail(input: BrandedEmailInput) {
     input.heading,
     "",
     input.body,
-    input.ctaLabel && input.ctaUrl ? `\n${input.ctaLabel}: ${input.ctaUrl}` : "",
+    ...emailCtas(input).flatMap((cta) => ["", `${cta.label}: ${cta.url}`]),
     "",
     "Direct Optimize",
     "To opt out, reply with Unsubscribe."
