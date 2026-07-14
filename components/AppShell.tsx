@@ -21,6 +21,7 @@ import AssessmentIcon from "@mui/icons-material/Assessment";
 import DownloadIcon from "@mui/icons-material/Download";
 import WorkIcon from "@mui/icons-material/Work";
 import SettingsIcon from "@mui/icons-material/Settings";
+import NotificationsIcon from "@mui/icons-material/Notifications";
 import ShieldIcon from "@mui/icons-material/Shield";
 import LogoutIcon from "@mui/icons-material/Logout";
 import GroupsIcon from "@mui/icons-material/Groups";
@@ -37,6 +38,7 @@ import { PushNotificationControl } from "@/components/PushNotificationControl";
 
 const nav = [
   { href: "/", label: "Overview", icon: DashboardIcon },
+  { href: "/notifications", label: "Notifications", icon: NotificationsIcon },
   { href: "/dashboard", label: "Region Leads", icon: PublicIcon },
   { href: "/automation", label: "Automation", icon: PlayCircleIcon },
   { href: "/campaigns", label: "Campaigns", icon: CampaignIcon },
@@ -64,11 +66,13 @@ const nav = [
 
 const clientNav = [
   { href: "/client-portal", label: "Progress Portal", icon: AccountCircleIcon },
+  { href: "/notifications", label: "Notifications", icon: NotificationsIcon },
   { href: "/client-profile", label: "Client Profile", icon: ManageAccountsIcon }
 ];
 
 const employeeNav = [
-  { href: "/employee-portal", label: "Employee Portal", icon: BadgeIcon }
+  { href: "/employee-portal", label: "Employee Portal", icon: BadgeIcon },
+  { href: "/notifications", label: "Notifications", icon: NotificationsIcon }
 ];
 
 export function AppShell({ children, userRole, userName }: { children: React.ReactNode; userRole?: string; userName?: string }) {

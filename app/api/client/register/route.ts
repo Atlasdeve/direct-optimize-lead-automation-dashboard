@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authCookieName, authCookieOptions, createSessionToken } from "@/lib/auth";
 import { registerClientPortal } from "@/lib/portalStore";
-import { regions } from "@/lib/regions";
+import { getSavedRegion } from "@/lib/regionStore";
 import { checkRateLimit, requestFingerprint } from "@/lib/security";
 
 export async function POST(request: NextRequest) {
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   if (!rateLimit.allowed) return NextResponse.json({ error: "Too many registration attempts. Try again later." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } });
   const body = await request.json().catch(() => ({}));
   try {
-    const region = regions.find((item) => item.name === body.region);
+    const region = typeof body.region === "string" ? await getSavedRegion(body.region) : null;
     if (!region) throw new Error("Select a valid region.");
     const { user } = await registerClientPortal({
       email: body.email,

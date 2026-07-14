@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createAppNotification } from "@/lib/appNotifications";
 import { getRegion } from "@/lib/regions";
+import { getSavedRegion } from "@/lib/regionStore";
 import { scoreLead } from "@/lib/scoring";
 import { discoverEmailsFromWebsite } from "@/lib/emailDiscovery";
 import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntelligence";
@@ -526,11 +527,11 @@ export async function createOpportunity(input: {
   return opportunity;
 }
 
-export async function listDbNotifications(user: { id: string; role: string }) {
+export async function listDbNotifications(user: { id: string; role: string }, options?: { take?: number }) {
   return prisma.notification.findMany({
     where: user.role === "admin" ? { recipientUserId: null } : { recipientUserId: user.id },
     orderBy: { createdAt: "desc" },
-    take: 20
+    take: Math.max(1, Math.min(options?.take ?? 20, 250))
   });
 }
 
@@ -546,7 +547,7 @@ export async function listDbAiDrafts() {
 }
 
 async function ensureDbRegion(regionName: string) {
-  const region = getRegion(regionName);
+  const region = await getSavedRegion(regionName) ?? getRegion(regionName);
   await prisma.region.upsert({
     where: { name: region.name },
     update: {

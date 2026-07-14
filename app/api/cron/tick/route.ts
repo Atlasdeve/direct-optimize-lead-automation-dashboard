@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enqueueAutomation } from "@/lib/queue";
-import { regions } from "@/lib/regions";
+import { listEnabledRegions } from "@/lib/regionStore";
 import { syncInboxReplies } from "@/lib/replySync";
 
 type SettingValue = {
@@ -56,6 +56,7 @@ async function setLastRunDate(key: string, lastRunDate: string) {
 }
 
 async function runDueRegion() {
+  const regions = await listEnabledRegions();
   for (const region of regions.filter((item) => item.name !== "Custom")) {
     const local = localParts(region.timezone);
     const scheduled = cronTime(region.morningCron);

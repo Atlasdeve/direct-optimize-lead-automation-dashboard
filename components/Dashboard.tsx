@@ -23,7 +23,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { getLocalTime, getRegion } from "@/lib/regions";
 import { listLeads, listNotifications } from "@/lib/store";
 import { whatsappNumberFromPhone } from "@/lib/whatsappIdentification";
-import type { AutomationResult, Lead } from "@/lib/types";
+import type { AutomationResult, Lead, RegionConfig } from "@/lib/types";
 import {
   Area,
   AreaChart,
@@ -52,7 +52,7 @@ function metricCards(leads: Lead[]) {
   ];
 }
 
-function buildDashboardCharts(leads: Lead[]) {
+function buildDashboardCharts(leads: Lead[], regionConfigs: RegionConfig[] = []) {
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const daily = Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
@@ -67,10 +67,11 @@ function buildDashboardCharts(leads: Lead[]) {
     };
   });
 
-  const regions = ["Canada", "USA", "UK", "UAE", "Qatar"].map((region) => {
-    const regionLeads = leads.filter((lead) => lead.region === region);
+  const chartRegions = (regionConfigs.length ? regionConfigs : ["Canada", "USA", "UK", "UAE", "Qatar"].map((name) => getRegion(name))).filter((region) => region.name !== "Custom");
+  const regions = chartRegions.map((region) => {
+    const regionLeads = leads.filter((lead) => lead.region === region.name);
     return {
-      region,
+      region: region.name,
       leads: regionLeads.length,
       contacted: regionLeads.filter((lead) => lead.email_sent || lead.outreach_status === "Contacted").length,
       replies: regionLeads.filter((lead) => lead.replied).length,
@@ -143,6 +144,7 @@ function ActivityFlag({ active, label, children }: { active: boolean; label: str
 
 export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mode?: DashboardMode; initialRegion?: string }) {
   const [selectedRegion, setSelectedRegion] = useState(() => getRegion(initialRegion).name);
+  const [regionConfigs, setRegionConfigs] = useState<RegionConfig[]>([]);
   const [leads, setLeads] = useState(() => listLeads(selectedRegion));
   const [allLeads, setAllLeads] = useState(() => listLeads());
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => listNotifications());
@@ -181,12 +183,12 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
   const [statusFilter, setStatusFilter] = useState("all");
   const [contactFilter, setContactFilter] = useState("all");
   const [scoreFilter, setScoreFilter] = useState("all");
-  const region = getRegion(selectedRegion);
+  const region = regionConfigs.find((item) => item.name === selectedRegion) ?? getRegion(selectedRegion);
 
   const pageLeads = leads;
   const metrics = useMemo(() => metricCards(pageLeads), [pageLeads]);
-  const chart = useMemo(() => buildDashboardCharts(pageLeads), [pageLeads]);
-  const regionPerformanceChart = useMemo(() => buildDashboardCharts(allLeads), [allLeads]);
+  const chart = useMemo(() => buildDashboardCharts(pageLeads, regionConfigs), [pageLeads, regionConfigs]);
+  const regionPerformanceChart = useMemo(() => buildDashboardCharts(allLeads, regionConfigs), [allLeads, regionConfigs]);
   const maxFunnelValue = Math.max(...chart.funnel.map((item) => item.value), 1);
   const filteredLeads = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -222,15 +224,17 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
   useEffect(() => {
     let active = true;
     async function loadRegionData() {
-      const [leadData, allLeadData, notificationData] = await Promise.all([
+      const [leadData, allLeadData, notificationData, regionData] = await Promise.all([
         fetch(`/api/leads?region=${encodeURIComponent(selectedRegion)}`).then((res) => res.json()),
         fetch("/api/leads").then((res) => res.json()),
-        fetch("/api/notifications").then((res) => res.json())
+        fetch("/api/notifications").then((res) => res.json()),
+        fetch("/api/regions").then((res) => res.json())
       ]);
       if (!active) return;
       setLeads(leadData.leads ?? []);
       setAllLeads(allLeadData.leads ?? []);
       setNotifications(notificationData.notifications ?? []);
+      if (Array.isArray(regionData.regions)) setRegionConfigs(regionData.regions);
     }
     void loadRegionData();
     const timer = window.setInterval(() => void loadRegionData(), 30000);
@@ -331,7 +335,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
   }
 
   function selectRegion(nextRegion: string) {
-    const normalizedRegion = getRegion(nextRegion).name;
+    const normalizedRegion = regionConfigs.find((item) => item.name === nextRegion)?.name ?? getRegion(nextRegion).name;
     setSelectedRegion(normalizedRegion);
     setResult(null);
     if (mode === "leads") {
@@ -390,7 +394,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
         </div>}
       </header>
 
-      <RegionTabs selected={selectedRegion} onSelect={selectRegion} />
+      <RegionTabs selected={selectedRegion} onSelect={selectRegion} regionOptions={regionConfigs.length ? regionConfigs : undefined} onRegionsChange={setRegionConfigs} />
 
       {mode !== "automation" && <section className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
         <div className="glass rounded-xl p-5">

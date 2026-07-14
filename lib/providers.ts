@@ -1,11 +1,12 @@
 import OpenAI from "openai";
 import nodemailer from "nodemailer";
 import { getRegion } from "@/lib/regions";
+import { getSavedRegion } from "@/lib/regionStore";
 import { buildGmbAuditPdf, buildWebsiteAuditPdf, type AuditAttachment } from "@/lib/auditPdf";
 import { renderBrandedEmailHtml, renderPlainTextEmail } from "@/lib/brandedEmailTemplate";
 import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntelligence";
-import type { Lead, PlaceLeadCandidate } from "@/lib/types";
+import type { Lead, PlaceLeadCandidate, RegionConfig } from "@/lib/types";
 
 const placesCategories = [
   "dentists",
@@ -134,7 +135,7 @@ async function fetchLegacyPlaceDetails(placeId: string) {
   return data.result;
 }
 
-async function fetchLegacyPlacesLeads(region: string, config: ReturnType<typeof getRegion>, maxResults: number, categories: string[], cityOverride?: string) {
+async function fetchLegacyPlacesLeads(region: string, config: RegionConfig, maxResults: number, categories: string[], cityOverride?: string) {
   const city = cityOverride || cityForRegion(region);
   const records = new Map<string, PlaceLeadCandidate>();
   const errors: string[] = [];
@@ -194,7 +195,7 @@ async function fetchLegacyPlacesLeads(region: string, config: ReturnType<typeof 
 }
 
 export async function fetchPlacesLeads(region: string, options?: { city?: string; categories?: string[]; maxResults?: number }) {
-  const config = getRegion(region);
+  const config = await getSavedRegion(region) ?? getRegion(region);
   const maxResults = Math.max(1, Math.min(options?.maxResults ?? Number(process.env.GOOGLE_PLACES_MAX_RESULTS || 6), 20));
   if (!process.env.GOOGLE_PLACES_API_KEY) {
     return {

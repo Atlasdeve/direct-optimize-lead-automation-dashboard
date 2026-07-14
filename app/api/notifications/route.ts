@@ -3,10 +3,12 @@ import { currentUser } from "@/lib/auth";
 import { listDbNotifications } from "@/lib/dbStore";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return NextResponse.json({ notifications: await listDbNotifications(user) });
+  const requestedTake = Number(request.nextUrl.searchParams.get("take") || 20);
+  const take = Number.isFinite(requestedTake) ? requestedTake : 20;
+  return NextResponse.json({ notifications: await listDbNotifications(user, { take }) });
 }
 
 export async function PATCH(request: NextRequest) {

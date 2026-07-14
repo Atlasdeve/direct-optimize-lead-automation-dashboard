@@ -10,7 +10,12 @@ export const regions: RegionConfig[] = [
 ];
 
 export function getRegion(name: string) {
-  return regions.find((region) => region.name === name) ?? regions[0];
+  return regions.find((region) => region.name === name) ?? {
+    name,
+    country: name,
+    timezone: "UTC",
+    morningCron: "0 9 * * *"
+  };
 }
 
 export function getLocalTime(timezone: string) {

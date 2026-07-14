@@ -1,4 +1,4 @@
-export type RegionKey = "Canada" | "USA" | "UK" | "UAE" | "Qatar" | "Custom";
+export type RegionKey = string;
 
 export type Lead = {
   id: string;

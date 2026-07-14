@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import { regions } from "@/lib/regions";
+import type { RegionConfig } from "@/lib/types";
 
 export function ClientRegisterForm() {
   const router = useRouter();
+  const [regionOptions, setRegionOptions] = useState<RegionConfig[]>(regions);
   const [form, setForm] = useState({ companyName: "", region: "Canada", name: "", phone: "", username: "", email: "", password: "", websiteUrl: "", gmbUrl: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,6 +16,23 @@ export function ClientRegisterForm() {
   function update(key: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
   }
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/regions")
+      .then((response) => response.json())
+      .then((data) => {
+        if (!active || !Array.isArray(data.regions)) return;
+        setRegionOptions(data.regions);
+        setForm((current) => data.regions.some((region: RegionConfig) => region.name === current.region) || !data.regions[0]?.name
+          ? current
+          : { ...current, region: data.regions[0].name });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -46,7 +65,7 @@ export function ClientRegisterForm() {
         </label>
         <label className="text-sm font-medium text-slate-300">Region
           <select required value={form.region} onChange={(event) => update("region", event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-line bg-[#091629] px-3 text-white outline-none focus:border-sky-300">
-            {regions.map((region) => <option key={region.name} value={region.name}>{region.name}</option>)}
+            {regionOptions.map((region) => <option key={region.name} value={region.name}>{region.name}</option>)}
           </select>
         </label>
         <label className="text-sm font-medium text-slate-300">Your name
