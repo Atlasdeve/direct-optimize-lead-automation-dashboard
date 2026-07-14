@@ -21,7 +21,7 @@ import ManageSearchIcon from "@mui/icons-material/ManageSearch";
 import { RegionTabs } from "@/components/RegionTabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getLocalTime, getRegion } from "@/lib/regions";
-import { listLeads, listNotifications } from "@/lib/store";
+import { listLeads } from "@/lib/store";
 import { whatsappNumberFromPhone } from "@/lib/whatsappIdentification";
 import type { AutomationResult, Lead, RegionConfig } from "@/lib/types";
 import {
@@ -36,7 +36,15 @@ import {
   YAxis
 } from "recharts";
 
-type NotificationItem = ReturnType<typeof listNotifications>[number];
+type NotificationItem = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  actionUrl?: string | null;
+  read: boolean;
+  createdAt: string;
+};
 type DashboardMode = "overview" | "leads" | "automation";
 
 function metricCards(leads: Lead[]) {
@@ -147,7 +155,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
   const [regionConfigs, setRegionConfigs] = useState<RegionConfig[]>([]);
   const [leads, setLeads] = useState(() => listLeads(selectedRegion));
   const [allLeads, setAllLeads] = useState(() => listLeads());
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => listNotifications());
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [running, setRunning] = useState(false);
   const [discoveringEmails, setDiscoveringEmails] = useState(false);
   const [enrichingLeads, setEnrichingLeads] = useState(false);
@@ -421,6 +429,9 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
             <h2 className="font-semibold">Notifications</h2>
           </div>
           <div className="space-y-3">
+            {notifications.length === 0 && (
+              <div className="rounded-lg bg-white/6 p-3 text-sm text-slate-400 soft-border">No notifications yet.</div>
+            )}
             {notifications.slice(0, 3).map((item) => (
               <div key={item.id} className="rounded-lg bg-white/6 p-3 soft-border">
                 <div className="text-sm font-medium text-white">{item.title}</div>
