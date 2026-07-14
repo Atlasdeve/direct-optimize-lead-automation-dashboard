@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { enqueueAutomation } from "@/lib/queue";
 import { listEnabledRegions } from "@/lib/regionStore";
 import { syncInboxReplies } from "@/lib/replySync";
+import { getDailyAutomationTarget } from "@/lib/discoveryTargets";
 
 type SettingValue = {
   lastRunDate?: string;
@@ -68,9 +69,10 @@ async function runDueRegion() {
     if (lastRunDate === local.date) continue;
 
     const maxResults = Number(process.env.CRON_AUTOMATION_MAX_RESULTS || 3);
-    const result = await enqueueAutomation(region.name, { maxResults });
+    const target = getDailyAutomationTarget(region.name, region.country, local.date);
+    const result = await enqueueAutomation(region.name, { maxResults, city: target.city, categories: target.categories });
     await setLastRunDate(key, local.date);
-    return { region: region.name, result };
+    return { region: region.name, target, result };
   }
   return null;
 }

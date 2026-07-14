@@ -8,18 +8,25 @@ import ManageSearchIcon from "@mui/icons-material/ManageSearch";
 import EventRepeatIcon from "@mui/icons-material/EventRepeat";
 import SaveIcon from "@mui/icons-material/Save";
 import { RegionTabs } from "@/components/RegionTabs";
-import type { AutomationResult } from "@/lib/types";
+import { getCityOptionsForRegion, getDailyAutomationTarget } from "@/lib/discoveryTargets";
+import type { AutomationResult, RegionConfig } from "@/lib/types";
 
 export function CampaignBuilder() {
   const [region, setRegion] = useState("Canada");
+  const [regionOptions, setRegionOptions] = useState<RegionConfig[]>([]);
   const [city, setCity] = useState("Toronto");
-  const [categories, setCategories] = useState("dentists, restaurants");
+  const [customCity, setCustomCity] = useState("");
+  const [categories, setCategories] = useState("restaurants");
   const [dailyLimit, setDailyLimit] = useState(25);
   const [followUpDelay, setFollowUpDelay] = useState(3);
   const [finalDelay, setFinalDelay] = useState(7);
   const [running, setRunning] = useState<"discover" | "enrich" | "emails" | "send" | null>(null);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [result, setResult] = useState<string[]>([]);
+  const selectedRegion = regionOptions.find((item) => item.name === region);
+  const cityOptions = getCityOptionsForRegion(region, selectedRegion?.country);
+  const activeCity = city === "__custom__" ? customCity.trim() : city;
+  const todayTarget = getDailyAutomationTarget(region, selectedRegion?.country);
 
   useEffect(() => {
     fetch("/api/outreach/settings")
@@ -32,6 +39,33 @@ export function CampaignBuilder() {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/regions")
+      .then((response) => response.json())
+      .then((data) => {
+        if (!active || !Array.isArray(data.regions)) return;
+        setRegionOptions(data.regions);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const country = regionOptions.find((item) => item.name === region)?.country;
+    const target = getDailyAutomationTarget(region, country);
+    setCity(target.city);
+    setCustomCity("");
+    setCategories(target.categories.join(", "));
+  }, [region, regionOptions]);
+
+  function selectRegion(nextRegion: string) {
+    setRegion(nextRegion);
+    setResult([]);
+  }
 
   async function saveSchedule() {
     setSavingSchedule(true);
@@ -62,7 +96,7 @@ export function CampaignBuilder() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           region,
-          city,
+          city: activeCity,
           maxResults: dailyLimit,
           categories: categories.split(",").map((item) => item.trim()).filter(Boolean)
         })
@@ -124,7 +158,7 @@ export function CampaignBuilder() {
         <h1 className="mt-2 text-4xl font-semibold text-white">Campaign builder</h1>
       </header>
 
-      <RegionTabs selected={region} onSelect={setRegion} />
+      <RegionTabs selected={region} onSelect={selectRegion} regionOptions={regionOptions.length ? regionOptions : undefined} onRegionsChange={setRegionOptions} />
 
       <section className="glass rounded-xl p-5">
         <div className="grid gap-4 md:grid-cols-[1fr_220px_260px]">
@@ -145,13 +179,27 @@ export function CampaignBuilder() {
           </label>
           <label className="text-sm text-slate-300">
             City
-            <input
+            <select
               value={city}
               onChange={(event) => setCity(event.target.value)}
+              className="mt-2 h-11 w-full rounded-lg border border-line bg-[#091629] px-3 text-white outline-none focus:border-sky-300"
+            >
+              {cityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+              <option value="__custom__">Custom city...</option>
+            </select>
+          </label>
+        </div>
+        {city === "__custom__" && (
+          <label className="mt-4 block text-sm text-slate-300">
+            Custom city
+            <input
+              value={customCity}
+              onChange={(event) => setCustomCity(event.target.value)}
+              placeholder={`Enter a city in ${selectedRegion?.country ?? region}`}
               className="mt-2 h-11 w-full rounded-lg border border-line bg-black/20 px-3 text-white outline-none focus:border-sky-300"
             />
           </label>
-        </div>
+        )}
         <label className="mt-4 block text-sm text-slate-300">
           Business categories
           <input
@@ -160,6 +208,9 @@ export function CampaignBuilder() {
             className="mt-2 h-11 w-full rounded-lg border border-line bg-black/20 px-3 text-white outline-none focus:border-sky-300"
           />
         </label>
+        <div className="mt-3 rounded-lg bg-sky-400/10 p-3 text-sm text-sky-100 soft-border">
+          Today&apos;s automation target for {region}: {todayTarget.niche} in {todayTarget.city}. The daily worker rotates both niche and city automatically.
+        </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <div className="rounded-lg bg-white/6 p-3 soft-border">

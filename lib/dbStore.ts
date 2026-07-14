@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createAppNotification } from "@/lib/appNotifications";
 import { getRegion } from "@/lib/regions";
 import { getSavedRegion } from "@/lib/regionStore";
+import { getDailyAutomationTarget } from "@/lib/discoveryTargets";
 import { scoreLead } from "@/lib/scoring";
 import { discoverEmailsFromWebsite } from "@/lib/emailDiscovery";
 import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntelligence";
@@ -567,7 +568,7 @@ async function ensureDbRegion(regionName: string) {
 
 export async function createDbDemoLeads(regionName: string) {
   const region = await ensureDbRegion(regionName);
-  const city = region.name === "USA" ? "Austin" : region.name === "Canada" ? "Vancouver" : region.name === "UK" ? "Manchester" : region.name === "UAE" ? "Abu Dhabi" : "Doha";
+  const city = getDailyAutomationTarget(region.name, region.country).city;
   const base = {
     id: `lead_${region.name.toLowerCase()}_${Date.now()}`,
     companyName: `${region.name} Growth Clinic`,

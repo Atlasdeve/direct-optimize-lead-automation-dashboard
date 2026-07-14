@@ -9,6 +9,9 @@ export async function runAutomation(region: string, options?: { city?: string; c
   let failedCount = 0;
 
   try {
+    if (options?.city || options?.categories?.length) {
+      logs.push(`Discovery target: ${(options.categories ?? []).join(", ") || "default niches"} in ${options.city || "default city"}.`);
+    }
     const places = await fetchPlacesLeads(region, options);
     if (places.warning) logs.push(places.warning);
     logs.push(`Lead discovery source: ${places.provider}.`);

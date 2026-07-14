@@ -5,6 +5,7 @@ import { sendDailyEmployeeWorkReminders } from "@/lib/employeeReminders";
 import { runOutreachAutomationCycle } from "@/lib/dbStore";
 import { listEnabledRegions } from "@/lib/regionStore";
 import { prisma } from "@/lib/prisma";
+import { getDailyAutomationTarget } from "@/lib/discoveryTargets";
 
 startAutomationWorker();
 
@@ -44,7 +45,13 @@ async function runDueDiscoveryAutomations() {
     const setting = await prisma.setting.findUnique({ where: { key } });
     const lastRunDate = (setting?.value as SettingValue | null)?.lastRunDate;
     if (lastRunDate === local.date) continue;
-    await enqueueAutomation(region.name, { maxResults: Number(process.env.CRON_AUTOMATION_MAX_RESULTS || 3) });
+    const target = getDailyAutomationTarget(region.name, region.country, local.date);
+    await enqueueAutomation(region.name, {
+      maxResults: Number(process.env.CRON_AUTOMATION_MAX_RESULTS || 3),
+      city: target.city,
+      categories: target.categories
+    });
+    console.log(`${region.name} discovery target: ${target.niche} in ${target.city}.`);
     await prisma.setting.upsert({
       where: { key },
       update: { value: { lastRunDate: local.date } },

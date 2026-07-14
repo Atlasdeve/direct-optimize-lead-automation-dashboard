@@ -2,22 +2,16 @@ import OpenAI from "openai";
 import nodemailer from "nodemailer";
 import { getRegion } from "@/lib/regions";
 import { getSavedRegion } from "@/lib/regionStore";
+import { businessDiscoveryCategories, getDefaultCityForRegion } from "@/lib/discoveryTargets";
 import { buildGmbAuditPdf, buildWebsiteAuditPdf, type AuditAttachment } from "@/lib/auditPdf";
 import { renderBrandedEmailHtml, renderPlainTextEmail } from "@/lib/brandedEmailTemplate";
 import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntelligence";
 import type { Lead, PlaceLeadCandidate, RegionConfig } from "@/lib/types";
 
-const placesCategories = [
-  "dentists",
-  "restaurants",
-  "roofing contractors",
-  "salons",
-  "real estate agencies",
-  "law firms"
-];
+const placesCategories = businessDiscoveryCategories;
 
-export const defaultPlacesCategories = placesCategories;
+export const defaultPlacesCategories = businessDiscoveryCategories;
 
 type GooglePlace = {
   id?: string;
@@ -68,14 +62,7 @@ type LegacyDetailsResult = {
 };
 
 function cityForRegion(region: string) {
-  const cities: Record<string, string> = {
-    Canada: "Toronto",
-    USA: "Austin",
-    UK: "London",
-    UAE: "Dubai",
-    Qatar: "Doha"
-  };
-  return cities[region] ?? region;
+  return getDefaultCityForRegion(region);
 }
 
 function countryFromComponents(place: GooglePlace, fallback: string) {
@@ -212,7 +199,7 @@ export async function fetchPlacesLeads(region: string, options?: { city?: string
     .map((category) => category.trim())
     .filter(Boolean)
     .slice(0, 6);
-  const city = options?.city?.trim() || cityForRegion(region);
+  const city = options?.city?.trim() || getDefaultCityForRegion(region, config.country);
   const records = new Map<string, PlaceLeadCandidate>();
   const errors: string[] = [];
   let permissionDenied = false;
