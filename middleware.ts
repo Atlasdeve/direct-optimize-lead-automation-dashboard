@@ -13,6 +13,9 @@ const publicPaths = new Set([
 ]);
 
 const publicPrefixes = ["/api/email/open", "/api/email/click", "/_next"];
+const crossOriginApiKeyPaths = new Set([
+  "/api/extension/leads"
+]);
 
 function matchesPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -29,13 +32,15 @@ export async function middleware(request: NextRequest) {
   const unsafeMethod = !["GET", "HEAD", "OPTIONS"].includes(request.method);
   if (unsafeMethod) {
     const origin = request.headers.get("origin");
-    if (origin && origin !== requestOrigin(request)) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+    if (origin && origin !== requestOrigin(request) && !crossOriginApiKeyPaths.has(pathname)) {
+      return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+    }
     const contentLength = Number(request.headers.get("content-length") || 0);
     const maxBytes = pathname === "/api/portal/uploads" ? 6 * 1024 * 1024 : 1024 * 1024;
     if (contentLength > maxBytes) return NextResponse.json({ error: "Request payload is too large." }, { status: 413 });
   }
 
-  if (publicPaths.has(pathname) || publicPrefixes.some((prefix) => matchesPrefix(pathname, prefix))) {
+  if (publicPaths.has(pathname) || crossOriginApiKeyPaths.has(pathname) || publicPrefixes.some((prefix) => matchesPrefix(pathname, prefix))) {
     return NextResponse.next();
   }
 
