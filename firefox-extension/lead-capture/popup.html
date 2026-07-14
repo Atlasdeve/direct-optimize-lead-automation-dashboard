@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Direct Optimize Lead Capture</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="eyebrow">Direct Optimize</div>
+        <h1>Capture website lead</h1>
+      </header>
+
+      <section class="settings">
+        <label>
+          Dashboard URL
+          <input id="appUrl" placeholder="https://web-production-f4713.up.railway.app" />
+        </label>
+        <label>
+          Capture API key
+          <input id="apiKey" type="password" placeholder="LEAD_CAPTURE_API_KEY" />
+        </label>
+        <button id="saveSettings" type="button" class="secondary">Save settings</button>
+      </section>
+
+      <section class="card">
+        <label>
+          Country / region
+          <select id="region"></select>
+        </label>
+        <label>
+          Company name
+          <input id="companyName" />
+        </label>
+        <label>
+          Category
+          <input id="category" placeholder="Website lead" />
+        </label>
+        <label>
+          Email
+          <input id="email" type="email" />
+        </label>
+        <label>
+          Phone
+          <input id="phone" />
+        </label>
+        <label>
+          City
+          <input id="city" />
+        </label>
+        <label>
+          Website
+          <input id="website" />
+        </label>
+      </section>
+
+      <button id="capture" type="button" class="primary">Create lead</button>
+      <div id="status" role="status"></div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

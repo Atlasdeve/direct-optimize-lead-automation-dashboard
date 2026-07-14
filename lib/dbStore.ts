@@ -729,6 +729,130 @@ export async function createDbLeadsFromPlaces(regionName: string, candidates: Pl
   return created;
 }
 
+function normalizeNullableUrl(value?: string | null) {
+  if (!value) return null;
+  try {
+    return new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`).toString();
+  } catch {
+    return null;
+  }
+}
+
+function websiteDomain(value?: string | null) {
+  const normalized = normalizeNullableUrl(value);
+  if (!normalized) return null;
+  try {
+    return new URL(normalized).hostname.replace(/^www\./i, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+export async function createDbLeadFromExtension(input: {
+  regionName: string;
+  companyName: string;
+  website: string;
+  pageTitle?: string | null;
+  description?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  category?: string | null;
+  city?: string | null;
+}) {
+  const savedRegion = await getSavedRegion(input.regionName);
+  const region = savedRegion ?? getRegion(input.regionName);
+  await prisma.region.upsert({
+    where: { name: region.name },
+    update: { country: region.country, timezone: region.timezone, enabled: true },
+    create: { name: region.name, country: region.country, timezone: region.timezone, enabled: true }
+  });
+
+  const website = normalizeNullableUrl(input.website);
+  if (!website) throw new Error("A valid website URL is required.");
+  const domain = websiteDomain(website);
+  const existing = await prisma.lead.findFirst({
+    where: {
+      OR: [
+        { website },
+        domain ? { website: { contains: domain, mode: "insensitive" } } : undefined
+      ].filter(Boolean) as Prisma.LeadWhereInput[]
+    }
+  });
+  if (existing) return { lead: toLead(existing as DbLead), created: false };
+
+  const companyName = input.companyName.trim().slice(0, 200);
+  const category = (input.category || "Website lead").trim().slice(0, 160);
+  const missingSeoMetadata = !input.description || input.description.trim().length < 70;
+  const leadScore = scoreLead({
+    company_name: companyName,
+    region: region.name,
+    country: region.country,
+    city: input.city || region.country,
+    category,
+    business_type: category,
+    website,
+    phone: input.phone || null,
+    email: input.email || null,
+    whatsapp_available: hasWhatsappContactSignal(input.phone),
+    whatsapp_status: hasWhatsappContactSignal(input.phone) ? "available" : "unknown",
+    source_platform: "firefox_extension",
+    lead_score: 0,
+    outreach_status: "New",
+    email_sent: false,
+    whatsapp_sent: false,
+    replied: false,
+    consent_status: "legitimate_interest",
+    unsubscribed: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    missing_seo_metadata: missingSeoMetadata
+  });
+
+  const lead = await prisma.lead.create({
+    data: {
+      companyName,
+      region: region.name,
+      country: region.country,
+      city: (input.city || region.country).trim().slice(0, 120),
+      category,
+      businessType: category,
+      website,
+      phone: input.phone?.trim().slice(0, 50) || null,
+      email: input.email?.trim().toLowerCase().slice(0, 320) || null,
+      whatsappAvailable: hasWhatsappContactSignal(input.phone),
+      whatsappStatus: hasWhatsappContactSignal(input.phone) ? "available" : "unknown",
+      sourcePlatform: "firefox_extension",
+      leadScore,
+      outreachStatus: "New",
+      notes: [
+        "Imported from Firefox extension.",
+        input.pageTitle ? `Page title: ${input.pageTitle}` : null,
+        input.description ? `Meta description: ${input.description}` : null
+      ].filter(Boolean).join("\n"),
+      missingSeoMetadata,
+      consentStatus: "legitimate_interest"
+    }
+  });
+
+  await prisma.outreachLog.create({
+    data: {
+      leadId: lead.id,
+      channel: "system",
+      action: "lead_created",
+      status: "completed",
+      message: "Lead captured manually from Firefox extension."
+    }
+  });
+  await createAppNotification({
+    type: "lead_capture",
+    title: "Website lead captured",
+    message: `${lead.companyName} was added from the Firefox extension.`,
+    actionUrl: `/leads/${lead.id}`,
+    leadId: lead.id
+  }).catch(() => undefined);
+  return { lead: toLead(lead), created: true };
+}
+
 export async function markDbOutreach(leadId: string, channel: "email" | "whatsapp") {
   const now = new Date();
   await prisma.lead.update({
