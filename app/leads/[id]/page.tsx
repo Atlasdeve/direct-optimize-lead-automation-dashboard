@@ -22,6 +22,10 @@ import { DeleteLeadButton } from "@/components/lead/DeleteLeadButton";
 import { DecisionMakerPanel } from "@/components/lead/DecisionMakerPanel";
 import { EditLeadDetailsButton } from "@/components/lead/EditLeadDetailsButton";
 
+function websiteHref(website: string) {
+  return /^https?:\/\//i.test(website) ? website : `https://${website}`;
+}
+
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const lead = await getDbLead(id);
@@ -85,21 +89,59 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <section className="glass rounded-xl p-5">
           <h2 className="mb-4 font-semibold text-white">Contact channels</h2>
           <div className="space-y-3 text-sm text-slate-300">
-            <div className="flex items-center gap-2"><EmailIcon fontSize="small" />{lead.email ?? "Email discovery pending"}</div>
+            {lead.email ? (
+              <a
+                href={`mailto:${lead.email}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-w-0 items-center gap-2 transition hover:text-sky-200"
+                title={`Email ${lead.email}`}
+              >
+                <EmailIcon fontSize="small" />
+                <span className="truncate underline-offset-4 hover:underline">{lead.email}</span>
+              </a>
+            ) : (
+              <div className="flex items-center gap-2 text-slate-500"><EmailIcon fontSize="small" />Email discovery pending</div>
+            )}
             <div className="flex items-center gap-2">
-              <PhoneIcon fontSize="small" />
-              {lead.phone ?? "Phone pending"}
+              {lead.phone ? (
+                <a
+                  href={`tel:${lead.phone}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-w-0 items-center gap-2 transition hover:text-sky-200"
+                  title={`Call ${lead.phone}`}
+                >
+                  <PhoneIcon fontSize="small" />
+                  <span className="truncate underline-offset-4 hover:underline">{lead.phone}</span>
+                </a>
+              ) : (
+                <div className="flex items-center gap-2 text-slate-500"><PhoneIcon fontSize="small" />Phone pending</div>
+              )}
               {whatsappNumber && (
-                <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noreferrer" title="Open WhatsApp chat" className="text-emerald-300 hover:text-emerald-200">
+                <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noopener noreferrer" title="Open WhatsApp chat" className="text-emerald-300 hover:text-emerald-200">
                   <WhatsAppIcon fontSize="small" />
                 </a>
               )}
             </div>
-            <div className="flex items-center gap-2"><LanguageIcon fontSize="small" />{lead.website ?? "No website detected"}</div>
+            {lead.website ? (
+              <a
+                href={websiteHref(lead.website)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-w-0 items-center gap-2 transition hover:text-sky-200"
+                title={`Open ${lead.website}`}
+              >
+                <LanguageIcon fontSize="small" />
+                <span className="truncate underline-offset-4 hover:underline">{lead.website}</span>
+              </a>
+            ) : (
+              <div className="flex items-center gap-2 text-slate-500"><LanguageIcon fontSize="small" />No website detected</div>
+            )}
             {contactForms.length > 0 && (
               <div className="flex items-center gap-2">
                 <ContactPageIcon fontSize="small" />
-                <a className="text-sky-200 hover:text-sky-100" href={contactForms[0].value} target="_blank" rel="noreferrer">
+                <a className="text-sky-200 hover:text-sky-100" href={contactForms[0].value} target="_blank" rel="noopener noreferrer">
                   Contact form found
                 </a>
               </div>
