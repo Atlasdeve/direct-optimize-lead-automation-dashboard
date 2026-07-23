@@ -17,6 +17,7 @@ type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
   contacts?: Array<{ type: string; value: string }>;
   outreachLogs?: Array<{ openCount?: number; clickCount?: number; status?: string; action?: string }>;
   callLogs?: Array<{ id: string }>;
+  checklist?: { notes?: string | null } | null;
 };
 
 export type ReviewQueueKey = "needs_review" | "approved" | "do_not_contact" | "contacted" | "replied" | "contact_forms";
@@ -100,6 +101,7 @@ export function toLead(lead: DbLead): Lead {
     last_contacted_at: lead.lastContactedAt?.toISOString() ?? null,
     next_follow_up_at: lead.nextFollowUpAt?.toISOString() ?? null,
     notes: lead.notes,
+    research_note: lead.checklist?.notes?.trim() || null,
     rating: lead.rating ?? undefined,
     review_count: lead.reviewCount ?? undefined,
     missing_seo_metadata: lead.missingSeoMetadata,
@@ -130,6 +132,9 @@ export async function listDbLeads(region?: string) {
         where: { status: { not: "planned" } },
         select: { id: true },
         take: 1
+      },
+      checklist: {
+        select: { notes: true }
       }
     },
     orderBy: [{ createdAt: "desc" }]

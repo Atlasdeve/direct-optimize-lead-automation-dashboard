@@ -209,7 +209,9 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
         lead.business_type,
         lead.email,
         lead.phone,
-        lead.website
+        lead.website,
+        lead.research_note,
+        lead.notes
       ].filter(Boolean).join(" ").toLowerCase();
       if (query && !haystack.includes(query)) return false;
       if (statusFilter !== "all" && lead.outreach_status !== statusFilter) return false;
@@ -598,9 +600,10 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
             )}
           </div>
           <div className="divide-y divide-line">
-            <div className="hidden grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_90px_170px_minmax(0,1fr)] gap-3 bg-white/5 px-5 py-3 text-xs uppercase text-slate-400 lg:grid">
+            <div className="hidden grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_72px_150px_minmax(0,0.9fr)] gap-3 bg-white/5 px-5 py-3 text-xs uppercase text-slate-400 xl:grid">
               <div>Company</div>
               <div>Contact</div>
+              <div>Research note</div>
               <div>Score</div>
               <div>Status & activity</div>
               <div>Channels</div>
@@ -609,10 +612,11 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
               const contactForm = lead.contact_forms?.[0] ?? null;
               const whatsappNumber = whatsappNumberFromPhone(lead.phone);
               const whatsappHref = whatsappNumber ? `https://wa.me/${whatsappNumber}` : null;
+              const researchNote = lead.research_note?.trim() || lead.notes?.trim() || "";
               return (
                 <div
                   key={lead.id}
-                  className="grid gap-4 px-5 py-4 text-sm lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_90px_170px_minmax(0,1fr)] lg:items-center lg:gap-3"
+                  className="grid gap-4 px-5 py-4 text-sm xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_72px_150px_minmax(0,0.9fr)] xl:items-center xl:gap-3"
                 >
                   <div className="min-w-0">
                     <Link href={`/leads/${lead.id}`} className="block truncate font-medium text-white hover:text-sky-200">
@@ -636,6 +640,27 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
                       <PhoneIcon fontSize="inherit" />
                       <span className="truncate">{lead.phone ?? "Phone pending"}</span>
                     </a>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase text-sky-200 xl:hidden">
+                      <ManageSearchIcon sx={{ fontSize: 15 }} />
+                      Research note
+                    </div>
+                    {researchNote ? (
+                      <p
+                        title={researchNote}
+                        className="overflow-hidden text-xs leading-5 text-slate-300"
+                        style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}
+                      >
+                        {researchNote}
+                      </p>
+                    ) : (
+                      <Link href={`/leads/${lead.id}`} className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-sky-200">
+                        <ManageSearchIcon sx={{ fontSize: 16 }} />
+                        Add research note
+                      </Link>
+                    )}
                   </div>
 
                   <div>

@@ -36,6 +36,7 @@ export type Lead = {
   last_contacted_at?: string | null;
   next_follow_up_at?: string | null;
   notes?: string | null;
+  research_note?: string | null;
   rating?: number;
   review_count?: number;
   missing_seo_metadata?: boolean;
