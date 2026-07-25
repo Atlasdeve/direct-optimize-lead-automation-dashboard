@@ -30,6 +30,7 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import DialpadIcon from "@mui/icons-material/Dialpad";
+import NightlifeIcon from "@mui/icons-material/Nightlife";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import { clsx } from "clsx";
@@ -40,6 +41,7 @@ const nav = [
   { href: "/", label: "Overview", icon: DashboardIcon },
   { href: "/notifications", label: "Notifications", icon: NotificationsIcon },
   { href: "/dashboard", label: "Region Leads", icon: PublicIcon },
+  { href: "/adult-leads", label: "Adult Leads", icon: NightlifeIcon },
   { href: "/automation", label: "Automation", icon: PlayCircleIcon },
   { href: "/campaigns", label: "Campaigns", icon: CampaignIcon },
   { href: "/calls", label: "Calls", icon: PhoneInTalkIcon },

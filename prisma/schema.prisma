@@ -101,6 +101,29 @@ model Lead {
   @@map("leads")
 }
 
+model AdultLead {
+  id             String   @id @default(cuid())
+  businessName   String   @map("business_name")
+  country        String
+  city           String?
+  category       String
+  website        String   @unique
+  email          String?
+  phone          String?
+  sourceTitle    String?  @map("source_title")
+  sourceSnippet  String?  @map("source_snippet")
+  sourceQuery    String?  @map("source_query")
+  reviewStatus   String   @default("Unverified") @map("review_status")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([country])
+  @@index([category])
+  @@index([reviewStatus])
+  @@map("adult_leads")
+}
+
 model CallLog {
   id              String    @id @default(cuid())
   leadId          String?   @map("lead_id")

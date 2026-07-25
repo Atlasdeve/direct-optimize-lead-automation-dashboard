@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { createDbLeadFromExtension } from "@/lib/dbStore";
+import { prohibitedLeadTerm } from "@/lib/restrictedLeadPolicy";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +49,17 @@ export async function POST(request: NextRequest) {
   const parsed = leadCaptureSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return json({ error: parsed.error.issues[0]?.message || "Invalid lead capture payload." }, { status: 400 });
+  }
+
+  const blockedTerm = prohibitedLeadTerm(
+    parsed.data.companyName,
+    parsed.data.website,
+    parsed.data.pageTitle,
+    parsed.data.description,
+    parsed.data.category
+  );
+  if (blockedTerm) {
+    return json({ error: `This category cannot be imported through lead capture (${blockedTerm}).` }, { status: 400 });
   }
 
   try {
