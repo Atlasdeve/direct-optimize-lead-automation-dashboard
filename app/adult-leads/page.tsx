@@ -1,6 +1,10 @@
 import { AdultLeadsWorkspace } from "@/components/adult-leads/AdultLeadsWorkspace";
-import { listAdultLeads } from "@/lib/adultLeadStore";
+import { listAdultLeadCountries, listAdultLeads } from "@/lib/adultLeadStore";
 
 export default async function AdultLeadsPage() {
-  return <AdultLeadsWorkspace initialLeads={await listAdultLeads()} />;
+  const [initialLeads, initialCountries] = await Promise.all([
+    listAdultLeads(),
+    listAdultLeadCountries()
+  ]);
+  return <AdultLeadsWorkspace initialLeads={initialLeads} initialCountries={initialCountries} />;
 }

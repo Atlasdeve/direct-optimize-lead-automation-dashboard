@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { deleteDbLead, getDbLead, updateDbLeadDetails } from "@/lib/dbStore";
 
 const nullableText = (max: number) => z.string().trim().max(max).transform((value) => value || null);
@@ -47,7 +48,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
-  if (!user || user.role !== "admin") {
+  if (!user || !isOperationsRole(user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -60,7 +61,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
-  if (!user || user.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user || !isOperationsRole(user.role)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const parsed = leadDetailsSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {

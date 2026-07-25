@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { currentSession } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { deleteAdultLead, updateAdultLead } from "@/lib/adultLeadStore";
 
 const updateSchema = z.object({
@@ -10,7 +11,7 @@ const updateSchema = z.object({
 
 async function requireAdmin() {
   const session = await currentSession();
-  return session?.role === "admin";
+  return isOperationsRole(session?.role);
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

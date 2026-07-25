@@ -124,6 +124,14 @@ model AdultLead {
   @@map("adult_leads")
 }
 
+model AdultLeadCountry {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("adult_lead_countries")
+}
+
 model CallLog {
   id              String    @id @default(cuid())
   leadId          String?   @map("lead_id")

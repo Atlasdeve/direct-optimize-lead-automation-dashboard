@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { authenticatedRoles } from "@/lib/roles";
 
 export const authCookieName = "direct_optimize_session";
 const standardSessionSeconds = 12 * 60 * 60;
@@ -42,7 +43,7 @@ export function verifySessionToken(token?: string | null): SessionPayload | null
     const received = Buffer.from(signature);
     if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) return null;
     const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as SessionPayload;
-    if (!payload.userId || !["admin", "employee", "client"].includes(payload.role) || payload.exp < Date.now()) return null;
+    if (!payload.userId || !authenticatedRoles.includes(payload.role as (typeof authenticatedRoles)[number]) || payload.exp < Date.now()) return null;
     return payload;
   } catch {
     return null;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { listDbNotifications } from "@/lib/dbStore";
 import { prisma } from "@/lib/prisma";
 
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const scope = user.role === "admin" ? { recipientUserId: null } : { recipientUserId: user.id };
+  const scope = isOperationsRole(user.role) ? { recipientUserId: null } : { recipientUserId: user.id };
   const body = await request.json().catch(() => ({}));
   if (body.all === true) {
     await prisma.notification.updateMany({ where: { ...scope, read: false }, data: { read: true } });

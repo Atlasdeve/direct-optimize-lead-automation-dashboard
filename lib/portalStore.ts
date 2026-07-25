@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createAppNotification } from "@/lib/appNotifications";
 import type { Lead } from "@/lib/types";
 
-export type PortalRole = "admin" | "employee" | "client";
+export type PortalRole = "admin" | "manager" | "employee" | "client";
 
 async function notifyAdmin(input: { type: string; title: string; message: string; actionUrl?: string; leadId?: string; recipientUserId?: string }) {
   await createAppNotification(input).catch(() => null);
@@ -130,7 +130,7 @@ export function serializeProject(project: ProjectRecord, viewerRole: string = "a
 
 export async function listPortalUsers(role?: string) {
   return prisma.user.findMany({
-    where: role ? { role } : undefined,
+    where: role ? { role } : { role: { in: ["employee", "client"] } },
     select: { id: true, email: true, username: true, name: true, role: true, createdAt: true },
     orderBy: { createdAt: "desc" }
   });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { createDbLeadFromExtension } from "@/lib/dbStore";
 import { prohibitedLeadTerm } from "@/lib/restrictedLeadPolicy";
 
@@ -34,7 +35,7 @@ async function authorized(request: NextRequest) {
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
   if (configuredKey && bearer && bearer === configuredKey) return true;
   const user = await currentUser().catch(() => null);
-  return Boolean(user && user.role === "admin");
+  return Boolean(user && isOperationsRole(user.role));
 }
 
 export async function OPTIONS() {

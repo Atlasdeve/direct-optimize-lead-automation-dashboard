@@ -132,7 +132,8 @@ async function createLead() {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Lead could not be created.");
     await browser.storage.local.set({ appUrl, apiKey, region: payload.region });
-    setStatus(data.created ? `Lead created: ${data.lead.company_name}` : `Lead already exists: ${data.lead.company_name}`, "success");
+    const gmbMessage = data.gmbMatched ? " Google Business Profile found." : data.created ? " No confident Google Business Profile match found." : "";
+    setStatus(data.created ? `Lead created: ${data.lead.company_name}.${gmbMessage}` : `Lead already exists: ${data.lead.company_name}`, "success");
   } catch (error) {
     setStatus(error.message || "Lead could not be created.", "error");
   }

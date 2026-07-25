@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isOperationsRole } from "@/lib/roles";
 import AddIcon from "@mui/icons-material/Add";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import SummarizeIcon from "@mui/icons-material/Summarize";
@@ -20,8 +21,8 @@ export function TrustLayerForms({ projectId, role }: { projectId: string; role: 
   const [milestone, setMilestone] = useState({ title: "", description: "", amount: 0, dueDate: "" });
   const [snapshot, setSnapshot] = useState({ kind: "Before", title: "", summary: "", screenshotUrls: "" });
   const [message, setMessage] = useState<string | null>(null);
-  const canManage = role === "admin";
-  const canWork = role === "admin" || role === "employee";
+  const canManage = isOperationsRole(role);
+  const canWork = isOperationsRole(role) || role === "employee";
 
   async function postJson(url: string, body: unknown) {
     const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

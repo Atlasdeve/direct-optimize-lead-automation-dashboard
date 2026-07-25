@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authenticatedRoles } from "@/lib/roles";
 
 const authCookieName = "direct_optimize_session";
 
@@ -70,6 +71,14 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  if (session.role === "manager") {
+    const privileged = matchesPrefix(pathname, "/staff") || matchesPrefix(pathname, "/api/staff");
+    if (privileged) {
+      if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+  }
+
   return NextResponse.next();
 }
 
@@ -94,7 +103,7 @@ async function readSession(token: string) {
     const valid = await crypto.subtle.verify("HMAC", key, decodeBase64Url(signature), encoder.encode(body));
     if (!valid) return null;
     const payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(body))) as { role?: string; exp?: number };
-    return payload.role && ["admin", "employee", "client"].includes(payload.role) && payload.exp && payload.exp > Date.now() ? payload : null;
+    return payload.role && authenticatedRoles.includes(payload.role as (typeof authenticatedRoles)[number]) && payload.exp && payload.exp > Date.now() ? payload : null;
   } catch {
     return null;
   }

@@ -9,10 +9,11 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import SaveIcon from "@mui/icons-material/Save";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
+import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
 import { adultLeadCategories, type AdultLeadCategoryId } from "@/lib/adultLeadCategories";
 import type { AdultLeadRecord } from "@/lib/adultLeadStore";
 
-const countries = ["Nigeria", "Thailand", "Vietnam", "Indonesia"];
 const statuses = ["Unverified", "Reviewed", "Rejected"];
 
 function categoryLabel(categoryId: string) {
@@ -25,9 +26,16 @@ function statusClass(status: string) {
   return "border-amber-300/25 bg-amber-300/10 text-amber-100";
 }
 
-export function AdultLeadsWorkspace({ initialLeads }: { initialLeads: AdultLeadRecord[] }) {
+export function AdultLeadsWorkspace({
+  initialLeads,
+  initialCountries
+}: {
+  initialLeads: AdultLeadRecord[];
+  initialCountries: string[];
+}) {
   const [leads, setLeads] = useState(initialLeads);
-  const [country, setCountry] = useState(countries[0]);
+  const [countries, setCountries] = useState(initialCountries);
+  const [country, setCountry] = useState(initialCountries[0] ?? "");
   const [city, setCity] = useState("");
   const [discoveryCategory, setDiscoveryCategory] = useState<AdultLeadCategoryId>(adultLeadCategories[0].id);
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -36,6 +44,10 @@ export function AdultLeadsWorkspace({ initialLeads }: { initialLeads: AdultLeadR
   const [limit, setLimit] = useState(10);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [countryDialogOpen, setCountryDialogOpen] = useState(false);
+  const [newCountry, setNewCountry] = useState("");
+  const [countrySaving, setCountrySaving] = useState(false);
+  const [countryError, setCountryError] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>(() => Object.fromEntries(initialLeads.map((lead) => [lead.id, lead.notes ?? ""])));
 
   const countryLeads = useMemo(() => leads.filter((lead) => lead.country === country), [country, leads]);
@@ -116,6 +128,30 @@ export function AdultLeadsWorkspace({ initialLeads }: { initialLeads: AdultLeadR
     setMessage("Lead deleted.");
   }
 
+  async function addCountry(event: React.FormEvent) {
+    event.preventDefault();
+    setCountrySaving(true);
+    setCountryError(null);
+    const response = await fetch("/api/adult-leads/countries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newCountry })
+    });
+    const data = await response.json().catch(() => ({}));
+    setCountrySaving(false);
+    if (!response.ok) {
+      setCountryError(data.error ?? "Country could not be added.");
+      return;
+    }
+    const nextCountries = Array.isArray(data.countries) ? data.countries : [...countries, data.country].filter(Boolean);
+    setCountries(nextCountries);
+    setCountry(data.country);
+    setCity("");
+    setNewCountry("");
+    setCountryDialogOpen(false);
+    setMessage(`${data.country} added to Adult Leads.`);
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header>
@@ -136,7 +172,58 @@ export function AdultLeadsWorkspace({ initialLeads }: { initialLeads: AdultLeadR
             {item}
           </button>
         ))}
+        <button
+          type="button"
+          title="Add country"
+          aria-label="Add country"
+          onClick={() => {
+            setCountryError(null);
+            setCountryDialogOpen(true);
+          }}
+          className="grid h-11 w-11 place-items-center rounded-lg bg-white/5 text-slate-200 transition soft-border hover:bg-sky-400 hover:text-slate-950"
+        >
+          <AddIcon fontSize="small" />
+        </button>
       </div>
+
+      {countryDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setCountryDialogOpen(false);
+          }}
+        >
+          <form onSubmit={addCountry} className="w-full max-w-md rounded-xl border border-line bg-[#071426] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-emerald-300">Adult Leads country</p>
+                <h2 className="mt-1 text-2xl font-semibold text-white">Add country</h2>
+              </div>
+              <button type="button" title="Close" aria-label="Close" onClick={() => setCountryDialogOpen(false)} className="grid h-10 w-10 place-items-center rounded-lg text-slate-300 soft-border hover:bg-white/8 hover:text-white">
+                <CloseIcon fontSize="small" />
+              </button>
+            </div>
+            <label className="mt-5 grid gap-2 text-sm text-slate-300">
+              Country name
+              <input
+                required
+                autoFocus
+                value={newCountry}
+                onChange={(event) => setNewCountry(event.target.value)}
+                placeholder="Philippines"
+                className="h-11 rounded-lg bg-black/20 px-3 text-white outline-none soft-border focus:border-sky-300/50"
+              />
+            </label>
+            {countryError && <div className="mt-4 rounded-lg bg-rose-400/10 px-4 py-3 text-sm text-rose-100 soft-border">{countryError}</div>}
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setCountryDialogOpen(false)} className="h-11 rounded-lg bg-white/5 px-4 font-semibold text-white soft-border hover:bg-white/10">Cancel</button>
+              <button disabled={countrySaving} className="h-11 rounded-lg bg-sky-400 px-5 font-semibold text-slate-950 hover:bg-sky-300 disabled:opacity-60">
+                {countrySaving ? "Adding..." : "Add country"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <section className="glass rounded-xl p-5">
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr_0.7fr_0.55fr_auto] lg:items-end">

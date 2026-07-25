@@ -31,13 +31,21 @@ import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import DialpadIcon from "@mui/icons-material/Dialpad";
 import NightlifeIcon from "@mui/icons-material/Nightlife";
+import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import { clsx } from "clsx";
 import { AdminNotificationCenter } from "@/components/AdminNotificationCenter";
 import { PushNotificationControl } from "@/components/PushNotificationControl";
 
-const nav = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof DashboardIcon;
+  adminOnly?: boolean;
+};
+
+const nav: NavItem[] = [
   { href: "/", label: "Overview", icon: DashboardIcon },
   { href: "/notifications", label: "Notifications", icon: NotificationsIcon },
   { href: "/dashboard", label: "Region Leads", icon: PublicIcon },
@@ -53,6 +61,7 @@ const nav = [
   { href: "/opportunities", label: "Opportunities", icon: WorkIcon },
   { href: "/projects", label: "Client Projects", icon: GroupsIcon },
   { href: "/portal-users", label: "Portal Users", icon: AccountCircleIcon },
+  { href: "/staff", label: "Staff Accounts", icon: SupervisorAccountIcon, adminOnly: true },
   { href: "/employee-portal", label: "Employee Portal", icon: BadgeIcon },
   { href: "/client-portal", label: "Client Portal", icon: AccountCircleIcon },
   { href: "/duplicates", label: "Duplicates", icon: ContentCopyIcon },
@@ -83,7 +92,8 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
   const [mobileOpen, setMobileOpen] = useState(false);
   const isClient = userRole === "client";
   const isEmployee = userRole === "employee";
-  const navigation = isClient ? clientNav : isEmployee ? employeeNav : nav;
+  const isManager = userRole === "manager";
+  const navigation = isClient ? clientNav : isEmployee ? employeeNav : nav.filter((item) => !item.adminOnly || userRole === "admin");
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
@@ -160,14 +170,14 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
           </div>
           <div>
             <div className="text-sm text-slate-400">Direct Optimize</div>
-            <div className="font-semibold leading-tight text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : "Lead Automation"}</div>
+            <div className="font-semibold leading-tight text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : isManager ? "Manager Workspace" : "Lead Automation"}</div>
           </div>
         </div>
         <nav className="space-y-2">
           <NavigationLinks />
         </nav>
         <div className="mt-6 rounded-lg bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
-          {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : "Official APIs only. Rate limits, unsubscribe handling, consent fields, and outreach logs are built in."}
+          {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : isManager ? `${userName || "Manager"}, operational dashboard access is active.` : "Official APIs only. Rate limits, unsubscribe handling, consent fields, and outreach logs are built in."}
         </div>
         <div className="mt-4">
           <PushNotificationControl />
@@ -205,7 +215,7 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
                 <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-400/15 text-sky-200 soft-border"><ShieldIcon /></div>
                 <div className="min-w-0">
                   <div className="truncate text-sm text-slate-400">Direct Optimize</div>
-                  <div className="truncate font-semibold text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : "Lead Automation"}</div>
+                  <div className="truncate font-semibold text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : isManager ? "Manager Workspace" : "Lead Automation"}</div>
                 </div>
               </div>
               <button type="button" onClick={() => setMobileOpen(false)} aria-label="Close navigation menu" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-slate-300 hover:bg-white/7 hover:text-white">

@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isOperationsRole } from "@/lib/roles";
 import { createAppNotification } from "@/lib/appNotifications";
 import { getRegion } from "@/lib/regions";
 import { getSavedRegion } from "@/lib/regionStore";
@@ -10,7 +11,7 @@ import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntellig
 import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { enrichLeadWithProviders } from "@/lib/leadEnrichment";
 import { hasWhatsappContactSignal } from "@/lib/whatsappIdentification";
-import { sendEmailFollowUp, sendEmailOutreach } from "@/lib/providers";
+import { findGoogleBusinessProfileForWebsite, sendEmailFollowUp, sendEmailOutreach } from "@/lib/providers";
 import type { AutomationResult, Lead, PlaceLeadCandidate } from "@/lib/types";
 
 type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
@@ -535,7 +536,7 @@ export async function createOpportunity(input: {
 
 export async function listDbNotifications(user: { id: string; role: string }, options?: { take?: number }) {
   return prisma.notification.findMany({
-    where: user.role === "admin" ? { recipientUserId: null } : { recipientUserId: user.id },
+    where: isOperationsRole(user.role) ? { recipientUserId: null } : { recipientUserId: user.id },
     orderBy: { createdAt: "desc" },
     take: Math.max(1, Math.min(options?.take ?? 20, 250))
   });
@@ -786,20 +787,29 @@ export async function createDbLeadFromExtension(input: {
   if (existing) return { lead: toLead(existing as DbLead), created: false };
 
   const companyName = input.companyName.trim().slice(0, 200);
-  const category = (input.category || "Website lead").trim().slice(0, 160);
+  const gmbMatch = await findGoogleBusinessProfileForWebsite({
+    website,
+    companyName,
+    region: region.name,
+    country: region.country,
+    city: input.city
+  }).catch(() => null);
+  const category = (input.category || gmbMatch?.category || "Website lead").trim().slice(0, 160);
+  const phone = input.phone?.trim().slice(0, 50) || gmbMatch?.phone || null;
   const missingSeoMetadata = !input.description || input.description.trim().length < 70;
   const leadScore = scoreLead({
     company_name: companyName,
     region: region.name,
-    country: region.country,
-    city: input.city || region.country,
+    country: gmbMatch?.country || region.country,
+    city: input.city || gmbMatch?.city || region.country,
     category,
-    business_type: category,
+    business_type: gmbMatch?.businessType || category,
     website,
-    phone: input.phone || null,
+    google_maps_url: gmbMatch?.googleMapsUrl || null,
+    phone,
     email: input.email || null,
-    whatsapp_available: hasWhatsappContactSignal(input.phone),
-    whatsapp_status: hasWhatsappContactSignal(input.phone) ? "available" : "unknown",
+    whatsapp_available: hasWhatsappContactSignal(phone),
+    whatsapp_status: hasWhatsappContactSignal(phone) ? "available" : "unknown",
     source_platform: "firefox_extension",
     lead_score: 0,
     outreach_status: "New",
@@ -817,20 +827,24 @@ export async function createDbLeadFromExtension(input: {
     data: {
       companyName,
       region: region.name,
-      country: region.country,
-      city: (input.city || region.country).trim().slice(0, 120),
+      country: (gmbMatch?.country || region.country).trim().slice(0, 120),
+      city: (input.city || gmbMatch?.city || region.country).trim().slice(0, 120),
       category,
-      businessType: category,
+      businessType: (gmbMatch?.businessType || category).trim().slice(0, 160),
       website,
-      phone: input.phone?.trim().slice(0, 50) || null,
+      googleMapsUrl: gmbMatch?.googleMapsUrl || null,
+      phone,
       email: input.email?.trim().toLowerCase().slice(0, 320) || null,
-      whatsappAvailable: hasWhatsappContactSignal(input.phone),
-      whatsappStatus: hasWhatsappContactSignal(input.phone) ? "available" : "unknown",
+      whatsappAvailable: hasWhatsappContactSignal(phone),
+      whatsappStatus: hasWhatsappContactSignal(phone) ? "available" : "unknown",
       sourcePlatform: "firefox_extension",
       leadScore,
+      rating: gmbMatch?.rating ?? undefined,
+      reviewCount: gmbMatch?.reviewCount ?? undefined,
       outreachStatus: "New",
       notes: [
         "Imported from Firefox extension.",
+        gmbMatch?.googleMapsUrl ? `Google Business Profile matched by ${gmbMatch.confidence}: ${gmbMatch.googleMapsUrl}` : "Google Business Profile lookup did not find a confident match.",
         input.pageTitle ? `Page title: ${input.pageTitle}` : null,
         input.description ? `Meta description: ${input.description}` : null
       ].filter(Boolean).join("\n"),
@@ -851,11 +865,11 @@ export async function createDbLeadFromExtension(input: {
   await createAppNotification({
     type: "lead_capture",
     title: "Website lead captured",
-    message: `${lead.companyName} was added from the Firefox extension.`,
+    message: `${lead.companyName} was added from the Firefox extension${gmbMatch?.googleMapsUrl ? " with a Google Business Profile match" : ""}.`,
     actionUrl: `/leads/${lead.id}`,
     leadId: lead.id
   }).catch(() => undefined);
-  return { lead: toLead(lead), created: true };
+  return { lead: toLead(lead), created: true, gmbMatched: Boolean(gmbMatch?.googleMapsUrl), googleMapsUrl: gmbMatch?.googleMapsUrl ?? null };
 }
 
 export async function markDbOutreach(leadId: string, channel: "email" | "whatsapp") {

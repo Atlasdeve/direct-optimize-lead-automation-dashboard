@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -6,7 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const user = await currentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
-  const where = user.role === "admin" ? { recipientUserId: null } : { recipientUserId: user.id };
+  const where = isOperationsRole(user.role) ? { recipientUserId: null } : { recipientUserId: user.id };
 
   const encoder = new TextEncoder();
   let pollTimer: ReturnType<typeof setInterval> | undefined;

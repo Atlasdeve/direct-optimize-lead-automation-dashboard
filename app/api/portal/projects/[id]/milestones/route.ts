@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { createMilestone, getProjectForUser } from "@/lib/portalStore";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
-  if (!user || user.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user || !isOperationsRole(user.role)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   const project = await getProjectForUser(id, user);
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });

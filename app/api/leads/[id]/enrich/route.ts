@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { enrichLeadForDetails, getDbLead } from "@/lib/dbStore";
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
-  if (!user || user.role !== "admin") {
+  if (!user || !isOperationsRole(user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

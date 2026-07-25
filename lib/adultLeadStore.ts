@@ -4,6 +4,8 @@ import { adultLeadCategory, type AdultLeadCategoryId } from "@/lib/adultLeadCate
 import { prohibitedLeadTerm } from "@/lib/restrictedLeadPolicy";
 import { fetchPlacesLeads } from "@/lib/providers";
 
+const defaultAdultLeadCountries = ["Nigeria", "Thailand", "Vietnam", "Indonesia"];
+
 type GoogleSearchItem = {
   title?: string;
   link?: string;
@@ -123,6 +125,44 @@ export async function listAdultLeads(filters: { country?: string; category?: str
     orderBy: [{ createdAt: "desc" }]
   });
   return leads.map(toRecord);
+}
+
+export async function listAdultLeadCountries() {
+  await Promise.all(defaultAdultLeadCountries.map((name) => prisma.adultLeadCountry.upsert({
+    where: { name },
+    update: {},
+    create: { name }
+  })));
+  const countries = await prisma.adultLeadCountry.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { name: true }
+  });
+  const defaultOrder = new Map(defaultAdultLeadCountries.map((name, index) => [name, index]));
+  return countries
+    .sort((left, right) => {
+      const leftIndex = defaultOrder.get(left.name) ?? Number.MAX_SAFE_INTEGER;
+      const rightIndex = defaultOrder.get(right.name) ?? Number.MAX_SAFE_INTEGER;
+      return leftIndex - rightIndex;
+    })
+    .map((country) => country.name);
+}
+
+export async function createAdultLeadCountry(value: string) {
+  const name = value.trim().replace(/\s+/g, " ");
+  if (name.length < 2 || name.length > 80) throw new Error("Country name should be 2-80 characters.");
+  if (!/^[A-Za-z][A-Za-z .'-]*$/.test(name)) throw new Error("Enter a valid country name.");
+
+  const existing = await prisma.adultLeadCountry.findFirst({
+    where: { name: { equals: name, mode: "insensitive" } },
+    select: { name: true }
+  });
+  if (existing) return existing.name;
+
+  const country = await prisma.adultLeadCountry.create({
+    data: { name },
+    select: { name: true }
+  });
+  return country.name;
 }
 
 async function discoverWithGooglePlaces(input: {

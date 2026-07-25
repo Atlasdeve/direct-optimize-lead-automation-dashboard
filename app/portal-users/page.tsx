@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { listPortalUsers } from "@/lib/portalStore";
 import { UserAdminClient } from "@/components/portal/UserAdminClient";
 
 export default async function PortalUsersPage() {
   const user = await currentUser();
   if (!user) redirect("/login");
-  if (user.role !== "admin") redirect("/");
+  if (!isOperationsRole(user.role)) redirect("/");
   const users = await listPortalUsers();
   return (
     <div className="mx-auto max-w-6xl space-y-6">

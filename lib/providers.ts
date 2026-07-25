@@ -33,6 +33,21 @@ type GooglePlace = {
   }>;
 };
 
+export type GoogleBusinessProfileMatch = {
+  placeId: string;
+  companyName: string;
+  googleMapsUrl: string | null;
+  website: string | null;
+  phone: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  category: string | null;
+  businessType: string | null;
+  city: string | null;
+  country: string | null;
+  confidence: "website" | "name";
+};
+
 type LegacyTextSearchResult = {
   place_id?: string;
   name?: string;
@@ -65,6 +80,32 @@ function cityForRegion(region: string) {
   return getDefaultCityForRegion(region);
 }
 
+function normalizeDomain(value?: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+    return url.hostname.replace(/^www\./i, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function nameTokens(value?: string | null) {
+  return new Set(
+    (value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length > 2 && !["the", "and", "inc", "llc", "ltd", "com", "www"].includes(token))
+  );
+}
+
+function sharedTokenCount(left?: string | null, right?: string | null) {
+  const leftTokens = nameTokens(left);
+  const rightTokens = nameTokens(right);
+  return [...leftTokens].filter((token) => rightTokens.has(token)).length;
+}
+
 function countryFromComponents(place: GooglePlace, fallback: string) {
   return place.addressComponents?.find((component) => component.types?.includes("country"))?.longText ?? fallback;
 }
@@ -75,6 +116,106 @@ function cityFromComponents(place: GooglePlace, fallback: string) {
     place.addressComponents?.find((component) => component.types?.includes("administrative_area_level_2"))?.longText ??
     fallback
   );
+}
+
+async function searchGooglePlacesText(textQuery: string, pageSize = 5) {
+  const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": process.env.GOOGLE_PLACES_API_KEY ?? "",
+      "X-Goog-FieldMask": [
+        "places.id",
+        "places.displayName",
+        "places.formattedAddress",
+        "places.nationalPhoneNumber",
+        "places.internationalPhoneNumber",
+        "places.websiteUri",
+        "places.googleMapsUri",
+        "places.rating",
+        "places.userRatingCount",
+        "places.businessStatus",
+        "places.primaryTypeDisplayName",
+        "places.types",
+        "places.addressComponents"
+      ].join(",")
+    },
+    body: JSON.stringify({
+      textQuery,
+      pageSize: Math.max(1, Math.min(pageSize, 10)),
+      languageCode: "en"
+    })
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Places lookup failed: ${response.status} ${details.slice(0, 180)}`);
+  }
+
+  const data = (await response.json()) as { places?: GooglePlace[] };
+  return data.places ?? [];
+}
+
+export async function findGoogleBusinessProfileForWebsite(input: {
+  website: string;
+  companyName?: string | null;
+  region?: string | null;
+  city?: string | null;
+  country?: string | null;
+}): Promise<GoogleBusinessProfileMatch | null> {
+  if (!process.env.GOOGLE_PLACES_API_KEY) return null;
+
+  const domain = normalizeDomain(input.website);
+  if (!domain) return null;
+
+  const companyName = input.companyName?.trim();
+  const location = [input.city, input.country || input.region].filter(Boolean).join(", ");
+  const queries = [
+    companyName ? `${companyName} ${location}`.trim() : null,
+    `"${domain}" ${location}`.trim(),
+    companyName ? `${companyName} ${domain}`.trim() : domain
+  ].filter((query): query is string => Boolean(query));
+
+  const seen = new Set<string>();
+  const candidates: GooglePlace[] = [];
+  for (const query of queries) {
+    try {
+      const places = await searchGooglePlacesText(query, 5);
+      for (const place of places) {
+        if (!place.id || seen.has(place.id)) continue;
+        seen.add(place.id);
+        candidates.push(place);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  const exactWebsite = candidates.find((place) => normalizeDomain(place.websiteUri) === domain);
+  const nameMatched = candidates.find((place) => {
+    if (!companyName) return false;
+    const placeName = place.displayName?.text ?? "";
+    return sharedTokenCount(companyName, placeName) >= 2 || placeName.toLowerCase().includes(companyName.toLowerCase());
+  });
+  const match = exactWebsite ?? nameMatched;
+  if (!match?.id) return null;
+
+  const fallbackCountry = input.country || input.region || null;
+  const fallbackCity = input.city || fallbackCountry || "";
+  return {
+    placeId: match.id,
+    companyName: match.displayName?.text ?? companyName ?? domain,
+    googleMapsUrl: match.googleMapsUri ?? null,
+    website: match.websiteUri ?? null,
+    phone: match.internationalPhoneNumber ?? match.nationalPhoneNumber ?? null,
+    rating: match.rating ?? null,
+    reviewCount: match.userRatingCount ?? null,
+    category: match.primaryTypeDisplayName?.text ?? null,
+    businessType: match.types?.[0]?.replaceAll("_", " ") ?? null,
+    city: cityFromComponents(match, fallbackCity) || input.city || null,
+    country: countryFromComponents(match, fallbackCountry ?? "") || fallbackCountry,
+    confidence: exactWebsite ? "website" : "name"
+  };
 }
 
 function legacyCountryFromComponents(place: LegacyDetailsResult, fallback: string) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { currentSession } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { discoverAdultLeads, listAdultLeads } from "@/lib/adultLeadStore";
 
 const discoverySchema = z.object({
@@ -12,7 +13,7 @@ const discoverySchema = z.object({
 
 async function requireAdmin() {
   const session = await currentSession();
-  return session?.role === "admin";
+  return isOperationsRole(session?.role);
 }
 
 export async function GET(request: NextRequest) {

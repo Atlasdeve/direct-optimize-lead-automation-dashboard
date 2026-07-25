@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { createProject, listProjectsForUser } from "@/lib/portalStore";
+import { isOperationsRole } from "@/lib/roles";
 
 export async function GET() {
   const user = await currentUser();
@@ -10,7 +11,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const user = await currentUser();
-  if (!user || user.role !== "admin") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user || !isOperationsRole(user.role)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json().catch(() => ({}));
   try {
     const project = await createProject({

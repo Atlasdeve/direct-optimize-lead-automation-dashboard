@@ -2,6 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { isOperationsRole } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 
 const filePattern = /^[0-9a-f-]{36}\.(png|jpg|webp)$/;
@@ -16,7 +17,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ projec
     where: { id: projectId },
     select: { clientUserId: true, employeeUserId: true }
   });
-  const permitted = user.role === "admin" || (user.role === "client" && project?.clientUserId === user.id) || (user.role === "employee" && project?.employeeUserId === user.id);
+  const permitted = isOperationsRole(user.role) || (user.role === "client" && project?.clientUserId === user.id) || (user.role === "employee" && project?.employeeUserId === user.id);
   if (!permitted) return NextResponse.json({ error: "File not found." }, { status: 404 });
   try {
     const extension = fileName.split(".").pop()!;
