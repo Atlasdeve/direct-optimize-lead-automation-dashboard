@@ -11,10 +11,23 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import { adultLeadCategories, type AdultLeadCategoryId } from "@/lib/adultLeadCategories";
 import type { AdultLeadRecord } from "@/lib/adultLeadStore";
 
 const statuses = ["Unverified", "Reviewed", "Rejected"];
+
+type EditLeadForm = {
+  businessName: string;
+  country: string;
+  city: string;
+  category: AdultLeadCategoryId;
+  website: string;
+  email: string;
+  phone: string;
+  reviewStatus: string;
+  notes: string;
+};
 
 function categoryLabel(categoryId: string) {
   return adultLeadCategories.find((category) => category.id === categoryId)?.label ?? categoryId;
@@ -48,6 +61,10 @@ export function AdultLeadsWorkspace({
   const [newCountry, setNewCountry] = useState("");
   const [countrySaving, setCountrySaving] = useState(false);
   const [countryError, setCountryError] = useState<string | null>(null);
+  const [editingLead, setEditingLead] = useState<AdultLeadRecord | null>(null);
+  const [editForm, setEditForm] = useState<EditLeadForm | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>(() => Object.fromEntries(initialLeads.map((lead) => [lead.id, lead.notes ?? ""])));
 
   const countryLeads = useMemo(() => leads.filter((lead) => lead.country === country), [country, leads]);
@@ -152,6 +169,55 @@ export function AdultLeadsWorkspace({
     setMessage(`${data.country} added to Adult Leads.`);
   }
 
+  function openEditLead(lead: AdultLeadRecord) {
+    setEditingLead(lead);
+    setEditForm({
+      businessName: lead.businessName,
+      country: lead.country,
+      city: lead.city ?? "",
+      category: lead.category as AdultLeadCategoryId,
+      website: lead.website,
+      email: lead.email ?? "",
+      phone: lead.phone ?? "",
+      reviewStatus: lead.reviewStatus,
+      notes: lead.notes ?? ""
+    });
+    setEditError(null);
+  }
+
+  function closeEditLead() {
+    if (editSaving) return;
+    setEditingLead(null);
+    setEditForm(null);
+    setEditError(null);
+  }
+
+  async function saveEditedLead(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editingLead || !editForm) return;
+    setEditSaving(true);
+    setEditError(null);
+    const response = await fetch(`/api/adult-leads/${editingLead.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm)
+    });
+    const data = await response.json().catch(() => ({}));
+    setEditSaving(false);
+    if (!response.ok) {
+      setEditError(data.error ?? "Lead could not be updated.");
+      return;
+    }
+    const updated = data.lead as AdultLeadRecord;
+    setLeads((current) => current.map((lead) => lead.id === updated.id ? updated : lead));
+    setNotes((current) => ({ ...current, [updated.id]: updated.notes ?? "" }));
+    if (!countries.includes(updated.country)) setCountries((current) => [...current, updated.country]);
+    setCountry(updated.country);
+    setEditingLead(null);
+    setEditForm(null);
+    setMessage("Adult Lead details updated.");
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header>
@@ -219,6 +285,81 @@ export function AdultLeadsWorkspace({
               <button type="button" onClick={() => setCountryDialogOpen(false)} className="h-11 rounded-lg bg-white/5 px-4 font-semibold text-white soft-border hover:bg-white/10">Cancel</button>
               <button disabled={countrySaving} className="h-11 rounded-lg bg-sky-400 px-5 font-semibold text-slate-950 hover:bg-sky-300 disabled:opacity-60">
                 {countrySaving ? "Adding..." : "Add country"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {editingLead && editForm && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeEditLead();
+          }}
+        >
+          <form onSubmit={saveEditedLead} className="my-6 w-full max-w-3xl rounded-xl border border-line bg-[#071426] p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-emerald-300">Adult Lead record</p>
+                <h2 className="mt-1 text-2xl font-semibold text-white">Edit lead</h2>
+              </div>
+              <button type="button" title="Close" aria-label="Close edit lead" onClick={closeEditLead} className="grid h-10 w-10 place-items-center rounded-lg text-slate-300 soft-border hover:bg-white/8 hover:text-white">
+                <CloseIcon fontSize="small" />
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm text-slate-300">
+                Business name
+                <input required value={editForm.businessName} onChange={(event) => setEditForm((current) => current ? { ...current, businessName: event.target.value } : current)} className="h-11 rounded-lg bg-black/20 px-3 text-white outline-none soft-border focus:border-sky-300/50" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-300">
+                Category
+                <select value={editForm.category} onChange={(event) => setEditForm((current) => current ? { ...current, category: event.target.value as AdultLeadCategoryId } : current)} className="h-11 rounded-lg bg-black/20 px-3 text-white soft-border">
+                  {adultLeadCategories.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm text-slate-300">
+                Country
+                <select value={editForm.country} onChange={(event) => setEditForm((current) => current ? { ...current, country: event.target.value } : current)} className="h-11 rounded-lg bg-black/20 px-3 text-white soft-border">
+                  {countries.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm text-slate-300">
+                City
+                <input value={editForm.city} onChange={(event) => setEditForm((current) => current ? { ...current, city: event.target.value } : current)} className="h-11 rounded-lg bg-black/20 px-3 text-white outline-none soft-border focus:border-sky-300/50" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-300 md:col-span-2">
+                Website URL
+                <input required type="text" inputMode="url" value={editForm.website} onChange={(event) => setEditForm((current) => current ? { ...current, website: event.target.value } : current)} className="h-11 rounded-lg bg-black/20 px-3 text-white outline-none soft-border focus:border-sky-300/50" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-300">
+                Email address
+                <input type="email" value={editForm.email} onChange={(event) => setEditForm((current) => current ? { ...current, email: event.target.value } : current)} className="h-11 rounded-lg bg-black/20 px-3 text-white outline-none soft-border focus:border-sky-300/50" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-300">
+                Phone number
+                <input type="tel" value={editForm.phone} onChange={(event) => setEditForm((current) => current ? { ...current, phone: event.target.value } : current)} className="h-11 rounded-lg bg-black/20 px-3 text-white outline-none soft-border focus:border-sky-300/50" />
+              </label>
+              <label className="grid gap-2 text-sm text-slate-300">
+                Review status
+                <select value={editForm.reviewStatus} onChange={(event) => setEditForm((current) => current ? { ...current, reviewStatus: event.target.value } : current)} className="h-11 rounded-lg bg-black/20 px-3 text-white soft-border">
+                  {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm text-slate-300 md:col-span-2">
+                Research notes
+                <textarea rows={4} maxLength={2000} value={editForm.notes} onChange={(event) => setEditForm((current) => current ? { ...current, notes: event.target.value } : current)} className="resize-y rounded-lg bg-black/20 px-3 py-2 text-white outline-none soft-border focus:border-sky-300/50" />
+              </label>
+            </div>
+
+            {editError && <div className="mt-4 rounded-lg bg-rose-400/10 px-4 py-3 text-sm text-rose-100 soft-border">{editError}</div>}
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={closeEditLead} disabled={editSaving} className="h-11 rounded-lg bg-white/5 px-4 font-semibold text-white soft-border hover:bg-white/10 disabled:opacity-60">Cancel</button>
+              <button disabled={editSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-sky-400 px-5 font-semibold text-slate-950 hover:bg-sky-300 disabled:opacity-60">
+                <SaveIcon fontSize="small" />
+                {editSaving ? "Saving..." : "Save changes"}
               </button>
             </div>
           </form>
@@ -327,6 +468,9 @@ export function AdultLeadsWorkspace({
                   <select value={lead.reviewStatus} onChange={(event) => updateLead(lead.id, { reviewStatus: event.target.value })} className="h-10 rounded-lg bg-black/20 px-2 text-xs soft-border">
                     {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
+                  <button type="button" onClick={() => openEditLead(lead)} title="Edit lead" aria-label={`Edit ${lead.businessName}`} className="grid h-10 w-10 place-items-center rounded-lg text-emerald-200 soft-border hover:bg-emerald-400/10">
+                    <EditOutlinedIcon fontSize="small" />
+                  </button>
                   <button type="button" onClick={() => updateLead(lead.id, { notes: notes[lead.id] ?? "" })} title="Save note" className="grid h-10 w-10 place-items-center rounded-lg text-sky-200 soft-border hover:bg-white/8">
                     <SaveIcon fontSize="small" />
                   </button>

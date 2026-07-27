@@ -338,17 +338,49 @@ export async function discoverAdultLeads(input: {
   };
 }
 
-export async function updateAdultLead(id: string, input: { reviewStatus?: string; notes?: string | null }) {
+export async function updateAdultLead(id: string, input: {
+  businessName?: string;
+  country?: string;
+  city?: string | null;
+  category?: AdultLeadCategoryId;
+  website?: string;
+  email?: string | null;
+  phone?: string | null;
+  reviewStatus?: string;
+  notes?: string | null;
+}) {
   const reviewStatus = input.reviewStatus && ["Unverified", "Reviewed", "Rejected"].includes(input.reviewStatus)
     ? input.reviewStatus
     : undefined;
-  return toRecord(await prisma.adultLead.update({
-    where: { id },
-    data: {
-      ...(reviewStatus ? { reviewStatus } : {}),
-      ...(input.notes !== undefined ? { notes: input.notes?.trim().slice(0, 2000) || null } : {})
+  if (input.category && !adultLeadCategory(input.category)) throw new Error("Select a supported category.");
+  if (prohibitedLeadTerm(input.businessName, input.website, input.notes)) {
+    throw new Error("This lead cannot be stored in the Adult Leads workspace.");
+  }
+  if (input.country) {
+    await createAdultLeadCountry(input.country);
+  }
+
+  try {
+    return toRecord(await prisma.adultLead.update({
+      where: { id },
+      data: {
+        ...(input.businessName !== undefined ? { businessName: input.businessName.trim().slice(0, 200) } : {}),
+        ...(input.country !== undefined ? { country: input.country.trim().slice(0, 80) } : {}),
+        ...(input.city !== undefined ? { city: input.city?.trim().slice(0, 120) || null } : {}),
+        ...(input.category !== undefined ? { category: input.category } : {}),
+        ...(input.website !== undefined ? { website: input.website } : {}),
+        ...(input.email !== undefined ? { email: input.email?.trim().toLowerCase().slice(0, 320) || null } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone?.trim().slice(0, 50) || null } : {}),
+        ...(reviewStatus ? { reviewStatus } : {}),
+        ...(input.notes !== undefined ? { notes: input.notes?.trim().slice(0, 2000) || null } : {})
+      }
+    }));
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "P2002") {
+      throw new Error("Another Adult Lead already uses this website.");
     }
-  }));
+    throw error;
+  }
 }
 
 export async function deleteAdultLead(id: string) {
