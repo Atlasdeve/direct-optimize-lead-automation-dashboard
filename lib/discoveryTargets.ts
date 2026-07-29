@@ -39,7 +39,15 @@ const regionCities: Record<string, string[]> = {
   France: ["Paris", "Lyon", "Marseille", "Toulouse", "Nice", "Nantes", "Bordeaux"],
   Singapore: ["Singapore"],
   Saudi: ["Riyadh", "Jeddah", "Dammam", "Mecca", "Medina", "Khobar"],
-  "Saudi Arabia": ["Riyadh", "Jeddah", "Dammam", "Mecca", "Medina", "Khobar"]
+  "Saudi Arabia": ["Riyadh", "Jeddah", "Dammam", "Mecca", "Medina", "Khobar"],
+  Nigeria: ["Lagos", "Abuja", "Port Harcourt", "Ibadan", "Kano", "Benin City"],
+  Thailand: ["Bangkok", "Pattaya", "Chiang Mai", "Phuket", "Khon Kaen", "Hat Yai"],
+  Vietnam: ["Ho Chi Minh City", "Hanoi", "Da Nang", "Hai Phong", "Can Tho", "Nha Trang"],
+  Indonesia: ["Jakarta", "Surabaya", "Bandung", "Medan", "Bali", "Makassar"],
+  Philippines: ["Manila", "Cebu City", "Davao City", "Quezon City", "Makati", "Pasig"],
+  Malaysia: ["Kuala Lumpur", "Johor Bahru", "George Town", "Ipoh", "Shah Alam", "Kota Kinabalu"],
+  Kenya: ["Nairobi", "Mombasa", "Kisumu", "Nakuru", "Eldoret"],
+  "South Africa": ["Johannesburg", "Cape Town", "Durban", "Pretoria", "Gqeberha"]
 };
 
 function hashValue(value: string) {

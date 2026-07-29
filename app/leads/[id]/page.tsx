@@ -21,6 +21,8 @@ import { LeadCallingPanel } from "@/components/lead/LeadCallingPanel";
 import { DeleteLeadButton } from "@/components/lead/DeleteLeadButton";
 import { DecisionMakerPanel } from "@/components/lead/DecisionMakerPanel";
 import { EditLeadDetailsButton } from "@/components/lead/EditLeadDetailsButton";
+import { FollowUpReminderControl } from "@/components/lead/FollowUpReminderControl";
+import { getActiveFollowUpReminder } from "@/lib/followUpReminders";
 
 function websiteHref(website: string) {
   return /^https?:\/\//i.test(website) ? website : `https://${website}`;
@@ -56,14 +58,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const contacts = await getDbLeadContacts(lead.id);
   const emailTracking = await getLeadEmailTracking(lead.id);
   const contactForms = contacts.filter((contact) => contact.type === "contact_form");
-  const [websiteAudit, gmbAudit] = await Promise.all([
+  const [websiteAudit, gmbAudit, existingProject, followUpReminder] = await Promise.all([
     getLatestLeadIntelligence(lead.id).then((audit) => audit ?? runLeadIntelligenceAudit(lead.id)),
-    getLatestGmbAudit(lead.id).then((audit) => audit ?? runGmbAudit(lead.id))
+    getLatestGmbAudit(lead.id).then((audit) => audit ?? runGmbAudit(lead.id)),
+    getProjectByLeadId(lead.id),
+    getActiveFollowUpReminder({ leadId: lead.id })
   ]);
   const preview = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit });
   const whatsappNumber = whatsappNumberFromPhone(lead.phone);
   const opportunitySummary = leadOpportunitySummary(lead);
-  const existingProject = await getProjectByLeadId(lead.id);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -246,6 +249,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </section>
 
       <LeadOutreachControls lead={lead} preview={preview} />
+      <FollowUpReminderControl leadId={lead.id} leadName={lead.company_name} initialReminder={followUpReminder} />
       <LeadIntelligencePanel leadId={lead.id} />
       <GmbAuditPanel leadId={lead.id} />
       <LeadResearchChecklist leadId={lead.id} />

@@ -6,6 +6,8 @@ import { runOutreachAutomationCycle } from "@/lib/dbStore";
 import { listEnabledRegions } from "@/lib/regionStore";
 import { prisma } from "@/lib/prisma";
 import { getDailyAutomationTarget } from "@/lib/discoveryTargets";
+import { runAdultLeadOutreachAutomationCycle, runDueAdultLeadAutomations } from "@/lib/adultLeadAutomation";
+import { sendDueLeadFollowUpReminders } from "@/lib/followUpReminders";
 
 startAutomationWorker();
 
@@ -64,11 +66,36 @@ cron.schedule("*/15 * * * *", () => {
   void runDueDiscoveryAutomations().catch((error) => console.error("Regional discovery automation failed:", error));
 });
 
+cron.schedule("*/15 * * * *", () => {
+  void runDueAdultLeadAutomations().catch((error) => console.error("Adult Lead automation failed:", error));
+});
+
+let adultOutreachCycleRunning = false;
+cron.schedule("*/10 * * * *", async () => {
+  if (adultOutreachCycleRunning) return;
+  adultOutreachCycleRunning = true;
+  try {
+    const result = await runAdultLeadOutreachAutomationCycle();
+    if (result.sent > 0 || result.failed > 0) {
+      console.log(`Adult Lead outreach: ${result.sent} sent, ${result.failed} failed.`);
+    }
+  } catch (error) {
+    console.error("Adult Lead outreach automation failed:", error);
+  } finally {
+    adultOutreachCycleRunning = false;
+  }
+});
+
 cron.schedule("*/15 * * * *", async () => {
   const result = await syncInboxReplies();
   if (!result.ok && result.reason !== "IMAP is not configured") {
     console.error(`Reply sync failed: ${result.reason}`);
   }
+});
+
+cron.schedule("* * * * *", async () => {
+  const result = await sendDueLeadFollowUpReminders();
+  if (result.sent > 0) console.log(`Sent ${result.sent} lead follow-up reminder(s).`);
 });
 
 let outreachCycleRunning = false;
@@ -95,4 +122,4 @@ cron.schedule("0 17 * * *", async () => {
   if (result.sent > 0) console.log(`Sent ${result.sent} employee work reminder(s).`);
 }, { timezone: "Asia/Karachi" });
 
-console.log("Direct Optimize scheduler started for regional discovery, approved outreach, follow-ups, reply sync, and employee reminders.");
+console.log("Direct Optimize scheduler started for discovery, approved outreach, follow-ups, lead reminders, reply sync, and employee reminders.");

@@ -1003,6 +1003,13 @@ export async function recordEmailOpen(logId: string, requestMeta: { userAgent?: 
       }
     }
   });
+  const adultLeadId = (composeLog.metadata as Record<string, unknown> | null)?.adultLeadId;
+  if (typeof adultLeadId === "string") {
+    await prisma.adultLead.updateMany({
+      where: { id: adultLeadId },
+      data: { emailOpened: true }
+    });
+  }
   return { recorded: true, source: "compose" };
 }
 
@@ -1049,6 +1056,13 @@ export async function recordEmailClick(logId: string, url: string, requestMeta: 
       }
     }
   });
+  const adultLeadId = (composeLog.metadata as Record<string, unknown> | null)?.adultLeadId;
+  if (typeof adultLeadId === "string") {
+    await prisma.adultLead.updateMany({
+      where: { id: adultLeadId },
+      data: { emailClicked: true }
+    });
+  }
   return { recorded: true, source: "compose" };
 }
 
@@ -1551,18 +1565,27 @@ function sendingWindowStatus(region?: string) {
   };
 }
 
-async function remainingDailyEmailAllowance() {
+export async function remainingDailyEmailAllowance() {
   const dailyCap = Number(process.env.DAILY_EMAIL_CAP || 150);
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
-  const sentToday = await prisma.outreachLog.count({
-    where: {
-      channel: "email",
-      action: { in: ["send_outreach", "send_follow_up_1", "send_follow_up_2"] },
-      status: "completed",
-      createdAt: { gte: startOfDay }
-    }
-  });
+  const [automated, composed] = await Promise.all([
+    prisma.outreachLog.count({
+      where: {
+        channel: "email",
+        action: { in: ["send_outreach", "send_follow_up_1", "send_follow_up_2"] },
+        status: "completed",
+        createdAt: { gte: startOfDay }
+      }
+    }),
+    prisma.composeEmailLog.count({
+      where: {
+        status: { in: ["sent", "simulated"] },
+        createdAt: { gte: startOfDay }
+      }
+    })
+  ]);
+  const sentToday = automated + composed;
   return Math.max(0, dailyCap - sentToday);
 }
 

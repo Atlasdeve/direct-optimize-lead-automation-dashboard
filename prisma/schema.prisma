@@ -24,6 +24,7 @@ model User {
   callLogs         CallLog[]
   notifications    Notification[] @relation("UserNotifications")
   pushSubscriptions PushSubscription[]
+  followUpReminders FollowUpReminder[]
 
   @@map("users")
 }
@@ -95,6 +96,7 @@ model Lead {
   opportunities   Opportunity[]
   clientProjects  ClientProject[]
   callLogs        CallLog[]
+  followUpReminders FollowUpReminder[]
 
   @@index([region])
   @@index([email])
@@ -114,13 +116,22 @@ model AdultLead {
   sourceSnippet  String?  @map("source_snippet")
   sourceQuery    String?  @map("source_query")
   reviewStatus   String   @default("Unverified") @map("review_status")
+  outreachStatus String   @default("New") @map("outreach_status")
+  outreachApproved Boolean @default(false) @map("outreach_approved")
+  outreachApprovedAt DateTime? @map("outreach_approved_at")
+  emailSent      Boolean  @default(false) @map("email_sent")
+  emailOpened    Boolean  @default(false) @map("email_opened")
+  emailClicked   Boolean  @default(false) @map("email_clicked")
+  lastContactedAt DateTime? @map("last_contacted_at")
   notes          String?
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
+  followUpReminders FollowUpReminder[]
 
   @@index([country])
   @@index([category])
   @@index([reviewStatus])
+  @@index([outreachApproved, emailSent])
   @@map("adult_leads")
 }
 
@@ -130,6 +141,30 @@ model AdultLeadCountry {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("adult_lead_countries")
+}
+
+model FollowUpReminder {
+  id              String    @id @default(cuid())
+  leadId          String?   @map("lead_id")
+  adultLeadId     String?   @map("adult_lead_id")
+  createdByUserId String?   @map("created_by_user_id")
+  preset          String
+  note            String?
+  dueAt           DateTime  @map("due_at")
+  status          String    @default("Scheduled")
+  notifiedAt      DateTime? @map("notified_at")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  lead          Lead?      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  adultLead     AdultLead? @relation(fields: [adultLeadId], references: [id], onDelete: Cascade)
+  createdByUser User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, dueAt])
+  @@index([leadId, status])
+  @@index([adultLeadId, status])
+  @@map("follow_up_reminders")
 }
 
 model CallLog {

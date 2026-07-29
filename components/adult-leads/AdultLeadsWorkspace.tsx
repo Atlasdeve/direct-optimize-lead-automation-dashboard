@@ -12,8 +12,14 @@ import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import TaskAltIcon from "@mui/icons-material/TaskAlt";
+import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead";
 import { adultLeadCategories, type AdultLeadCategoryId } from "@/lib/adultLeadCategories";
+import type { AdultLeadAutomationOverview } from "@/lib/adultLeadAutomation";
 import type { AdultLeadRecord } from "@/lib/adultLeadStore";
+import { FollowUpReminderControl } from "@/components/lead/FollowUpReminderControl";
+import type { FollowUpReminderRecord } from "@/lib/followUpReminderOptions";
 
 const statuses = ["Unverified", "Reviewed", "Rejected"];
 
@@ -41,10 +47,14 @@ function statusClass(status: string) {
 
 export function AdultLeadsWorkspace({
   initialLeads,
-  initialCountries
+  initialCountries,
+  initialAutomation,
+  initialReminders
 }: {
   initialLeads: AdultLeadRecord[];
   initialCountries: string[];
+  initialAutomation: AdultLeadAutomationOverview;
+  initialReminders: Record<string, FollowUpReminderRecord>;
 }) {
   const [leads, setLeads] = useState(initialLeads);
   const [countries, setCountries] = useState(initialCountries);
@@ -65,6 +75,10 @@ export function AdultLeadsWorkspace({
   const [editForm, setEditForm] = useState<EditLeadForm | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [automation, setAutomation] = useState(initialAutomation);
+  const [automationSaving, setAutomationSaving] = useState(false);
+  const [automationMessage, setAutomationMessage] = useState<string | null>(null);
+  const [outreachBusyId, setOutreachBusyId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>(() => Object.fromEntries(initialLeads.map((lead) => [lead.id, lead.notes ?? ""])));
 
   const countryLeads = useMemo(() => leads.filter((lead) => lead.country === country), [country, leads]);
@@ -86,7 +100,9 @@ export function AdultLeadsWorkspace({
     total: countryLeads.length,
     unverified: countryLeads.filter((lead) => lead.reviewStatus === "Unverified").length,
     reviewed: countryLeads.filter((lead) => lead.reviewStatus === "Reviewed").length,
-    contacts: countryLeads.filter((lead) => lead.email || lead.phone).length
+    contacts: countryLeads.filter((lead) => lead.email || lead.phone).length,
+    approved: countryLeads.filter((lead) => lead.outreachApproved && !lead.emailSent).length,
+    sent: countryLeads.filter((lead) => lead.emailSent).length
   };
 
   async function refresh() {
@@ -96,6 +112,30 @@ export function AdultLeadsWorkspace({
       setLeads(data.leads ?? []);
       setNotes(Object.fromEntries((data.leads ?? []).map((lead: AdultLeadRecord) => [lead.id, lead.notes ?? ""])));
     }
+  }
+
+  async function refreshAutomation() {
+    const response = await fetch("/api/adult-leads/automation");
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) setAutomation(data);
+  }
+
+  async function saveAutomation() {
+    setAutomationSaving(true);
+    setAutomationMessage(null);
+    const response = await fetch("/api/adult-leads/automation", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(automation.settings)
+    });
+    const data = await response.json().catch(() => ({}));
+    setAutomationSaving(false);
+    if (!response.ok) {
+      setAutomationMessage(data.error ?? "Automation settings could not be saved.");
+      return;
+    }
+    setAutomation(data);
+    setAutomationMessage(data.settings.enabled ? "Adult Lead automation is active." : "Adult Lead automation is paused.");
   }
 
   async function discover() {
@@ -145,6 +185,27 @@ export function AdultLeadsWorkspace({
     setMessage("Lead deleted.");
   }
 
+  async function updateOutreachApproval(lead: AdultLeadRecord) {
+    setOutreachBusyId(lead.id);
+    setMessage(null);
+    const action = lead.outreachApproved ? "cancel" : "approve";
+    const response = await fetch(`/api/adult-leads/${lead.id}/outreach`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    const data = await response.json().catch(() => ({}));
+    setOutreachBusyId(null);
+    if (!response.ok) {
+      setMessage(data.error ?? "Outreach approval could not be updated.");
+      return;
+    }
+    setLeads((current) => current.map((item) => item.id === lead.id ? data.lead : item));
+    setMessage(action === "approve"
+      ? "Email approved. Automation will send it during business hours in the lead's country."
+      : "Email approval cancelled.");
+  }
+
   async function addCountry(event: React.FormEvent) {
     event.preventDefault();
     setCountrySaving(true);
@@ -167,6 +228,7 @@ export function AdultLeadsWorkspace({
     setNewCountry("");
     setCountryDialogOpen(false);
     setMessage(`${data.country} added to Adult Leads.`);
+    await refreshAutomation();
   }
 
   function openEditLead(lead: AdultLeadRecord) {
@@ -251,6 +313,74 @@ export function AdultLeadsWorkspace({
           <AddIcon fontSize="small" />
         </button>
       </div>
+
+      <section className="glass rounded-xl p-5">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 text-emerald-300">
+              <ScheduleIcon fontSize="small" />
+              <span className="text-sm font-semibold">Daily discovery automation</span>
+            </div>
+            <h2 className="mt-2 text-xl font-semibold text-white">Rotate countries, cities, and categories automatically</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Discovery runs once per country after the selected local hour. Approved emails send automatically during weekday business hours; automated calling remains disabled.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[auto_150px_150px_auto] sm:items-end">
+            <label className="flex h-11 items-center gap-3 rounded-lg bg-black/20 px-3 text-sm soft-border">
+              <input
+                type="checkbox"
+                checked={automation.settings.enabled}
+                onChange={(event) => setAutomation((current) => ({ ...current, settings: { ...current.settings, enabled: event.target.checked } }))}
+                className="h-4 w-4 accent-sky-400"
+              />
+              Enabled
+            </label>
+            <label className="grid gap-2 text-xs text-slate-400">
+              Local run hour
+              <select
+                value={automation.settings.localHour}
+                onChange={(event) => setAutomation((current) => ({ ...current, settings: { ...current.settings, localHour: Number(event.target.value) } }))}
+                className="h-11 rounded-lg bg-black/20 px-3 text-sm text-white soft-border"
+              >
+                {Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>)}
+              </select>
+            </label>
+            <label className="grid gap-2 text-xs text-slate-400">
+              Results per country
+              <select
+                value={automation.settings.maxResults}
+                onChange={(event) => setAutomation((current) => ({ ...current, settings: { ...current.settings, maxResults: Number(event.target.value) } }))}
+                className="h-11 rounded-lg bg-black/20 px-3 text-sm text-white soft-border"
+              >
+                {[3, 5, 10].map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={saveAutomation} disabled={automationSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60">
+              <SaveIcon fontSize="small" />
+              {automationSaving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {automation.targets.map((target) => (
+            <div key={target.country} className="rounded-lg bg-black/20 p-4 soft-border">
+              <div className="flex items-center justify-between gap-3">
+                <div className="font-semibold text-white">{target.country}</div>
+                <span className={`rounded-md px-2 py-1 text-[11px] font-semibold ${target.lastRunDate === target.localDate ? target.lastStatus === "completed" ? "bg-emerald-400/10 text-emerald-200" : "bg-rose-400/10 text-rose-200" : "bg-sky-400/10 text-sky-200"}`}>
+                  {target.lastRunDate === target.localDate ? target.lastStatus === "completed" ? "Completed" : "Needs attention" : "Scheduled"}
+                </span>
+              </div>
+              <div className="mt-3 text-sm text-slate-300">{target.categoryLabel}</div>
+              <div className="mt-1 text-xs text-slate-500">{target.city} - {String(automation.settings.localHour).padStart(2, "0")}:00 {target.timezone}</div>
+              {target.lastRunDate && <div className="mt-3 text-xs text-slate-500">Last run: {target.lastRunDate} - {target.lastCreated} new, {target.lastUpdated} refreshed</div>}
+              {target.lastError && <div className="mt-2 line-clamp-2 text-xs text-rose-200">{target.lastError}</div>}
+            </div>
+          ))}
+        </div>
+        {automationMessage && <div className="mt-4 rounded-lg bg-sky-400/10 px-4 py-3 text-sm text-sky-100 soft-border">{automationMessage}</div>}
+      </section>
 
       {countryDialogOpen && (
         <div
@@ -401,7 +531,9 @@ export function AdultLeadsWorkspace({
           ["Total", metrics.total],
           ["Unverified", metrics.unverified],
           ["Reviewed", metrics.reviewed],
-          ["Contact found", metrics.contacts]
+          ["Contact found", metrics.contacts],
+          ["Approved", metrics.approved],
+          ["Emails sent", metrics.sent]
         ].map(([label, value]) => (
           <div key={label} className="glass rounded-xl p-4">
             <div className="text-sm text-slate-400">{label}</div>
@@ -434,7 +566,7 @@ export function AdultLeadsWorkspace({
         ) : (
           <div className="divide-y divide-white/10">
             {filteredLeads.map((lead) => (
-              <article key={lead.id} className="grid gap-4 px-5 py-5 xl:grid-cols-[1.1fr_0.85fr_0.9fr_1.1fr_auto] xl:items-center">
+              <article key={lead.id} className="grid gap-4 px-5 py-5 xl:grid-cols-[1.05fr_0.75fr_0.85fr_0.8fr_1fr_auto] xl:items-center">
                 <div className="min-w-0">
                   <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-2 font-semibold text-white hover:text-sky-200">
                     <span className="truncate">{lead.businessName}</span>
@@ -454,6 +586,30 @@ export function AdultLeadsWorkspace({
                   {lead.phone ? <a href={`tel:${lead.phone}`} className="flex min-w-0 items-center gap-2 text-slate-300 hover:text-sky-200"><PhoneIcon fontSize="small" /><span className="truncate">{lead.phone}</span></a> : <span className="text-slate-500">Phone unavailable</span>}
                 </div>
 
+                <div className="min-w-0 text-sm">
+                  {lead.emailSent ? (
+                    <>
+                      <div className="flex items-center gap-2 font-semibold text-emerald-200"><MarkEmailReadIcon fontSize="small" />Email sent</div>
+                      <div className="mt-1 text-xs text-slate-500">{lead.emailClicked ? "Link clicked" : lead.emailOpened ? "Email opened" : "Awaiting engagement"}</div>
+                    </>
+                  ) : lead.outreachStatus === "Failed" ? (
+                    <>
+                      <div className="flex items-center gap-2 font-semibold text-rose-200"><EmailIcon fontSize="small" />Delivery failed</div>
+                      <div className="mt-1 text-xs text-slate-500">Approve again to retry</div>
+                    </>
+                  ) : lead.outreachApproved ? (
+                    <>
+                      <div className="flex items-center gap-2 font-semibold text-sky-200"><ScheduleIcon fontSize="small" />Approved</div>
+                      <div className="mt-1 text-xs text-slate-500">Queued for business hours</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-slate-400">Not approved</div>
+                      <div className="mt-1 text-xs text-slate-500">{lead.email ? "Review before sending" : "Add an email first"}</div>
+                    </>
+                  )}
+                </div>
+
                 <div className="min-w-0">
                   <textarea
                     value={notes[lead.id] ?? ""}
@@ -468,6 +624,24 @@ export function AdultLeadsWorkspace({
                   <select value={lead.reviewStatus} onChange={(event) => updateLead(lead.id, { reviewStatus: event.target.value })} className="h-10 rounded-lg bg-black/20 px-2 text-xs soft-border">
                     {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
+                  {!lead.emailSent && (
+                    <button
+                      type="button"
+                      onClick={() => updateOutreachApproval(lead)}
+                      disabled={!lead.email || outreachBusyId === lead.id}
+                      title={lead.outreachApproved ? "Cancel email approval" : "Approve email for automatic sending"}
+                      className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold soft-border disabled:cursor-not-allowed disabled:opacity-40 ${lead.outreachApproved ? "text-amber-100 hover:bg-amber-300/10" : "text-emerald-200 hover:bg-emerald-400/10"}`}
+                    >
+                      {lead.outreachApproved ? <CloseIcon fontSize="small" /> : <TaskAltIcon fontSize="small" />}
+                      {outreachBusyId === lead.id ? "Saving..." : lead.outreachApproved ? "Cancel" : "Approve email"}
+                    </button>
+                  )}
+                  <FollowUpReminderControl
+                    adultLeadId={lead.id}
+                    leadName={lead.businessName}
+                    initialReminder={initialReminders[lead.id] ?? null}
+                    compact
+                  />
                   <button type="button" onClick={() => openEditLead(lead)} title="Edit lead" aria-label={`Edit ${lead.businessName}`} className="grid h-10 w-10 place-items-center rounded-lg text-emerald-200 soft-border hover:bg-emerald-400/10">
                     <EditOutlinedIcon fontSize="small" />
                   </button>

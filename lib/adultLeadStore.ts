@@ -25,6 +25,13 @@ export type AdultLeadRecord = {
   sourceSnippet: string | null;
   sourceQuery: string | null;
   reviewStatus: string;
+  outreachStatus: string;
+  outreachApproved: boolean;
+  outreachApprovedAt: string | null;
+  emailSent: boolean;
+  emailOpened: boolean;
+  emailClicked: boolean;
+  lastContactedAt: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -43,12 +50,21 @@ function toRecord(lead: {
   sourceSnippet: string | null;
   sourceQuery: string | null;
   reviewStatus: string;
+  outreachStatus: string;
+  outreachApproved: boolean;
+  outreachApprovedAt: Date | null;
+  emailSent: boolean;
+  emailOpened: boolean;
+  emailClicked: boolean;
+  lastContactedAt: Date | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): AdultLeadRecord {
   return {
     ...lead,
+    outreachApprovedAt: lead.outreachApprovedAt?.toISOString() ?? null,
+    lastContactedAt: lead.lastContactedAt?.toISOString() ?? null,
     createdAt: lead.createdAt.toISOString(),
     updatedAt: lead.updatedAt.toISOString()
   };
@@ -372,6 +388,16 @@ export async function updateAdultLead(id: string, input: {
         ...(input.email !== undefined ? { email: input.email?.trim().toLowerCase().slice(0, 320) || null } : {}),
         ...(input.phone !== undefined ? { phone: input.phone?.trim().slice(0, 50) || null } : {}),
         ...(reviewStatus ? { reviewStatus } : {}),
+        ...(reviewStatus && reviewStatus !== "Reviewed" ? {
+          outreachApproved: false,
+          outreachApprovedAt: null,
+          outreachStatus: "New"
+        } : {}),
+        ...(input.email === null ? {
+          outreachApproved: false,
+          outreachApprovedAt: null,
+          outreachStatus: "New"
+        } : {}),
         ...(input.notes !== undefined ? { notes: input.notes?.trim().slice(0, 2000) || null } : {})
       }
     }));
@@ -381,6 +407,36 @@ export async function updateAdultLead(id: string, input: {
     }
     throw error;
   }
+}
+
+export async function approveAdultLeadForOutreach(id: string) {
+  const lead = await prisma.adultLead.findUnique({ where: { id } });
+  if (!lead) throw new Error("Adult Lead was not found.");
+  if (!lead.email) throw new Error("Add a valid email address before approving outreach.");
+  if (lead.emailSent) throw new Error("Email outreach has already been sent.");
+  return toRecord(await prisma.adultLead.update({
+    where: { id },
+    data: {
+      reviewStatus: "Reviewed",
+      outreachApproved: true,
+      outreachApprovedAt: new Date(),
+      outreachStatus: "Approved"
+    }
+  }));
+}
+
+export async function cancelAdultLeadOutreachApproval(id: string) {
+  const lead = await prisma.adultLead.findUnique({ where: { id } });
+  if (!lead) throw new Error("Adult Lead was not found.");
+  if (lead.emailSent) throw new Error("A sent email cannot be returned to the approval queue.");
+  return toRecord(await prisma.adultLead.update({
+    where: { id },
+    data: {
+      outreachApproved: false,
+      outreachApprovedAt: null,
+      outreachStatus: "New"
+    }
+  }));
 }
 
 export async function deleteAdultLead(id: string) {

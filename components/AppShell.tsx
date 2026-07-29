@@ -32,6 +32,7 @@ import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
 import DialpadIcon from "@mui/icons-material/Dialpad";
 import NightlifeIcon from "@mui/icons-material/Nightlife";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
+import AlarmIcon from "@mui/icons-material/Alarm";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import { clsx } from "clsx";
@@ -48,6 +49,7 @@ type NavItem = {
 const nav: NavItem[] = [
   { href: "/", label: "Overview", icon: DashboardIcon },
   { href: "/notifications", label: "Notifications", icon: NotificationsIcon },
+  { href: "/follow-up-reminders", label: "Follow-up Reminders", icon: AlarmIcon },
   { href: "/dashboard", label: "Region Leads", icon: PublicIcon },
   { href: "/adult-leads", label: "Adult Leads", icon: NightlifeIcon },
   { href: "/automation", label: "Automation", icon: PlayCircleIcon },
