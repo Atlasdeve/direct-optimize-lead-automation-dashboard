@@ -23,6 +23,9 @@ import { DecisionMakerPanel } from "@/components/lead/DecisionMakerPanel";
 import { EditLeadDetailsButton } from "@/components/lead/EditLeadDetailsButton";
 import { FollowUpReminderControl } from "@/components/lead/FollowUpReminderControl";
 import { getActiveFollowUpReminder } from "@/lib/followUpReminders";
+import { generateLeadCallPitch } from "@/lib/callPitch";
+import { LeadCallPitchPanel } from "@/components/lead/LeadCallPitchPanel";
+import { getLeadLastActivity } from "@/lib/notRespondedLeads";
 
 function websiteHref(website: string) {
   return /^https?:\/\//i.test(website) ? website : `https://${website}`;
@@ -41,6 +44,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     );
   }
 
+  const lastActivity = await getLeadLastActivity(lead.id, {
+    createdAt: lead.created_at,
+    lastContactedAt: lead.last_contacted_at
+  });
+
   const fields = [
     ["Company", lead.company_name],
     ["Region", lead.region],
@@ -53,6 +61,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     ["Manager", lead.manager_name ?? "Pending enrichment"],
     ["Source", lead.source_platform],
     ["Consent status", lead.consent_status],
+    ["Last activity", `${new Date(lastActivity.at).toLocaleString()} · ${lastActivity.label}`],
     ["Next follow-up", lead.next_follow_up_at ? new Date(lead.next_follow_up_at).toLocaleString() : "Not scheduled"]
   ];
   const contacts = await getDbLeadContacts(lead.id);
@@ -65,6 +74,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     getActiveFollowUpReminder({ leadId: lead.id })
   ]);
   const preview = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit });
+  const callPitch = await generateLeadCallPitch(lead, websiteAudit, gmbAudit);
   const whatsappNumber = whatsappNumberFromPhone(lead.phone);
   const opportunitySummary = leadOpportunitySummary(lead);
 
@@ -186,6 +196,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <div className="rounded-lg bg-white/6 p-3 text-sm text-slate-300 soft-border">WhatsApp signal: {whatsappNumber ? "Phone shortcut available" : "No usable phone"}</div>
         </div>
       </section>
+
+      <LeadCallPitchPanel leadId={lead.id} initialPitch={callPitch} />
 
       <LeadCallingPanel
         leadId={lead.id}
