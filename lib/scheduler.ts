@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { getDailyAutomationTarget } from "@/lib/discoveryTargets";
 import { runAdultLeadOutreachAutomationCycle, runDueAdultLeadAutomations } from "@/lib/adultLeadAutomation";
 import { sendDueLeadFollowUpReminders } from "@/lib/followUpReminders";
+import { getLeadDiscoveryCategories } from "@/lib/leadCategories";
 
 startAutomationWorker();
 
@@ -37,7 +38,10 @@ function cronTime(expression: string) {
 }
 
 async function runDueDiscoveryAutomations() {
-  const regions = await listEnabledRegions();
+  const [regions, categories] = await Promise.all([
+    listEnabledRegions(),
+    getLeadDiscoveryCategories()
+  ]);
   for (const region of regions.filter((item) => item.name !== "Custom")) {
     const local = localParts(region.timezone);
     const scheduled = cronTime(region.morningCron);
@@ -47,7 +51,7 @@ async function runDueDiscoveryAutomations() {
     const setting = await prisma.setting.findUnique({ where: { key } });
     const lastRunDate = (setting?.value as SettingValue | null)?.lastRunDate;
     if (lastRunDate === local.date) continue;
-    const target = getDailyAutomationTarget(region.name, region.country, local.date);
+    const target = getDailyAutomationTarget(region.name, region.country, local.date, categories);
     await enqueueAutomation(region.name, {
       maxResults: Number(process.env.CRON_AUTOMATION_MAX_RESULTS || 3),
       city: target.city,

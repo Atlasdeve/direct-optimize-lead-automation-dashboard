@@ -7,8 +7,10 @@ import SendIcon from "@mui/icons-material/Send";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
 import EventRepeatIcon from "@mui/icons-material/EventRepeat";
 import SaveIcon from "@mui/icons-material/Save";
+import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
 import { RegionTabs } from "@/components/RegionTabs";
-import { getCityOptionsForRegion, getDailyAutomationTarget } from "@/lib/discoveryTargets";
+import { businessDiscoveryCategories, getCityOptionsForRegion, getDailyAutomationTarget } from "@/lib/discoveryTargets";
 import type { AutomationResult, RegionConfig } from "@/lib/types";
 
 export function CampaignBuilder() {
@@ -17,6 +19,10 @@ export function CampaignBuilder() {
   const [city, setCity] = useState("Toronto");
   const [customCity, setCustomCity] = useState("");
   const [categories, setCategories] = useState("restaurants");
+  const [savedCategories, setSavedCategories] = useState<string[]>(businessDiscoveryCategories);
+  const [newCategory, setNewCategory] = useState("");
+  const [savingCategories, setSavingCategories] = useState(false);
+  const [categoryStatus, setCategoryStatus] = useState("");
   const [dailyLimit, setDailyLimit] = useState(25);
   const [followUpDelay, setFollowUpDelay] = useState(3);
   const [finalDelay, setFinalDelay] = useState(7);
@@ -26,7 +32,7 @@ export function CampaignBuilder() {
   const selectedRegion = regionOptions.find((item) => item.name === region);
   const cityOptions = getCityOptionsForRegion(region, selectedRegion?.country);
   const activeCity = city === "__custom__" ? customCity.trim() : city;
-  const todayTarget = getDailyAutomationTarget(region, selectedRegion?.country);
+  const todayTarget = getDailyAutomationTarget(region, selectedRegion?.country, undefined, savedCategories);
 
   useEffect(() => {
     fetch("/api/outreach/settings")
@@ -38,6 +44,23 @@ export function CampaignBuilder() {
         setDailyLimit(data.settings.batchSize);
       })
       .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/lead-categories")
+      .then((response) => response.json())
+      .then((data) => {
+        if (!active || !Array.isArray(data.categories)) return;
+        const clean = data.categories.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 1);
+        if (!clean.length) return;
+        setSavedCategories(clean);
+        setCategories(clean.join(", "));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -56,11 +79,53 @@ export function CampaignBuilder() {
 
   useEffect(() => {
     const country = regionOptions.find((item) => item.name === region)?.country;
-    const target = getDailyAutomationTarget(region, country);
+    const target = getDailyAutomationTarget(region, country, undefined, savedCategories);
     setCity(target.city);
     setCustomCity("");
     setCategories(target.categories.join(", "));
-  }, [region, regionOptions]);
+  }, [region, regionOptions, savedCategories]);
+
+  function addCategory() {
+    const value = newCategory.trim().replace(/\s+/g, " ");
+    if (value.length < 2) return;
+    if (savedCategories.some((item) => item.toLowerCase() === value.toLowerCase())) {
+      setNewCategory("");
+      return;
+    }
+    const next = [...savedCategories, value];
+    setSavedCategories(next);
+    setCategories(next.join(", "));
+    setNewCategory("");
+    setCategoryStatus("Category added. Save the library to use it in automation.");
+  }
+
+  function removeCategory(value: string) {
+    const next = savedCategories.filter((item) => item !== value);
+    setSavedCategories(next);
+    setCategories((current) => current.split(",").map((item) => item.trim()).filter((item) => item && item !== value).join(", ") || next.join(", "));
+    setCategoryStatus("Category removed locally. Save the library to update automation.");
+  }
+
+  async function saveCategoryLibrary() {
+    setSavingCategories(true);
+    setCategoryStatus("");
+    try {
+      const response = await fetch("/api/lead-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categories: savedCategories })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to save lead categories.");
+      setSavedCategories(data.categories);
+      setCategories(data.categories.join(", "));
+      setCategoryStatus(`${data.categories.length} lead-search categories saved for daily automation.`);
+    } catch (error) {
+      setCategoryStatus(error instanceof Error ? error.message : "Unable to save lead categories.");
+    } finally {
+      setSavingCategories(false);
+    }
+  }
 
   function selectRegion(nextRegion: string) {
     setRegion(nextRegion);
@@ -208,6 +273,70 @@ export function CampaignBuilder() {
             className="mt-2 h-11 w-full rounded-lg border border-line bg-black/20 px-3 text-white outline-none focus:border-sky-300"
           />
         </label>
+        <div className="mt-4 rounded-xl bg-white/6 p-4 soft-border">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="font-semibold text-white">Lead-search category library</h3>
+              <p className="mt-1 text-sm text-slate-400">Daily automation rotates through these niches and the selected region&apos;s city list.</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setCategories(savedCategories.join(", "))}
+                className="inline-flex h-10 items-center justify-center rounded-lg bg-white/8 px-3 text-sm font-semibold text-sky-100 soft-border hover:bg-white/12"
+              >
+                Use full list for this run
+              </button>
+              <button
+                type="button"
+                onClick={saveCategoryLibrary}
+                disabled={savingCategories || savedCategories.length === 0}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-400/14 px-3 text-sm font-semibold text-emerald-100 soft-border hover:bg-emerald-400/20 disabled:opacity-60"
+              >
+                <SaveIcon fontSize="small" />
+                {savingCategories ? "Saving..." : "Save categories"}
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <input
+              value={newCategory}
+              onChange={(event) => setNewCategory(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addCategory();
+                }
+              }}
+              placeholder="Add niche, e.g. med spas, locksmiths, car washes"
+              className="h-10 flex-1 rounded-lg border border-line bg-black/20 px-3 text-sm text-white outline-none focus:border-sky-300"
+            />
+            <button
+              type="button"
+              onClick={addCategory}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-300"
+            >
+              <AddIcon fontSize="small" />
+              Add category
+            </button>
+          </div>
+          <div className="mt-4 flex max-h-40 flex-wrap gap-2 overflow-y-auto pr-1">
+            {savedCategories.map((item) => (
+              <span key={item} className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-sm text-sky-100">
+                {item}
+                <button
+                  type="button"
+                  onClick={() => removeCategory(item)}
+                  aria-label={`Remove ${item}`}
+                  className="rounded-full text-slate-300 hover:text-white"
+                >
+                  <CloseIcon sx={{ fontSize: 16 }} />
+                </button>
+              </span>
+            ))}
+          </div>
+          {categoryStatus && <div className="mt-3 text-sm text-sky-100">{categoryStatus}</div>}
+        </div>
         <div className="mt-3 rounded-lg bg-sky-400/10 p-3 text-sm text-sky-100 soft-border">
           Today&apos;s automation target for {region}: {todayTarget.niche} in {todayTarget.city}. The daily worker rotates both niche and city automatically.
         </div>

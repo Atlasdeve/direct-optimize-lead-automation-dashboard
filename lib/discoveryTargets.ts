@@ -69,11 +69,12 @@ export function getDefaultCityForRegion(regionName: string, country?: string) {
   return getCityOptionsForRegion(regionName, country)[0] ?? regionName;
 }
 
-export function getDailyAutomationTarget(regionName: string, country?: string, dateKey?: string) {
+export function getDailyAutomationTarget(regionName: string, country?: string, dateKey?: string, categories = businessDiscoveryCategories) {
   const cities = getCityOptionsForRegion(regionName, country);
   const offset = hashValue(regionName);
   const index = dayNumber(dateKey) + offset;
-  const category = businessDiscoveryCategories[index % businessDiscoveryCategories.length];
+  const categoryPool = categories.length ? categories : businessDiscoveryCategories;
+  const category = categoryPool[index % categoryPool.length];
   const city = cities[index % cities.length] || country || regionName;
   return {
     city,

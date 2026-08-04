@@ -4,6 +4,7 @@ import { enqueueAutomation } from "@/lib/queue";
 import { listEnabledRegions } from "@/lib/regionStore";
 import { syncInboxReplies } from "@/lib/replySync";
 import { getDailyAutomationTarget } from "@/lib/discoveryTargets";
+import { getLeadDiscoveryCategories } from "@/lib/leadCategories";
 
 type SettingValue = {
   lastRunDate?: string;
@@ -57,7 +58,10 @@ async function setLastRunDate(key: string, lastRunDate: string) {
 }
 
 async function runDueRegion() {
-  const regions = await listEnabledRegions();
+  const [regions, categories] = await Promise.all([
+    listEnabledRegions(),
+    getLeadDiscoveryCategories()
+  ]);
   for (const region of regions.filter((item) => item.name !== "Custom")) {
     const local = localParts(region.timezone);
     const scheduled = cronTime(region.morningCron);
@@ -69,7 +73,7 @@ async function runDueRegion() {
     if (lastRunDate === local.date) continue;
 
     const maxResults = Number(process.env.CRON_AUTOMATION_MAX_RESULTS || 3);
-    const target = getDailyAutomationTarget(region.name, region.country, local.date);
+    const target = getDailyAutomationTarget(region.name, region.country, local.date, categories);
     const result = await enqueueAutomation(region.name, { maxResults, city: target.city, categories: target.categories });
     await setLastRunDate(key, local.date);
     return { region: region.name, target, result };
