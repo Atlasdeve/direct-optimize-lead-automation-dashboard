@@ -34,6 +34,7 @@ import NightlifeIcon from "@mui/icons-material/Nightlife";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AlarmIcon from "@mui/icons-material/Alarm";
 import MarkEmailUnreadIcon from "@mui/icons-material/MarkEmailUnread";
+import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import { clsx } from "clsx";
@@ -50,6 +51,7 @@ type NavItem = {
 const nav: NavItem[] = [
   { href: "/", label: "Overview", icon: DashboardIcon },
   { href: "/notifications", label: "Notifications", icon: NotificationsIcon },
+  { href: "/hot-leads", label: "Hot Leads", icon: LocalFireDepartmentIcon },
   { href: "/follow-up-reminders", label: "Follow-up Reminders", icon: AlarmIcon },
   { href: "/not-responded", label: "Not Responded", icon: MarkEmailUnreadIcon },
   { href: "/dashboard", label: "Region Leads", icon: PublicIcon },

@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Direct Optimize Lead Capture",
+  "version": "1.0.0",
+  "description": "Capture the current website as a Direct Optimize lead.",
+  "action": {
+    "default_title": "Capture lead",
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ]
+}

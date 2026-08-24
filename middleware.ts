@@ -15,7 +15,8 @@ const publicPaths = new Set([
 
 const publicPrefixes = ["/api/email/open", "/api/email/click", "/_next"];
 const crossOriginApiKeyPaths = new Set([
-  "/api/extension/leads"
+  "/api/extension/leads",
+  "/api/extension/regions"
 ]);
 
 function matchesPrefix(pathname: string, prefix: string) {

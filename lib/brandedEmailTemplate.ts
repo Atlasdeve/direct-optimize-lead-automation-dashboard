@@ -29,9 +29,13 @@ function normalizeUrl(value?: string) {
   }
 }
 
-function trackedUrl(url: string, clickTrackingBaseUrl?: string) {
+function trackingLabel(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "link";
+}
+
+function trackedUrl(url: string, clickTrackingBaseUrl?: string, label = "link") {
   return clickTrackingBaseUrl
-    ? `${clickTrackingBaseUrl}?url=${encodeURIComponent(url)}`
+    ? `${clickTrackingBaseUrl}?url=${encodeURIComponent(url)}&link=${encodeURIComponent(trackingLabel(label))}`
     : url;
 }
 
@@ -39,7 +43,7 @@ function linkifyText(text: string, clickTrackingBaseUrl?: string) {
   const escaped = escapeHtml(text);
   return escaped.replace(/https?:\/\/[^\s<>()]+/g, (url) => {
     const cleanUrl = url.replace(/&amp;/g, "&");
-    const href = trackedUrl(cleanUrl, clickTrackingBaseUrl);
+    const href = trackedUrl(cleanUrl, clickTrackingBaseUrl, "body link");
     return `<a href="${escapeHtml(href)}" style="color:#7dd3fc;text-decoration:underline;">${url}</a>`;
   });
 }
@@ -87,7 +91,7 @@ export function renderBrandedEmailHtml(input: BrandedEmailInput) {
             const style = isSecondary
               ? "display:inline-block;background:#34d399;color:#022c22;text-decoration:none;font-weight:700;border-radius:10px;padding:13px 18px;font-size:14px;margin:0 10px 10px 0;"
               : "display:inline-block;background:#38bdf8;color:#020617;text-decoration:none;font-weight:700;border-radius:10px;padding:13px 18px;font-size:14px;margin:0 10px 10px 0;";
-            return `<a href="${escapeHtml(trackedUrl(button.url, input.clickTrackingBaseUrl))}" style="${style}">${escapeHtml(button.label)}</a>`;
+            return `<a href="${escapeHtml(trackedUrl(button.url, input.clickTrackingBaseUrl, button.label))}" style="${style}">${escapeHtml(button.label)}</a>`;
           }).join("")}
         </td>
       </tr>`
@@ -160,7 +164,7 @@ export function renderPlainTextEmail(input: BrandedEmailInput) {
     input.heading,
     "",
     input.body,
-    ...emailCtas(input).flatMap((cta) => ["", `${cta.label}: ${cta.url}`]),
+    ...emailCtas(input).flatMap((cta) => ["", `${cta.label}: ${trackedUrl(cta.url, input.clickTrackingBaseUrl, cta.label)}`]),
     "",
     "Direct Optimize",
     "To opt out, reply with Unsubscribe."

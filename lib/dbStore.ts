@@ -397,6 +397,103 @@ export async function getLeadEmailTracking(leadId: string) {
   }));
 }
 
+function metadataRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringFromMetadata(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+export async function listHotEmailLeads() {
+  const logs = await prisma.outreachLog.findMany({
+    where: {
+      channel: "email",
+      OR: [{ openCount: { gt: 0 } }, { clickCount: { gt: 0 } }],
+      lead: { archived: false }
+    },
+    include: {
+      lead: {
+        include: {
+          contacts: {
+            where: { type: "contact_form" },
+            select: { type: true, value: true }
+          },
+          outreachLogs: {
+            where: { channel: "email", OR: [{ openCount: { gt: 0 } }, { clickCount: { gt: 0 } }] },
+            select: { openCount: true, clickCount: true },
+            take: 10
+          },
+          callLogs: {
+            where: { status: { not: "planned" } },
+            select: { id: true },
+            take: 1
+          },
+          checklist: {
+            select: { notes: true }
+          }
+        }
+      }
+    },
+    orderBy: [{ lastClickedAt: "desc" }, { lastOpenedAt: "desc" }, { createdAt: "desc" }],
+    take: 300
+  });
+
+  const grouped = new Map<string, {
+    lead: Lead;
+    latestLogId: string;
+    latestAction: string;
+    latestStatus: string;
+    latestUrl: string | null;
+    latestLinkLabel: string | null;
+    latestCampaign: string;
+    lastClickedAt: string | null;
+    lastOpenedAt: string | null;
+    lastActivityAt: string;
+    clickCount: number;
+    openCount: number;
+  }>();
+
+  for (const log of logs) {
+    const current = grouped.get(log.leadId);
+    const metadata = metadataRecord(log.metadata);
+    const lastClick = metadataRecord(metadata.lastClick);
+    const clickedAt = log.lastClickedAt?.toISOString() ?? null;
+    const openedAt = log.lastOpenedAt?.toISOString() ?? null;
+    const activityAt = clickedAt ?? openedAt ?? log.createdAt.toISOString();
+    const base = current ?? {
+      lead: toLead(log.lead as DbLead),
+      latestLogId: log.id,
+      latestAction: log.action,
+      latestStatus: log.status,
+      latestUrl: stringFromMetadata(lastClick.url),
+      latestLinkLabel: stringFromMetadata(lastClick.linkLabel),
+      latestCampaign: outreachCampaignFromAction(log.action),
+      lastClickedAt: clickedAt,
+      lastOpenedAt: openedAt,
+      lastActivityAt: activityAt,
+      clickCount: 0,
+      openCount: 0
+    };
+    base.clickCount += log.clickCount;
+    base.openCount += log.openCount;
+    if (!current || new Date(activityAt).getTime() > new Date(current.lastActivityAt).getTime()) {
+      base.latestLogId = log.id;
+      base.latestAction = log.action;
+      base.latestStatus = log.status;
+      base.latestUrl = stringFromMetadata(lastClick.url);
+      base.latestLinkLabel = stringFromMetadata(lastClick.linkLabel);
+      base.latestCampaign = outreachCampaignFromAction(log.action);
+      base.lastClickedAt = clickedAt;
+      base.lastOpenedAt = openedAt;
+      base.lastActivityAt = activityAt;
+    }
+    grouped.set(log.leadId, base);
+  }
+
+  return [...grouped.values()].sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()).slice(0, 100);
+}
+
 export async function markContactFormAction(contactId: string, action: "opened" | "submitted" | "skipped", message?: string) {
   const statusByAction = {
     opened: "opened",
@@ -1013,7 +1110,26 @@ export async function recordEmailOpen(logId: string, requestMeta: { userAgent?: 
   return { recorded: true, source: "compose" };
 }
 
-export async function recordEmailClick(logId: string, url: string, requestMeta: { userAgent?: string | null; ip?: string | null }) {
+function appendClickMetadata(
+  metadata: Record<string, unknown> | null,
+  click: { at: string; url: string; linkLabel?: string | null; userAgent?: string | null; ip?: string | null }
+) {
+  const existing = metadata ?? {};
+  const history = Array.isArray(existing.clickHistory) ? existing.clickHistory : [];
+  return {
+    ...existing,
+    lastClick: click,
+    clickHistory: [...history, click].slice(-20)
+  };
+}
+
+function outreachCampaignFromAction(action: string) {
+  if (action === "send_follow_up_1") return "follow_up_1";
+  if (action === "send_follow_up_2") return "follow_up_2";
+  return "initial_email";
+}
+
+export async function recordEmailClick(logId: string, url: string, requestMeta: { userAgent?: string | null; ip?: string | null }, linkLabel?: string | null) {
   const existing = await prisma.outreachLog.findUnique({ where: { id: logId } });
   const now = new Date();
   if (existing?.channel === "email") {
@@ -1023,37 +1139,39 @@ export async function recordEmailClick(logId: string, url: string, requestMeta: 
         clickedAt: existing.clickedAt ?? now,
         lastClickedAt: now,
         clickCount: { increment: 1 },
-        metadata: {
-          ...((existing.metadata as Record<string, unknown> | null) ?? {}),
-          lastClick: {
-            at: now.toISOString(),
-            url,
-            userAgent: requestMeta.userAgent ?? null,
-            ip: requestMeta.ip ?? null
-          }
-        }
+        metadata: appendClickMetadata(existing.metadata as Record<string, unknown> | null, {
+          at: now.toISOString(),
+          url,
+          linkLabel: linkLabel ?? null,
+          userAgent: requestMeta.userAgent ?? null,
+          ip: requestMeta.ip ?? null
+        })
       }
     });
-    return { recorded: true, source: "outreach" };
+    return {
+      recorded: true,
+      source: "outreach",
+      logId,
+      campaign: outreachCampaignFromAction(existing.action),
+      utmContent: `lead_${existing.leadId}`
+    };
   }
 
   const composeLog = await prisma.composeEmailLog.findUnique({ where: { id: logId } });
-  if (!composeLog) return { recorded: false };
+  if (!composeLog) return { recorded: false, source: "unknown", logId, campaign: "lead_outreach", utmContent: `unknown_${logId}` };
   await prisma.composeEmailLog.update({
     where: { id: logId },
     data: {
       clickedAt: composeLog.clickedAt ?? now,
       lastClickedAt: now,
       clickCount: { increment: 1 },
-      metadata: {
-        ...((composeLog.metadata as Record<string, unknown> | null) ?? {}),
-        lastClick: {
-          at: now.toISOString(),
-          url,
-          userAgent: requestMeta.userAgent ?? null,
-          ip: requestMeta.ip ?? null
-        }
-      }
+      metadata: appendClickMetadata(composeLog.metadata as Record<string, unknown> | null, {
+        at: now.toISOString(),
+        url,
+        linkLabel: linkLabel ?? null,
+        userAgent: requestMeta.userAgent ?? null,
+        ip: requestMeta.ip ?? null
+      })
     }
   });
   const adultLeadId = (composeLog.metadata as Record<string, unknown> | null)?.adultLeadId;
@@ -1063,7 +1181,13 @@ export async function recordEmailClick(logId: string, url: string, requestMeta: 
       data: { emailClicked: true }
     });
   }
-  return { recorded: true, source: "compose" };
+  return {
+    recorded: true,
+    source: "compose",
+    logId,
+    campaign: "manual_compose",
+    utmContent: `compose_${logId}`
+  };
 }
 
 export async function createComposeEmailLog(input: {
