@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
+import { aiAppointmentCallingConfigured } from "@/lib/aiAppointmentCall";
 import { callOutcomes, createCallLog, listLeadCallLogs, listStandaloneCallLogs } from "@/lib/callStore";
 import { getDbLead } from "@/lib/dbStore";
 import { integratedCallingAllowed, normalizeE164, telnyxCallingConfigured, validE164 } from "@/lib/telnyxCalling";
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
       calls: await listStandaloneCallLogs(),
       callingProvider: "telnyx",
       providerConfigured: telnyxCallingConfigured(),
+      aiCallingConfigured: aiAppointmentCallingConfigured(request.headers.get("origin")),
       outcomes: callOutcomes
     });
   }
@@ -29,6 +31,7 @@ export async function GET(request: NextRequest) {
     calls: await listLeadCallLogs(leadId),
     callingProvider: "telnyx",
     providerConfigured: telnyxCallingConfigured(),
+    aiCallingConfigured: aiAppointmentCallingConfigured(request.headers.get("origin")),
     browserCallingAllowed: integratedCallingAllowed(lead.region),
     callablePhone: normalizeE164(lead.phone ?? ""),
     outcomes: callOutcomes

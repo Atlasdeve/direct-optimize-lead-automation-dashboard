@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-export const callOutcomes = ["Interested", "Callback", "Voicemail", "No answer", "Not interested", "Wrong number", "Qualified"] as const;
+export const callOutcomes = ["Interested", "Callback", "Voicemail", "No answer", "Not interested", "Wrong number", "Qualified", "Send audit by email", "Send audit by WhatsApp", "Meeting requested", "Needs human follow-up"] as const;
 
 export function serializeCallLog(call: Awaited<ReturnType<typeof prisma.callLog.findFirst>> & { user?: { name: string | null; username: string | null } | null }) {
   if (!call) return null;
@@ -69,7 +69,7 @@ export async function createCallLog(input: {
   userId: string;
   contactName?: string;
   companyName?: string;
-  provider: "telnyx" | "manual";
+  provider: "telnyx" | "manual" | "ai-telnyx";
   phone: string;
   status?: string;
   outcome?: string;

@@ -5,6 +5,7 @@ import CallIcon from "@mui/icons-material/Call";
 import CallEndIcon from "@mui/icons-material/CallEnd";
 import HistoryIcon from "@mui/icons-material/History";
 import NoteAddIcon from "@mui/icons-material/NoteAdd";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import type { Call, INotification, TelnyxRTC } from "@telnyx/webrtc";
 
@@ -48,9 +49,11 @@ export function LeadCallingPanel({
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [outcomes, setOutcomes] = useState<string[]>(fallbackOutcomes);
   const [providerConfigured, setProviderConfigured] = useState(false);
+  const [aiCallingConfigured, setAiCallingConfigured] = useState(false);
   const [browserCallingAllowed, setBrowserCallingAllowed] = useState(false);
   const [callablePhone, setCallablePhone] = useState("");
   const [callState, setCallState] = useState<"idle" | "connecting" | "ringing" | "connected">("idle");
+  const [aiStarting, setAiStarting] = useState(false);
   const [message, setMessage] = useState("");
   const [showManual, setShowManual] = useState(false);
   const [dispositionCallId, setDispositionCallId] = useState<string | null>(null);
@@ -114,6 +117,7 @@ export function LeadCallingPanel({
     setCalls(data.calls ?? []);
     setOutcomes(data.outcomes ?? fallbackOutcomes);
     setProviderConfigured(Boolean(data.providerConfigured));
+    setAiCallingConfigured(Boolean(data.aiCallingConfigured));
     setBrowserCallingAllowed(Boolean(data.browserCallingAllowed));
     setCallablePhone(data.callablePhone ?? "");
   }
@@ -252,6 +256,27 @@ export function LeadCallingPanel({
     void callRef.current?.hangup();
   }
 
+  async function startAiCall() {
+    if (!callablePhone || aiStarting) return;
+    setAiStarting(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/calls/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to start the AI call.");
+      setMessage(`AI appointment call started for ${companyName}. You can review the transcript after the call ends.`);
+      await loadCalls();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to start the AI call.");
+    } finally {
+      setAiStarting(false);
+    }
+  }
+
   async function saveManualCall() {
     if (!callablePhone) return;
     setSaving(true);
@@ -289,6 +314,7 @@ export function LeadCallingPanel({
   }
 
   const canCall = Boolean(callablePhone && browserCallingAllowed && providerConfigured);
+  const canAiCall = Boolean(callablePhone && aiCallingConfigured);
   const talkingPoints = [...websiteFlags.slice(0, 2), ...gmbFlags.slice(0, 2)];
 
   return (
@@ -314,6 +340,10 @@ export function LeadCallingPanel({
               {callState === "connected" ? "End Call" : "Connecting..."}
             </button>
           )}
+          <button onClick={startAiCall} disabled={!canAiCall || aiStarting || callState !== "idle"} title={!phone ? "No phone number" : !aiCallingConfigured ? "Add OpenAI and Telnyx AI calling credentials first" : "Start one manual AI appointment-setting call"} className="inline-flex h-10 items-center gap-2 rounded-lg bg-violet-300 px-4 text-sm font-semibold text-slate-950 hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-45">
+            <SmartToyIcon fontSize="small" />
+            {aiStarting ? "Starting AI..." : "Call Via AI"}
+          </button>
           <button onClick={() => { setDispositionCallId(null); setShowManual((value) => !value); }} disabled={!phone} className="inline-flex h-10 items-center gap-2 rounded-lg bg-white/8 px-4 text-sm font-semibold text-white soft-border hover:bg-white/12 disabled:opacity-45">
             <NoteAddIcon fontSize="small" />
             Log Manual Call
@@ -329,7 +359,7 @@ export function LeadCallingPanel({
           <div className="text-xs uppercase text-slate-500">Call target</div>
           <div className="mt-2 font-semibold text-white">{companyName}</div>
           <div className="mt-1 text-sm text-slate-300">{phone || "No phone number available"}</div>
-          <div className="mt-3 text-xs text-slate-400">Region: {region} · Integrated calling: {browserCallingAllowed ? "Supported" : "Manual"}</div>
+          <div className="mt-3 text-xs text-slate-400">Region: {region} · Integrated calling: {browserCallingAllowed ? "Supported" : "Manual"} · AI calling: {aiCallingConfigured ? "Ready" : "Not configured"}</div>
         </div>
         <div className="rounded-lg bg-white/6 p-4 soft-border">
           <div className="text-xs uppercase text-slate-500">Audit talking points</div>
@@ -375,7 +405,7 @@ export function LeadCallingPanel({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold text-white">{call.outcome || call.status}</div>
-                    <div className="mt-1 text-xs text-slate-400">{call.agent} · {call.provider === "telnyx" ? "Telnyx" : "Manual"} · {durationLabel(call.durationSeconds)}</div>
+                    <div className="mt-1 text-xs text-slate-400">{call.agent} · {call.provider === "ai-telnyx" ? "AI appointment call" : call.provider === "telnyx" ? "Telnyx" : "Manual"} · {durationLabel(call.durationSeconds)}</div>
                   </div>
                   <div className="text-xs text-slate-500">{new Date(call.createdAt).toLocaleString()}</div>
                 </div>
