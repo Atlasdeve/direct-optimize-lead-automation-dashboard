@@ -102,15 +102,46 @@ export async function buildGmbAuditPdf(lead: Lead, audit: GmbAudit): Promise<Aud
 export async function buildWebsiteAuditPdf(lead: Lead, audit: LeadIntelligenceAudit): Promise<AuditAttachment> {
   const content = await pdfBuffer((doc) => {
     header(doc, lead.website ? "Website Audit" : "Website Creation Opportunity", lead);
+    section(doc, "Audit Scores");
+    kv(doc, "Overall website score", audit.overallScore !== undefined ? `${audit.overallScore}/100` : "Not available");
+    if (audit.scoreBreakdown?.length) {
+      audit.scoreBreakdown.forEach((item) => kv(doc, item.label, `${item.score}/100 - ${item.detail}`));
+    }
+
     section(doc, "Website Snapshot");
     kv(doc, "Website", audit.website ?? "No website detected");
+    kv(doc, "Final URL", audit.finalUrl);
+    kv(doc, "HTTP status", audit.httpStatus);
+    kv(doc, "Response time", audit.responseTimeMs ? `${audit.responseTimeMs}ms` : undefined);
+    kv(doc, "Homepage size", audit.pageSizeKb ? `${audit.pageSizeKb}KB` : undefined);
     kv(doc, "Title tag", audit.title);
     kv(doc, "Meta description", audit.metaDescription);
     kv(doc, "H1 headline", audit.h1);
     kv(doc, "Rough speed score", audit.roughSpeedScore ? `${audit.roughSpeedScore}/100` : "Not available");
     kv(doc, "Forms found", audit.formsCount);
     kv(doc, "Schema detected", audit.hasSchema ? "Yes" : "No");
+    if (audit.schemaTypes?.length) kv(doc, "Schema types", audit.schemaTypes.join(", "));
     kv(doc, "Sitemap detected", audit.hasSitemapXml ? "Yes" : "No");
+    kv(doc, "Robots.txt detected", audit.hasRobotsTxt ? "Yes" : "No");
+    kv(doc, "Canonical tag", audit.hasCanonical ? "Yes" : "No");
+    kv(doc, "Indexable robots meta", audit.hasIndexableRobotsMeta ? "Yes" : "No");
+    kv(doc, "Open Graph metadata", audit.hasOpenGraph ? "Yes" : "No");
+
+    section(doc, "Content, Conversion, and Trust");
+    kv(doc, "Content word count", audit.contentWordCount);
+    kv(doc, "Headings found", audit.headingsCount);
+    kv(doc, "Internal links", audit.internalLinksCount);
+    kv(doc, "External links", audit.externalLinksCount);
+    kv(doc, "Images missing alt text", audit.imagesMissingAlt !== undefined ? `${audit.imagesMissingAlt}/${audit.imagesCount}` : undefined);
+    kv(doc, "Phone visible", audit.hasPhoneOnPage ? "Yes" : "No");
+    kv(doc, "Email visible", audit.hasEmailOnPage ? "Yes" : "No");
+    kv(doc, "Contact page detected", audit.contactPageFound ? "Yes" : "No");
+    kv(doc, "Booking or quote CTA detected", audit.bookingSignalFound ? "Yes" : "No");
+    kv(doc, "Local signals", audit.localSignalsCount);
+    kv(doc, "Trust signals", audit.trustSignalsCount);
+    if (audit.securityHeaders?.length) {
+      kv(doc, "Security headers", audit.securityHeaders.map((header) => `${header.label}: ${header.present ? "Present" : "Missing"}`).join("; "));
+    }
 
     section(doc, lead.website ? "Website Opportunity Flags" : "Website Creation Proposal");
     bullets(
@@ -133,6 +164,11 @@ export async function buildWebsiteAuditPdf(lead: Lead, audit: LeadIntelligenceAu
     if (audit.techStack.length) {
       section(doc, "Detected Technology");
       bullets(doc, audit.techStack, "No technology stack signals detected.");
+    }
+
+    if (audit.pagesScanned?.length) {
+      section(doc, "Pages Scanned");
+      bullets(doc, audit.pagesScanned.map((page) => `${page.status || "Unknown"} - ${page.title || "Untitled"} - ${page.url}`), "Only the homepage was scanned.");
     }
 
     if (audit.error) {
