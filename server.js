@@ -6,7 +6,7 @@ const { WebSocketServer } = require("ws");
 const { PrismaClient } = require("@prisma/client");
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOSTNAME || "0.0.0.0";
+const hostname = process.env.APP_HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 3000);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
@@ -259,4 +259,3 @@ app.prepare().then(() => {
     console.log("AI appointment call media stream endpoint ready at /api/calls/ai/stream");
   });
 });
-
