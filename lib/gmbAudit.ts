@@ -16,6 +16,8 @@ export type GmbAudit = {
   openNow?: boolean | null;
   photosCount: number;
   profileCompleteness: number;
+  overallScore?: number;
+  scoreBreakdown?: Array<{ label: string; score: number; detail: string }>;
   gmbFlags: string[];
   reviewSummary: string;
   recommendedAction: string;
@@ -78,6 +80,58 @@ function completenessScore(details: LegacyPlaceDetails, lead: Lead) {
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
 
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function reputationScore(rating?: number | null, reviewCount?: number | null) {
+  let score = 100;
+  if (!rating) score -= 30;
+  else if (rating < 3.5) score -= 35;
+  else if (rating < 4) score -= 24;
+  else if (rating < 4.4) score -= 10;
+  if (reviewCount == null) score -= 20;
+  else if (reviewCount < 10) score -= 30;
+  else if (reviewCount < 25) score -= 18;
+  else if (reviewCount < 50) score -= 8;
+  return clampScore(score);
+}
+
+function visibilityScore(details: LegacyPlaceDetails) {
+  let score = 100;
+  if (!details.types?.length) score -= 22;
+  if (!details.photos?.length) score -= 22;
+  else if (details.photos.length < 5) score -= 10;
+  if (!details.opening_hours?.weekday_text?.length) score -= 18;
+  if (details.business_status && details.business_status !== "OPERATIONAL") score -= 30;
+  return clampScore(score);
+}
+
+function conversionScore(details: LegacyPlaceDetails, lead: Lead) {
+  let score = 100;
+  if (!details.website && !lead.website) score -= 28;
+  if (!details.formatted_phone_number && !details.international_phone_number && !lead.phone) score -= 28;
+  if (!details.url && !lead.google_maps_url) score -= 12;
+  if (!details.opening_hours?.weekday_text?.length) score -= 12;
+  return clampScore(score);
+}
+
+function buildScoreBreakdown(details: LegacyPlaceDetails, lead: Lead, rating?: number | null, reviewCount?: number | null) {
+  const profile = completenessScore(details, lead);
+  const reputation = reputationScore(rating, reviewCount);
+  const visibility = visibilityScore(details);
+  const conversion = conversionScore(details, lead);
+  return {
+    overallScore: clampScore((profile + reputation + visibility + conversion) / 4),
+    scoreBreakdown: [
+      { label: "Profile completeness", score: profile, detail: "Name, address, phone, website, hours, photos, categories, and Maps URL." },
+      { label: "Reputation", score: reputation, detail: "Rating quality and review volume." },
+      { label: "Local visibility", score: visibility, detail: "Categories, photos, hours, and operational status." },
+      { label: "Conversion path", score: conversion, detail: "Website, phone, Maps URL, and action readiness." }
+    ]
+  };
+}
+
 function reviewSummary(rating?: number | null, reviewCount?: number | null) {
   if (!rating && !reviewCount) return "No rating or review volume was returned from Google Places.";
   if ((reviewCount ?? 0) < 25) return `Profile has limited review depth${rating ? ` with a ${rating} rating` : ""}. Review generation is likely a strong pitch angle.`;
@@ -106,6 +160,13 @@ export async function auditGmbProfile(lead: Lead): Promise<GmbAudit> {
       openNow: null,
       photosCount: 0,
       profileCompleteness: 0,
+      overallScore: 0,
+      scoreBreakdown: [
+        { label: "Profile completeness", score: 0, detail: "Google Place ID is not available." },
+        { label: "Reputation", score: reputationScore(lead.rating, lead.review_count), detail: "Only stored lead rating/review data was available." },
+        { label: "Local visibility", score: 0, detail: "Google profile details could not be loaded." },
+        { label: "Conversion path", score: lead.website || lead.phone ? 35 : 0, detail: "Only stored lead website/phone data was available." }
+      ],
       gmbFlags: flags,
       reviewSummary: reviewSummary(lead.rating, lead.review_count),
       recommendedAction: recommendedAction(flags),
@@ -125,6 +186,13 @@ export async function auditGmbProfile(lead: Lead): Promise<GmbAudit> {
       openNow: null,
       photosCount: 0,
       profileCompleteness: 0,
+      overallScore: 0,
+      scoreBreakdown: [
+        { label: "Profile completeness", score: 0, detail: "Google Places API key is missing." },
+        { label: "Reputation", score: reputationScore(lead.rating, lead.review_count), detail: "Only stored lead rating/review data was available." },
+        { label: "Local visibility", score: 0, detail: "Google profile details could not be loaded." },
+        { label: "Conversion path", score: lead.website || lead.phone ? 35 : 0, detail: "Only stored lead website/phone data was available." }
+      ],
       gmbFlags: flags,
       reviewSummary: reviewSummary(lead.rating, lead.review_count),
       recommendedAction: recommendedAction(flags),
@@ -168,6 +236,7 @@ export async function auditGmbProfile(lead: Lead): Promise<GmbAudit> {
     const flags = buildGmbFlags(details, lead);
     const rating = details.rating ?? lead.rating ?? null;
     const reviewCount = details.user_ratings_total ?? lead.review_count ?? null;
+    const scores = buildScoreBreakdown(details, lead, rating, reviewCount);
     return {
       auditedAt: new Date().toISOString(),
       placeId,
@@ -183,7 +252,9 @@ export async function auditGmbProfile(lead: Lead): Promise<GmbAudit> {
       weekdayText: details.opening_hours?.weekday_text ?? [],
       openNow: details.opening_hours?.open_now ?? null,
       photosCount: details.photos?.length ?? 0,
-      profileCompleteness: completenessScore(details, lead),
+      profileCompleteness: scores.scoreBreakdown[0].score,
+      overallScore: scores.overallScore,
+      scoreBreakdown: scores.scoreBreakdown,
       gmbFlags: flags,
       reviewSummary: reviewSummary(rating, reviewCount),
       recommendedAction: recommendedAction(flags)
@@ -200,6 +271,13 @@ export async function auditGmbProfile(lead: Lead): Promise<GmbAudit> {
       openNow: null,
       photosCount: 0,
       profileCompleteness: 0,
+      overallScore: 0,
+      scoreBreakdown: [
+        { label: "Profile completeness", score: 0, detail: "Google profile details could not be loaded." },
+        { label: "Reputation", score: reputationScore(lead.rating, lead.review_count), detail: "Only stored lead rating/review data was available." },
+        { label: "Local visibility", score: 0, detail: "Google profile details could not be loaded." },
+        { label: "Conversion path", score: lead.website || lead.phone ? 35 : 0, detail: "Only stored lead website/phone data was available." }
+      ],
       gmbFlags: flags,
       reviewSummary: reviewSummary(lead.rating, lead.review_count),
       recommendedAction: recommendedAction(flags),
