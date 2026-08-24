@@ -30,6 +30,7 @@ function queryActiveTab() {
 
 function extractFromPage() {
   const cleanText = (value) => (value || "").replace(/\s+/g, " ").trim();
+  const unique = (items) => items.filter(Boolean).filter((item, index, list) => list.indexOf(item) === index);
   const absoluteUrl = (value) => {
     try {
       return new URL(value, location.href).href;
@@ -52,19 +53,21 @@ function extractFromPage() {
     return "";
   };
   const meta = (name) => document.querySelector(`meta[name="${name}"], meta[property="${name}"]`)?.content?.trim() || "";
+  const jsonLdItems = [...document.querySelectorAll('script[type="application/ld+json"]')]
+    .flatMap((script) => {
+      try {
+        const parsed = JSON.parse(script.textContent || "{}");
+        const items = Array.isArray(parsed) ? parsed : [parsed];
+        return items.flatMap((item) => Array.isArray(item?.["@graph"]) ? item["@graph"] : [item]);
+      } catch {
+        return [];
+      }
+    });
   const text = document.body?.innerText || "";
   const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
   const phone = text.match(/(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}/)?.[0] || "";
-  const schemaName = [...document.querySelectorAll('script[type="application/ld+json"]')]
-    .map((script) => {
-      try {
-        const data = JSON.parse(script.textContent || "{}");
-        const item = Array.isArray(data) ? data[0] : data["@graph"]?.[0] || data;
-        return item?.name || "";
-      } catch {
-        return "";
-      }
-    })
+  const schemaName = jsonLdItems
+    .map((item) => item?.name || "")
     .find(Boolean) || "";
   const canonical = document.querySelector('link[rel="canonical"]')?.href || location.href;
   const heading = document.querySelector("h1")?.textContent?.trim() || "";
@@ -73,19 +76,37 @@ function extractFromPage() {
   if (location.hostname.includes("yelp.") && location.pathname.includes("/biz/")) {
     const anchors = [...document.querySelectorAll("a[href]")];
     const website = anchors.map(externalUrlFromAnchor).find(Boolean) || canonical;
+    const businessSchema = jsonLdItems.find((item) => {
+      const type = Array.isArray(item?.["@type"]) ? item["@type"].join(" ") : item?.["@type"] || "";
+      return /LocalBusiness|Organization|Restaurant|Store|ProfessionalService/i.test(type);
+    });
+    const yelpCompanyName = cleanText(heading || businessSchema?.name || document.title.replace(/\s[-|].*$/, ""));
     const ratingText = cleanText(document.querySelector('[aria-label*="star rating"]')?.getAttribute("aria-label") || "");
     const reviewText = cleanText(text.match(/\b\d[\d,]*\s+reviews?\b/i)?.[0] || "");
-    const categories = anchors
+    const categories = unique(anchors
       .filter((anchor) => /\/search\?cflt=|\/c\//.test(anchor.getAttribute("href") || ""))
       .map((anchor) => cleanText(anchor.textContent))
       .filter(Boolean)
-      .filter((item, index, list) => list.indexOf(item) === index)
+      .filter((item) => !/restaurants|home\s*&\s*garden|auto services|health\s*&\s*beauty|travel|activities|more/i.test(item)))
       .slice(0, 3);
-    const addressMatch = cleanText(text.match(/\d{1,6}\s+.+?,?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?/i)?.[0] || "");
-    const cityMatch = addressMatch.match(/,\s*([^,]+?),?\s+[A-Z]{2}\s+\d{5}/i) || addressMatch.match(/\b([A-Za-z][A-Za-z .'-]+),?\s+[A-Z]{2}\s+\d{5}/);
+    const schemaAddress = businessSchema?.address || {};
+    const schemaCity = cleanText(schemaAddress.addressLocality || schemaAddress.locality || "");
+    const schemaRegion = cleanText(schemaAddress.addressRegion || schemaAddress.region || "");
+    const schemaStreet = cleanText(schemaAddress.streetAddress || "");
+    const schemaPostal = cleanText(schemaAddress.postalCode || "");
+    const addressMatch = cleanText(
+      [schemaStreet, schemaCity, schemaRegion, schemaPostal].filter(Boolean).join(", ") ||
+      text.match(/\d{1,6}\s+[\w .'-]+(?:\n|,\s*)[A-Za-z .'-]+,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?/i)?.[0] ||
+      text.match(/\d{1,6}\s+.+?,?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?/i)?.[0] ||
+      ""
+    );
+    const cityMatch = schemaCity
+      ? [schemaCity, schemaCity]
+      : addressMatch.match(/,\s*([A-Za-z][A-Za-z .'-]+),\s*[A-Z]{2}\s+\d{5}/i) ||
+        addressMatch.match(/\n\s*([A-Za-z][A-Za-z .'-]+),\s*[A-Z]{2}\s+\d{5}/i);
     const pagePhone = text.match(/\(\d{3}\)\s*\d{3}[-\s]\d{4}/)?.[0] || phone;
     return {
-      companyName,
+      companyName: yelpCompanyName || companyName,
       pageTitle: document.title,
       description: [
         "Imported from Yelp profile.",
@@ -98,7 +119,7 @@ function extractFromPage() {
       email,
       phone: pagePhone,
       category: categories.join(", ") || keywords[0] || "Yelp lead",
-      city: cityMatch?.[1]?.trim() || ""
+      city: cleanText(cityMatch?.[1] || "")
     };
   }
   return {
