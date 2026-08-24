@@ -115,6 +115,8 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
   let openaiWs = null;
   let streamId = "";
   let started = false;
+  let openaiReady = false;
+  let greetingRequested = false;
   let finished = false;
   const transcriptParts = [];
   const aiParts = [];
@@ -131,6 +133,12 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     clearTimeout(maxTimer);
     if (callRecord) await finishAiCall({ call: callRecord, status, transcriptParts, aiParts, reason });
     closeAll();
+  };
+
+  const requestGreeting = () => {
+    if (greetingRequested || !streamId || !openaiReady || openaiWs?.readyState !== WebSocket.OPEN) return;
+    greetingRequested = true;
+    openaiWs.send(JSON.stringify({ type: "response.create" }));
   };
 
   const maxTimer = setTimeout(() => {
@@ -158,10 +166,9 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
       }
       await updateCall(callLogId, { status: "in-progress", answeredAt: new Date() });
 
-      openaiWs = new WebSocket(`wss://api.openai.com/v1/realtime?model=${encodeURIComponent(process.env.OPENAI_REALTIME_MODEL || "gpt-4o-mini-realtime-preview")}`, {
+      openaiWs = new WebSocket(`wss://api.openai.com/v1/realtime?model=${encodeURIComponent(process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-mini")}`, {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "OpenAI-Beta": "realtime=v1"
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
         }
       });
 
@@ -169,17 +176,27 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
         openaiWs.send(JSON.stringify({
           type: "session.update",
           session: {
-            modalities: ["text", "audio"],
+            type: "realtime",
+            output_modalities: ["audio"],
             instructions: buildInstructions(callRecord),
-            voice: process.env.OPENAI_REALTIME_VOICE || "alloy",
-            input_audio_format: "g711_ulaw",
-            output_audio_format: "g711_ulaw",
-            input_audio_transcription: { model: "whisper-1" },
-            turn_detection: { type: "server_vad", threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 650 },
-            temperature: 0.7
+            audio: {
+              input: {
+                format: { type: "audio/pcmu" },
+                turn_detection: {
+                  type: "server_vad",
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 650,
+                  interrupt_response: true
+                }
+              },
+              output: {
+                format: { type: "audio/pcmu" },
+                voice: process.env.OPENAI_REALTIME_VOICE || "shimmer"
+              }
+            }
           }
         }));
-        openaiWs.send(JSON.stringify({ type: "response.create" }));
         started = true;
       });
 
@@ -190,7 +207,11 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
         } catch {
           return;
         }
-        if (aiEvent.type === "response.audio.delta" && aiEvent.delta && telnyxWs.readyState === WebSocket.OPEN && streamId) {
+        if (aiEvent.type === "session.updated" || aiEvent.type === "session.created") {
+          openaiReady = true;
+          requestGreeting();
+        }
+        if ((aiEvent.type === "response.audio.delta" || aiEvent.type === "response.output_audio.delta") && aiEvent.delta && telnyxWs.readyState === WebSocket.OPEN && streamId) {
           telnyxWs.send(JSON.stringify({ event: "media", stream_id: streamId, media: { payload: aiEvent.delta } }));
         }
         if (aiEvent.type === "input_audio_buffer.speech_started" && telnyxWs.readyState === WebSocket.OPEN && streamId) {
@@ -200,19 +221,25 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
         if (aiEvent.type === "conversation.item.input_audio_transcription.completed" && aiEvent.transcript) {
           transcriptParts.push(`Lead: ${aiEvent.transcript}`);
         }
-        if (aiEvent.type === "response.audio_transcript.done" && aiEvent.transcript) {
+        if ((aiEvent.type === "response.audio_transcript.done" || aiEvent.type === "response.output_audio_transcript.done") && aiEvent.transcript) {
           transcriptParts.push(`AI: ${aiEvent.transcript}`);
           aiParts.push(aiEvent.transcript);
         }
         if (aiEvent.type === "error") {
-          transcriptParts.push(`System: OpenAI realtime error: ${aiEvent.error?.message || "unknown error"}`);
+          const message = aiEvent.error?.message || "unknown error";
+          console.error("OpenAI realtime error", message);
+          transcriptParts.push(`System: OpenAI realtime error: ${message}`);
         }
       });
 
       openaiWs.on("close", () => {
         if (!finished && started) void finishOnce("completed", "OpenAI realtime session closed.");
       });
-      openaiWs.on("error", () => void finishOnce("failed", "OpenAI realtime session failed."));
+      openaiWs.on("error", (error) => {
+        console.error("OpenAI realtime websocket failed", error?.message || error);
+        void finishOnce("failed", "OpenAI realtime session failed.");
+      });
+      requestGreeting();
       return;
     }
 

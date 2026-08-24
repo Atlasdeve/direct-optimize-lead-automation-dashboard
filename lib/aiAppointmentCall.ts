@@ -19,7 +19,7 @@ export function aiAppointmentCallingConfigured(fallbackOrigin?: string | null) {
     process.env.OPENAI_API_KEY &&
     process.env.TELNYX_API_KEY &&
     process.env.TELNYX_PHONE_NUMBER &&
-    (process.env.TELNYX_CALL_CONTROL_CONNECTION_ID || process.env.TELNYX_CONNECTION_ID) &&
+    process.env.TELNYX_CALL_CONTROL_CONNECTION_ID &&
     publicBaseUrl(fallbackOrigin) &&
     streamSecret()
   );
@@ -77,4 +77,3 @@ export function aiAppointmentInstructions(lead: Lead, auditPoints: string[]) {
     "Opening line: Hi, is this the owner or manager of the business? I will be very quick."
   ].join("\n");
 }
-

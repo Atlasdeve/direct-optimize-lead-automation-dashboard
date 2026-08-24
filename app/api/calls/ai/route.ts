@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { aiAppointmentCallingConfigured, aiCallMaxDurationSeconds, aiCallStreamUrl } from "@/lib/aiAppointmentCall";
 import { currentUser } from "@/lib/auth";
 import { createAppNotification } from "@/lib/appNotifications";
@@ -7,7 +8,7 @@ import { getDbLead } from "@/lib/dbStore";
 import { normalizeE164, validE164 } from "@/lib/telnyxCalling";
 
 function connectionId() {
-  return process.env.TELNYX_CALL_CONTROL_CONNECTION_ID || process.env.TELNYX_CONNECTION_ID || "";
+  return process.env.TELNYX_CALL_CONTROL_CONNECTION_ID || "";
 }
 
 function callbackUrl(request: NextRequest) {
@@ -32,9 +33,13 @@ export async function POST(request: NextRequest) {
 
   const phone = normalizeE164(lead.phone ?? "");
   if (!validE164(phone)) return NextResponse.json({ error: "Lead does not have a valid E.164 phone number." }, { status: 400 });
+  const fromNumber = normalizeE164(process.env.TELNYX_PHONE_NUMBER || "");
+  if (!validE164(fromNumber)) {
+    return NextResponse.json({ error: "TELNYX_PHONE_NUMBER must be a valid E.164 number, for example +17278004968." }, { status: 503 });
+  }
   if (!aiAppointmentCallingConfigured(request.headers.get("origin"))) {
     return NextResponse.json({
-      error: "AI calling is not configured. Add OPENAI_API_KEY, TELNYX_CALL_CONTROL_CONNECTION_ID, TELNYX_PHONE_NUMBER, APP_PUBLIC_URL, and AI_CALL_STREAM_SECRET."
+      error: "AI calling is not configured. Add OPENAI_API_KEY, TELNYX_CALL_CONTROL_CONNECTION_ID, TELNYX_PHONE_NUMBER, APP_PUBLIC_URL, and AI_CALL_STREAM_SECRET. TELNYX_CALL_CONTROL_CONNECTION_ID must be a Call Control App ID, not the SIP/WebRTC connection ID."
     }, { status: 503 });
   }
 
@@ -62,14 +67,18 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         connection_id: connectionId(),
         to: phone,
-        from: process.env.TELNYX_PHONE_NUMBER,
+        from: fromNumber,
         timeout_secs: 30,
         client_state: Buffer.from(JSON.stringify({ callLogId: call.id, leadId })).toString("base64"),
         webhook_url: callbackUrl(request),
         stream_url: streamUrl,
-        stream_track: "both_tracks",
+        stream_track: "inbound_track",
+        stream_codec: "PCMU",
         stream_bidirectional_mode: "rtp",
-        stream_bidirectional_codec: "PCMU"
+        stream_bidirectional_codec: "PCMU",
+        stream_bidirectional_sampling_rate: 8000,
+        send_silence_when_idle: true,
+        command_id: crypto.randomUUID()
       })
     });
     const payload = await response.json().catch(() => ({}));
@@ -98,4 +107,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
