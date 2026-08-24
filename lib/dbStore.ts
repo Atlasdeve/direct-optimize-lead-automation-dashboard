@@ -406,6 +406,7 @@ function stringFromMetadata(value: unknown) {
 }
 
 export async function listHotEmailLeads() {
+  const liveSince = new Date(Date.now() - 2 * 60 * 1000);
   const logs = await prisma.outreachLog.findMany({
     where: {
       channel: "email",
@@ -431,6 +432,11 @@ export async function listHotEmailLeads() {
           },
           checklist: {
             select: { notes: true }
+          },
+          websiteVisits: {
+            where: { lastSeenAt: { gte: liveSince } },
+            orderBy: { lastSeenAt: "desc" },
+            take: 1
           }
         }
       }
@@ -450,6 +456,9 @@ export async function listHotEmailLeads() {
     lastClickedAt: string | null;
     lastOpenedAt: string | null;
     lastActivityAt: string;
+    isLive: boolean;
+    liveLastSeenAt: string | null;
+    livePageUrl: string | null;
     clickCount: number;
     openCount: number;
   }>();
@@ -472,6 +481,9 @@ export async function listHotEmailLeads() {
       lastClickedAt: clickedAt,
       lastOpenedAt: openedAt,
       lastActivityAt: activityAt,
+      isLive: Boolean((log.lead as DbLead & { websiteVisits?: Array<{ lastSeenAt: Date; pageUrl: string | null }> }).websiteVisits?.[0]),
+      liveLastSeenAt: (log.lead as DbLead & { websiteVisits?: Array<{ lastSeenAt: Date; pageUrl: string | null }> }).websiteVisits?.[0]?.lastSeenAt.toISOString() ?? null,
+      livePageUrl: (log.lead as DbLead & { websiteVisits?: Array<{ lastSeenAt: Date; pageUrl: string | null }> }).websiteVisits?.[0]?.pageUrl ?? null,
       clickCount: 0,
       openCount: 0
     };
@@ -491,7 +503,81 @@ export async function listHotEmailLeads() {
     grouped.set(log.leadId, base);
   }
 
-  return [...grouped.values()].sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()).slice(0, 100);
+  return [...grouped.values()].sort((a, b) => {
+    if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+    const aTime = a.liveLastSeenAt ?? a.lastActivityAt;
+    const bTime = b.liveLastSeenAt ?? b.lastActivityAt;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  }).slice(0, 100);
+}
+
+export async function recordLeadWebsiteVisit(input: {
+  leadId: string;
+  visitorId: string;
+  pageUrl?: string | null;
+  pageTitle?: string | null;
+  referrer?: string | null;
+  utmCampaign?: string | null;
+  utmTerm?: string | null;
+  userAgent?: string | null;
+  ip?: string | null;
+}) {
+  const lead = await prisma.lead.findFirst({
+    where: { id: input.leadId, archived: false },
+    select: { id: true, companyName: true, city: true, country: true }
+  });
+  if (!lead) return { recorded: false, reason: "Lead not found." };
+
+  const now = new Date();
+  const inactiveBefore = new Date(now.getTime() - 2 * 60 * 1000);
+  const notifyAfter = new Date(now.getTime() - 15 * 60 * 1000);
+  const existing = await prisma.leadWebsiteVisit.findUnique({
+    where: { leadId_visitorId: { leadId: input.leadId, visitorId: input.visitorId } }
+  });
+  const shouldNotify = !existing || existing.lastSeenAt < inactiveBefore || !existing.lastNotifiedAt || existing.lastNotifiedAt < notifyAfter;
+
+  await prisma.leadWebsiteVisit.upsert({
+    where: { leadId_visitorId: { leadId: input.leadId, visitorId: input.visitorId } },
+    update: {
+      pageUrl: input.pageUrl?.slice(0, 2048) || existing?.pageUrl || null,
+      pageTitle: input.pageTitle?.slice(0, 250) || existing?.pageTitle || null,
+      referrer: input.referrer?.slice(0, 2048) || existing?.referrer || null,
+      utmCampaign: input.utmCampaign?.slice(0, 120) || existing?.utmCampaign || null,
+      utmTerm: input.utmTerm?.slice(0, 120) || existing?.utmTerm || null,
+      userAgent: input.userAgent?.slice(0, 500) || existing?.userAgent || null,
+      ip: input.ip?.slice(0, 80) || existing?.ip || null,
+      lastSeenAt: now,
+      lastNotifiedAt: shouldNotify ? now : existing?.lastNotifiedAt ?? null,
+      visitCount: { increment: 1 }
+    },
+    create: {
+      leadId: input.leadId,
+      visitorId: input.visitorId,
+      pageUrl: input.pageUrl?.slice(0, 2048) || null,
+      pageTitle: input.pageTitle?.slice(0, 250) || null,
+      referrer: input.referrer?.slice(0, 2048) || null,
+      utmCampaign: input.utmCampaign?.slice(0, 120) || null,
+      utmTerm: input.utmTerm?.slice(0, 120) || null,
+      userAgent: input.userAgent?.slice(0, 500) || null,
+      ip: input.ip?.slice(0, 80) || null,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      lastNotifiedAt: shouldNotify ? now : null
+    }
+  });
+
+  if (shouldNotify) {
+    const location = [lead.city, lead.country].filter(Boolean).join(", ");
+    await createAppNotification({
+      type: "live_website_lead",
+      title: `Live client: ${lead.companyName}`,
+      message: `${lead.companyName}${location ? ` from ${location}` : ""} is active on your website now.`,
+      actionUrl: `/leads/${lead.id}`,
+      leadId: lead.id
+    }).catch(() => undefined);
+  }
+
+  return { recorded: true, live: true };
 }
 
 export async function markContactFormAction(contactId: string, action: "opened" | "submitted" | "skipped", message?: string) {

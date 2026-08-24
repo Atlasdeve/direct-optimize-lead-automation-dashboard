@@ -13,10 +13,11 @@ const publicPaths = new Set([
   "/favicon.ico"
 ]);
 
-const publicPrefixes = ["/api/email/open", "/api/email/click", "/_next"];
+const publicPrefixes = ["/api/email/open", "/api/email/click", "/api/visitor", "/_next"];
 const crossOriginApiKeyPaths = new Set([
   "/api/extension/leads",
-  "/api/extension/regions"
+  "/api/extension/regions",
+  "/api/visitor/live"
 ]);
 
 function matchesPrefix(pathname: string, prefix: string) {

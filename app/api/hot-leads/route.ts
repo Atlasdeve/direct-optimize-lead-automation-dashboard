@@ -1,0 +1,11 @@
+import { NextResponse } from "next/server";
+import { currentUser } from "@/lib/auth";
+import { listHotEmailLeads } from "@/lib/dbStore";
+import { isOperationsRole } from "@/lib/roles";
+
+export async function GET() {
+  const user = await currentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isOperationsRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  return NextResponse.json({ leads: await listHotEmailLeads() });
+}

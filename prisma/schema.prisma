@@ -97,10 +97,34 @@ model Lead {
   clientProjects  ClientProject[]
   callLogs        CallLog[]
   followUpReminders FollowUpReminder[]
+  websiteVisits   LeadWebsiteVisit[]
 
   @@index([region])
   @@index([email])
   @@map("leads")
+}
+
+model LeadWebsiteVisit {
+  id             String   @id @default(cuid())
+  leadId         String   @map("lead_id")
+  visitorId      String   @map("visitor_id")
+  pageUrl        String?  @map("page_url")
+  pageTitle      String?  @map("page_title")
+  referrer       String?
+  utmCampaign    String?  @map("utm_campaign")
+  utmTerm        String?  @map("utm_term")
+  userAgent      String?  @map("user_agent")
+  ip             String?
+  firstSeenAt    DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt     DateTime @default(now()) @map("last_seen_at")
+  lastNotifiedAt DateTime? @map("last_notified_at")
+  visitCount     Int      @default(1) @map("visit_count")
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, visitorId])
+  @@index([lastSeenAt])
+  @@index([leadId, lastSeenAt])
+  @@map("lead_website_visits")
 }
 
 model AdultLead {
