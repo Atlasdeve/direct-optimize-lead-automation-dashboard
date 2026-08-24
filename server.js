@@ -44,15 +44,19 @@ function buildInstructions(call) {
     "Never continue talking after asking a question. Ask the question and wait.",
     "Do not mention that the person self-registered unless they directly ask why you are calling.",
     "Do not repeat the same question. If they already did not answer email or WhatsApp, ask once in a different way, then move on or end politely.",
+    "Do not treat tiny fragments like 'y', 'uh', 'hmm', 'a', or unclear words as agreement. Ask a clarifying question instead.",
+    "Only ask for email or WhatsApp after the person clearly says yes, okay, sure, send it, or asks you to send the audit.",
     "Your only goal is to ask permission to send a short audit and, if they are interested, ask whether a developer should follow up.",
     "Do not sell deeply. Do not discuss pricing. Do not answer technical questions.",
     "If they ask why you are calling or what the point is, answer naturally: I am only calling because we noticed a few quick online visibility points for your business. I wanted to ask if you would like us to send a short audit, no obligation.",
     "If they ask what Direct Optimize does, say: We help businesses improve their website, Google visibility, and lead conversion. For now I am only asking permission to send a quick audit.",
-    "If asked technical questions, say: That's a good question. A developer from our team can explain the audit properly on a short call.",
+    "If they ask what kind of audit, answer directly: It is a simple online presence audit. We check the website basics, Google Business Profile visibility, reviews, contact path, and a few conversion points. Then ask: Would you like me to send that over?",
+    "If asked technical questions beyond the audit overview, say: That's a good question. A developer from our team can explain the audit properly on a short call.",
     "If asked for your name, say: My name is Ayesha, calling from Direct Optimize.",
     "If the person is busy, ask whether email or WhatsApp is better and end politely.",
     "If they say no, no need, or not interested, say: No problem, I understand. We will not bother you further. Have a good day. Then stop.",
-    "If they sound confused, say: No worries, I will keep it simple. We found a couple of online improvement points and can send them over for you to review.",
+    "If they sound confused or the transcript is unclear, say: Sorry, I may have missed that. Are you asking what the audit includes?",
+    "If the person speaks Urdu, Hindi, or another language you recognize, respond briefly in that language if you can. Do not keep pushing English channel questions.",
     "If they ask if this is AI or a bot, be honest: I am an AI assistant helping Direct Optimize with initial appointment calls. A real developer will handle any detailed discussion.",
     "Never promise rankings, revenue, leads, or guaranteed results.",
     "If interrupted, stop speaking and listen.",
@@ -137,6 +141,8 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
   let greetingRequested = false;
   let responseActive = false;
   let interruptedResponse = false;
+  let leadSpeaking = false;
+  let suppressAiAudioUntil = 0;
   let finished = false;
   const transcriptParts = [];
   const aiParts = [];
@@ -211,9 +217,9 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
                 transcription: { model: "gpt-4o-mini-transcribe" },
                 turn_detection: {
                   type: "server_vad",
-                  threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 650,
+                  threshold: 0.62,
+                  prefix_padding_ms: 500,
+                  silence_duration_ms: 1200,
                   interrupt_response: true
                 }
               },
@@ -244,12 +250,18 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
           interruptedResponse = false;
         }
         if ((aiEvent.type === "response.audio.delta" || aiEvent.type === "response.output_audio.delta") && aiEvent.delta && telnyxWs.readyState === WebSocket.OPEN && streamId) {
-          if (interruptedResponse) return;
+          if (interruptedResponse || leadSpeaking || Date.now() < suppressAiAudioUntil) return;
           telnyxWs.send(JSON.stringify({ event: "media", stream_id: streamId, media: { payload: aiEvent.delta } }));
         }
         if (aiEvent.type === "input_audio_buffer.speech_started" && telnyxWs.readyState === WebSocket.OPEN && streamId) {
+          leadSpeaking = true;
           interruptedResponse = responseActive;
+          suppressAiAudioUntil = Date.now() + 1600;
           telnyxWs.send(JSON.stringify({ event: "clear", stream_id: streamId }));
+        }
+        if (aiEvent.type === "input_audio_buffer.speech_stopped") {
+          leadSpeaking = false;
+          suppressAiAudioUntil = Date.now() + 700;
         }
         if (
           (aiEvent.type === "conversation.item.input_audio_transcription.completed" ||
