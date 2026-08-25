@@ -40,6 +40,9 @@ function buildInstructions(call) {
     "You are not a salesperson. You are checking whether the business owner wants a short free online-presence audit.",
     "Keep this call under ninety seconds unless the person is clearly interested. Speak naturally, warmly, and briefly.",
     "Sound calm and human. Use simple words. Do not sound scripted, pushy, robotic, or like a cold call.",
+    "Use small natural acknowledgements when appropriate, like 'sure', 'okay', 'right', or 'I understand', but do not overuse them.",
+    "Do not make every sentence perfect. Keep it polite but slightly conversational.",
+    "Pause briefly before answering, as a human would.",
     "Say only one or two short sentences at a time, then stop and wait for the other person.",
     "Never continue talking after asking a question. Ask the question and wait.",
     "Do not mention that the person self-registered unless they directly ask why you are calling.",
@@ -134,6 +137,9 @@ async function finishAiCall({ call, status, transcriptParts, aiParts, reason }) 
 }
 
 function setupAiCallStream(telnyxWs, request, callLogId) {
+  const humanReplyDelayMs = Number.isFinite(Number(process.env.AI_CALL_REPLY_DELAY_MS))
+    ? Math.max(250, Math.min(1800, Number(process.env.AI_CALL_REPLY_DELAY_MS)))
+    : 700;
   let openaiWs = null;
   let streamId = "";
   let started = false;
@@ -146,11 +152,50 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
   let finished = false;
   const transcriptParts = [];
   const aiParts = [];
+  const aiAudioQueue = [];
+  let aiAudioTimer = null;
+  let aiAudioDelaySatisfied = false;
   let callRecord = null;
 
   const closeAll = () => {
+    if (aiAudioTimer) clearTimeout(aiAudioTimer);
     if (openaiWs && openaiWs.readyState === WebSocket.OPEN) openaiWs.close();
     if (telnyxWs.readyState === WebSocket.OPEN) telnyxWs.close();
+  };
+
+  const clearAiAudioQueue = () => {
+    aiAudioQueue.length = 0;
+    aiAudioDelaySatisfied = false;
+    if (aiAudioTimer) {
+      clearTimeout(aiAudioTimer);
+      aiAudioTimer = null;
+    }
+  };
+
+  const flushAiAudioQueue = () => {
+    aiAudioTimer = null;
+    if (interruptedResponse || leadSpeaking || Date.now() < suppressAiAudioUntil || telnyxWs.readyState !== WebSocket.OPEN || !streamId) {
+      clearAiAudioQueue();
+      return;
+    }
+    aiAudioDelaySatisfied = true;
+    while (aiAudioQueue.length) {
+      telnyxWs.send(JSON.stringify({ event: "media", stream_id: streamId, media: { payload: aiAudioQueue.shift() } }));
+    }
+  };
+
+  const enqueueAiAudio = (payload) => {
+    if (interruptedResponse || leadSpeaking || Date.now() < suppressAiAudioUntil || telnyxWs.readyState !== WebSocket.OPEN || !streamId) return;
+    if (aiAudioDelaySatisfied) {
+      telnyxWs.send(JSON.stringify({ event: "media", stream_id: streamId, media: { payload } }));
+      return;
+    }
+    aiAudioQueue.push(payload);
+    if (!aiAudioTimer) {
+      const jitter = Math.floor(Math.random() * 250);
+      aiAudioTimer = setTimeout(flushAiAudioQueue, humanReplyDelayMs + jitter);
+    }
+    if (aiAudioQueue.length > 80) flushAiAudioQueue();
   };
 
   const finishOnce = async (status, reason) => {
@@ -244,19 +289,24 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
           openaiReady = true;
           requestGreeting();
         }
-        if (aiEvent.type === "response.created") responseActive = true;
+        if (aiEvent.type === "response.created") {
+          responseActive = true;
+          aiAudioDelaySatisfied = false;
+        }
         if (aiEvent.type === "response.done" || aiEvent.type === "response.cancelled") {
           responseActive = false;
           interruptedResponse = false;
+          aiAudioDelaySatisfied = false;
         }
         if ((aiEvent.type === "response.audio.delta" || aiEvent.type === "response.output_audio.delta") && aiEvent.delta && telnyxWs.readyState === WebSocket.OPEN && streamId) {
           if (interruptedResponse || leadSpeaking || Date.now() < suppressAiAudioUntil) return;
-          telnyxWs.send(JSON.stringify({ event: "media", stream_id: streamId, media: { payload: aiEvent.delta } }));
+          enqueueAiAudio(aiEvent.delta);
         }
         if (aiEvent.type === "input_audio_buffer.speech_started" && telnyxWs.readyState === WebSocket.OPEN && streamId) {
           leadSpeaking = true;
           interruptedResponse = responseActive;
           suppressAiAudioUntil = Date.now() + 1600;
+          clearAiAudioQueue();
           telnyxWs.send(JSON.stringify({ event: "clear", stream_id: streamId }));
         }
         if (aiEvent.type === "input_audio_buffer.speech_stopped") {
