@@ -153,6 +153,9 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
   let suppressAiAudioUntil = 0;
   let manualResponseTimer = null;
   let finished = false;
+  let telnyxFrameCount = 0;
+  let telnyxMediaCount = 0;
+  let aiMediaCount = 0;
   const transcriptParts = [];
   const aiParts = [];
   const aiAudioQueue = [];
@@ -184,14 +187,16 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     }
     aiAudioDelaySatisfied = true;
     while (aiAudioQueue.length) {
-      telnyxWs.send(JSON.stringify({ event: "media", stream_id: streamId, media: { payload: aiAudioQueue.shift() } }));
+      aiMediaCount += 1;
+      telnyxWs.send(JSON.stringify({ event: "media", media: { payload: aiAudioQueue.shift() } }));
     }
   };
 
   const enqueueAiAudio = (payload) => {
     if (interruptedResponse || leadSpeaking || Date.now() < suppressAiAudioUntil || telnyxWs.readyState !== WebSocket.OPEN || !streamId) return;
     if (aiAudioDelaySatisfied) {
-      telnyxWs.send(JSON.stringify({ event: "media", stream_id: streamId, media: { payload } }));
+      aiMediaCount += 1;
+      telnyxWs.send(JSON.stringify({ event: "media", media: { payload } }));
       return;
     }
     aiAudioQueue.push(payload);
@@ -245,9 +250,22 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     } catch {
       return;
     }
+    telnyxFrameCount += 1;
+
+    if (event.event === "connected") {
+      console.log("Telnyx media stream connected", { callLogId });
+      return;
+    }
 
     if (event.event === "start") {
       streamId = event.stream_id || event.start?.stream_id || streamId;
+      console.log("Telnyx media stream started", {
+        callLogId,
+        streamId,
+        sequenceNumber: event.sequence_number || event.sequenceNumber,
+        mediaFormat: event.start?.media_format,
+        tracks: event.start?.tracks
+      });
       callRecord = await prisma.callLog.findUnique({
         where: { id: callLogId },
         include: { lead: true }
@@ -327,7 +345,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
           interruptedResponse = responseActive;
           suppressAiAudioUntil = Date.now() + 1600;
           clearAiAudioQueue();
-          telnyxWs.send(JSON.stringify({ event: "clear", stream_id: streamId }));
+          telnyxWs.send(JSON.stringify({ event: "clear" }));
         }
         if (aiEvent.type === "input_audio_buffer.speech_stopped") {
           leadSpeaking = false;
@@ -373,6 +391,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     }
 
     if (event.event === "media" && event.media?.payload && openaiWs?.readyState === WebSocket.OPEN) {
+      telnyxMediaCount += 1;
       openaiWs.send(JSON.stringify({ type: "input_audio_buffer.append", audio: event.media.payload }));
       return;
     }
@@ -383,7 +402,10 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
         event: event.event,
         streamId,
         sequenceNumber: event.sequence_number || event.sequenceNumber,
-        reason: event.reason || event.stop?.reason
+        reason: event.reason || event.stop?.reason,
+        telnyxFrameCount,
+        telnyxMediaCount,
+        aiMediaCount
       });
       void finishOnce("completed", "Telnyx media stream ended.");
     }
