@@ -151,6 +151,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
   let interruptedResponse = false;
   let leadSpeaking = false;
   let suppressAiAudioUntil = 0;
+  let manualResponseTimer = null;
   let finished = false;
   const transcriptParts = [];
   const aiParts = [];
@@ -161,6 +162,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
 
   const closeAll = () => {
     if (aiAudioTimer) clearTimeout(aiAudioTimer);
+    if (manualResponseTimer) clearTimeout(manualResponseTimer);
     if (openaiWs && openaiWs.readyState === WebSocket.OPEN) openaiWs.close();
     if (telnyxWs.readyState === WebSocket.OPEN) telnyxWs.close();
   };
@@ -198,6 +200,17 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
       aiAudioTimer = setTimeout(flushAiAudioQueue, humanReplyDelayMs + jitter);
     }
     if (aiAudioQueue.length > 80) flushAiAudioQueue();
+  };
+
+  const requestFollowupResponse = () => {
+    if (!openaiReady || responseActive || leadSpeaking || openaiWs?.readyState !== WebSocket.OPEN) return;
+    responseActive = true;
+    openaiWs.send(JSON.stringify({
+      type: "response.create",
+      response: {
+        instructions: "Reply naturally to what the caller just said. Answer their question first. Keep it to one or two short sentences, then ask only one simple next question if needed."
+      }
+    }));
   };
 
   const finishOnce = async (status, reason) => {
@@ -267,7 +280,8 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
                   threshold: 0.62,
                   prefix_padding_ms: 500,
                   silence_duration_ms: 1200,
-                  interrupt_response: true
+                  interrupt_response: true,
+                  create_response: true
                 }
               },
               output: {
@@ -306,6 +320,10 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
         }
         if (aiEvent.type === "input_audio_buffer.speech_started" && telnyxWs.readyState === WebSocket.OPEN && streamId) {
           leadSpeaking = true;
+          if (manualResponseTimer) {
+            clearTimeout(manualResponseTimer);
+            manualResponseTimer = null;
+          }
           interruptedResponse = responseActive;
           suppressAiAudioUntil = Date.now() + 1600;
           clearAiAudioQueue();
@@ -314,6 +332,9 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
         if (aiEvent.type === "input_audio_buffer.speech_stopped") {
           leadSpeaking = false;
           suppressAiAudioUntil = Date.now() + 700;
+          if (!responseActive) {
+            manualResponseTimer = setTimeout(requestFollowupResponse, 900);
+          }
         }
         if (
           (aiEvent.type === "conversation.item.input_audio_transcription.completed" ||
@@ -323,6 +344,10 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
           aiEvent.transcript
         ) {
           transcriptParts.push(`Lead: ${aiEvent.transcript}`);
+          if (!responseActive && openaiReady) {
+            if (manualResponseTimer) clearTimeout(manualResponseTimer);
+            manualResponseTimer = setTimeout(requestFollowupResponse, 500);
+          }
         }
         if ((aiEvent.type === "response.audio_transcript.done" || aiEvent.type === "response.output_audio_transcript.done") && aiEvent.transcript) {
           transcriptParts.push(`AI: ${aiEvent.transcript}`);
@@ -336,6 +361,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
       });
 
       openaiWs.on("close", () => {
+        console.log("OpenAI realtime websocket closed", { callLogId, started });
         if (!finished && started) void finishOnce("completed", "OpenAI realtime session closed.");
       });
       openaiWs.on("error", (error) => {
@@ -352,14 +378,25 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     }
 
     if (event.event === "stop" || event.event === "closed") {
+      console.log("Telnyx media stream stopped", {
+        callLogId,
+        event: event.event,
+        streamId,
+        sequenceNumber: event.sequence_number || event.sequenceNumber,
+        reason: event.reason || event.stop?.reason
+      });
       void finishOnce("completed", "Telnyx media stream ended.");
     }
   });
 
   telnyxWs.on("close", () => {
+    console.log("Telnyx websocket closed", { callLogId, started, finished });
     if (!finished) void finishOnce(started ? "completed" : "no-answer", started ? "Phone media stream closed." : "Call ended before media stream started.");
   });
-  telnyxWs.on("error", () => void finishOnce("failed", "Telnyx media stream failed."));
+  telnyxWs.on("error", (error) => {
+    console.error("Telnyx media stream failed", error?.message || error);
+    void finishOnce("failed", "Telnyx media stream failed.");
+  });
 }
 
 app.prepare().then(() => {
