@@ -156,11 +156,13 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
   let telnyxFrameCount = 0;
   let telnyxMediaCount = 0;
   let aiMediaCount = 0;
+  let aiAudioByteCount = 0;
   const transcriptParts = [];
   const aiParts = [];
   const aiAudioQueue = [];
   let aiAudioTimer = null;
   let aiAudioDelaySatisfied = false;
+  let outboundAudioBuffer = Buffer.alloc(0);
   let callRecord = null;
 
   const closeAll = () => {
@@ -172,6 +174,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
 
   const clearAiAudioQueue = () => {
     aiAudioQueue.length = 0;
+    outboundAudioBuffer = Buffer.alloc(0);
     aiAudioDelaySatisfied = false;
     if (aiAudioTimer) {
       clearTimeout(aiAudioTimer);
@@ -187,8 +190,10 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     }
     aiAudioDelaySatisfied = true;
     while (aiAudioQueue.length) {
+      const payload = aiAudioQueue.shift();
       aiMediaCount += 1;
-      telnyxWs.send(JSON.stringify({ event: "media", media: { payload: aiAudioQueue.shift() } }));
+      aiAudioByteCount += Buffer.byteLength(payload, "base64");
+      telnyxWs.send(JSON.stringify({ event: "media", media: { payload } }));
     }
   };
 
@@ -196,6 +201,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     if (interruptedResponse || leadSpeaking || Date.now() < suppressAiAudioUntil || telnyxWs.readyState !== WebSocket.OPEN || !streamId) return;
     if (aiAudioDelaySatisfied) {
       aiMediaCount += 1;
+      aiAudioByteCount += Buffer.byteLength(payload, "base64");
       telnyxWs.send(JSON.stringify({ event: "media", media: { payload } }));
       return;
     }
@@ -205,6 +211,28 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
       aiAudioTimer = setTimeout(flushAiAudioQueue, humanReplyDelayMs + jitter);
     }
     if (aiAudioQueue.length > 80) flushAiAudioQueue();
+  };
+
+  const enqueueAiAudioChunk = (payload) => {
+    if (interruptedResponse || leadSpeaking || Date.now() < suppressAiAudioUntil || telnyxWs.readyState !== WebSocket.OPEN || !streamId) return;
+    const decoded = Buffer.from(payload, "base64");
+    if (!decoded.length) return;
+    outboundAudioBuffer = outboundAudioBuffer.length ? Buffer.concat([outboundAudioBuffer, decoded]) : decoded;
+    const frameBytes = 160; // 20ms of 8 kHz PCMU, which is Telnyx's minimum bidirectional RTP chunk size.
+    while (outboundAudioBuffer.length >= frameBytes) {
+      const frame = outboundAudioBuffer.subarray(0, frameBytes);
+      outboundAudioBuffer = outboundAudioBuffer.subarray(frameBytes);
+      enqueueAiAudio(frame.toString("base64"));
+    }
+  };
+
+  const flushResidualAiAudio = () => {
+    if (!outboundAudioBuffer.length) return;
+    const frameBytes = 160;
+    const padded = Buffer.alloc(frameBytes, 0xff);
+    outboundAudioBuffer.copy(padded, 0, 0, Math.min(outboundAudioBuffer.length, frameBytes));
+    outboundAudioBuffer = Buffer.alloc(0);
+    enqueueAiAudio(padded.toString("base64"));
   };
 
   const requestFollowupResponse = () => {
@@ -328,13 +356,14 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
           aiAudioDelaySatisfied = false;
         }
         if (aiEvent.type === "response.done" || aiEvent.type === "response.cancelled") {
+          if (aiEvent.type === "response.done") flushResidualAiAudio();
           responseActive = false;
           interruptedResponse = false;
           aiAudioDelaySatisfied = false;
         }
         if ((aiEvent.type === "response.audio.delta" || aiEvent.type === "response.output_audio.delta") && aiEvent.delta && telnyxWs.readyState === WebSocket.OPEN && streamId) {
           if (interruptedResponse || leadSpeaking || Date.now() < suppressAiAudioUntil) return;
-          enqueueAiAudio(aiEvent.delta);
+          enqueueAiAudioChunk(aiEvent.delta);
         }
         if (aiEvent.type === "input_audio_buffer.speech_started" && telnyxWs.readyState === WebSocket.OPEN && streamId) {
           leadSpeaking = true;
@@ -405,7 +434,8 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
         reason: event.reason || event.stop?.reason,
         telnyxFrameCount,
         telnyxMediaCount,
-        aiMediaCount
+        aiMediaCount,
+        aiAudioByteCount
       });
       void finishOnce("completed", "Telnyx media stream ended.");
     }
