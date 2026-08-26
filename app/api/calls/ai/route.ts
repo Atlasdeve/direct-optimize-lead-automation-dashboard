@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
         stream_codec: "PCMU",
         stream_bidirectional_mode: "rtp",
         stream_bidirectional_codec: "PCMU",
+        stream_bidirectional_target_legs: "self",
         stream_bidirectional_sampling_rate: 8000,
         send_silence_when_idle: true,
         command_id: crypto.randomUUID()
