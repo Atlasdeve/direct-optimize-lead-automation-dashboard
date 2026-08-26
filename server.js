@@ -70,10 +70,9 @@ function buildInstructions(call) {
     `Known email: ${lead?.email || "not available"}.`,
     `Known phone: ${call.phone}.`,
     `Specific observation to mention in one simple sentence: ${finding}.`,
-    "Opening line must be exactly one short question: Hi, is this the owner or manager of the business?",
-    "After they confirm, say exactly: Hi, this is Trevor from Direct Optimize. I was reviewing your business listing. Can you help me out for a moment?",
-    "After the help question, wait. Do not explain the audit until they confirm they can help, can listen, or ask what this is about.",
-    "If they confirm they can help or listen, say: Brilliant, thanks. I noticed a couple of small online visibility points. Would it be okay if I send you a short audit?",
+    "Opening line must be exactly one short sentence with a question: Hi, this is Trevor from Direct Optimize. Is this the owner or manager? I will be very quick.",
+    "After the opening line, wait. Do not explain the audit until they confirm they can listen or ask what this is about.",
+    "If they confirm they can listen, say: Thanks, I appreciate it. I was reviewing your business listing and noticed a couple of small online visibility points. Would it be okay if I send you a short audit?",
     "Only after they agree to receive the audit, ask: Would email or WhatsApp be easier?",
     "If they choose email or WhatsApp, thank them and ask one final soft question: Would you like a developer to explain it after you review it, or should we just send it first?",
     "If they do not choose a channel after two attempts, say: No worries, I do not want to take more of your time. Have a good day. Then stop."
@@ -163,11 +162,14 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
   let aiAudioTimer = null;
   let aiAudioDelaySatisfied = false;
   let outboundAudioBuffer = Buffer.alloc(0);
+  let silenceTimer = null;
+  let lastAiAudioSentAt = 0;
   let callRecord = null;
 
   const closeAll = () => {
     if (aiAudioTimer) clearTimeout(aiAudioTimer);
     if (manualResponseTimer) clearTimeout(manualResponseTimer);
+    if (silenceTimer) clearInterval(silenceTimer);
     if (openaiWs && openaiWs.readyState === WebSocket.OPEN) openaiWs.close();
     if (telnyxWs.readyState === WebSocket.OPEN) telnyxWs.close();
   };
@@ -193,6 +195,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
       const payload = aiAudioQueue.shift();
       aiMediaCount += 1;
       aiAudioByteCount += Buffer.byteLength(payload, "base64");
+      lastAiAudioSentAt = Date.now();
       telnyxWs.send(JSON.stringify({ event: "media", media: { payload } }));
     }
   };
@@ -202,6 +205,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     if (aiAudioDelaySatisfied) {
       aiMediaCount += 1;
       aiAudioByteCount += Buffer.byteLength(payload, "base64");
+      lastAiAudioSentAt = Date.now();
       telnyxWs.send(JSON.stringify({ event: "media", media: { payload } }));
       return;
     }
@@ -235,6 +239,17 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     enqueueAiAudio(padded.toString("base64"));
   };
 
+  const startSilenceKeepalive = () => {
+    if (silenceTimer) return;
+    const silencePayload = Buffer.alloc(160, 0xff).toString("base64");
+    silenceTimer = setInterval(() => {
+      if (finished || telnyxWs.readyState !== WebSocket.OPEN || !streamId) return;
+      if (leadSpeaking || responseActive || interruptedResponse || aiAudioQueue.length || outboundAudioBuffer.length) return;
+      if (Date.now() - lastAiAudioSentAt < 80) return;
+      telnyxWs.send(JSON.stringify({ event: "media", media: { payload: silencePayload } }));
+    }, 20);
+  };
+
   const requestFollowupResponse = () => {
     if (!openaiReady || responseActive || leadSpeaking || openaiWs?.readyState !== WebSocket.OPEN) return;
     responseActive = true;
@@ -261,7 +276,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     openaiWs.send(JSON.stringify({
       type: "response.create",
       response: {
-        instructions: "Say only this exact line, then stop speaking and wait: Hi, is this the owner or manager of the business?"
+        instructions: "Say only this exact line, then stop speaking and wait: Hi, this is Trevor from Direct Optimize. Is this the owner or manager? I will be very quick."
       }
     }));
   };
@@ -303,6 +318,7 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
         return;
       }
       await updateCall(callLogId, { status: "in-progress", answeredAt: new Date() });
+      startSilenceKeepalive();
 
       openaiWs = new WebSocket(`wss://api.openai.com/v1/realtime?model=${encodeURIComponent(process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-mini")}`, {
         headers: {
