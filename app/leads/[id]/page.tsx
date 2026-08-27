@@ -4,6 +4,7 @@ import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
 import LanguageIcon from "@mui/icons-material/Language";
 import ContactPageIcon from "@mui/icons-material/ContactPage";
+import PlaceIcon from "@mui/icons-material/Place";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getDbLead, getDbLeadContacts, getLatestGmbAudit, getLatestLeadIntelligence, getLeadEmailTracking, runGmbAudit, runLeadIntelligenceAudit } from "@/lib/dbStore";
 import { LeadOutreachControls } from "@/components/lead/LeadOutreachControls";
@@ -150,6 +151,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               </a>
             ) : (
               <div className="flex items-center gap-2 text-slate-500"><LanguageIcon fontSize="small" />No website detected</div>
+            )}
+            {lead.google_maps_url && (
+              <a
+                href={lead.google_maps_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-w-0 items-center gap-2 transition hover:text-sky-200"
+                title="Open Google Business Profile"
+              >
+                <PlaceIcon fontSize="small" />
+                <span className="truncate underline-offset-4 hover:underline">Google Business Profile</span>
+              </a>
             )}
             {contactForms.length > 0 && (
               <div className="flex items-center gap-2">
