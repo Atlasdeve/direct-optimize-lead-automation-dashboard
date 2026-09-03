@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canAccessPlanPath, requiredPlanForPath } from "@/lib/planAccess";
 import { authenticatedRoles } from "@/lib/roles";
 
 const authCookieName = "direct_optimize_session";
@@ -10,6 +11,8 @@ const publicPaths = new Set([
   "/api/auth/logout",
   "/api/auth/register",
   "/api/client/register",
+  "/privacy",
+  "/terms",
   "/favicon.ico"
 ]);
 
@@ -47,6 +50,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (/^\/o\/[^/]+\/login$/.test(pathname)) {
+    return NextResponse.next();
+  }
+
   const token = request.cookies.get(authCookieName)?.value;
   const session = token ? await readSession(token) : null;
   if (!session) {
@@ -81,6 +88,16 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  if ((session.role === "admin" || session.role === "manager") && !canAccessPlanPath(session.plan, pathname)) {
+    const requiredPlan = requiredPlanForPath(pathname);
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: `This feature requires the ${requiredPlan === "agency_pro" ? "Agency/Pro" : "Growth"} plan.` }, { status: 403 });
+    }
+    const url = new URL("/", request.url);
+    url.searchParams.set("upgrade", requiredPlan);
+    return NextResponse.redirect(url);
+  }
+
   return NextResponse.next();
 }
 
@@ -104,7 +121,7 @@ async function readSession(token: string) {
     );
     const valid = await crypto.subtle.verify("HMAC", key, decodeBase64Url(signature), encoder.encode(body));
     if (!valid) return null;
-    const payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(body))) as { role?: string; exp?: number };
+    const payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(body))) as { role?: string; exp?: number; plan?: string | null };
     return payload.role && authenticatedRoles.includes(payload.role as (typeof authenticatedRoles)[number]) && payload.exp && payload.exp > Date.now() ? payload : null;
   } catch {
     return null;

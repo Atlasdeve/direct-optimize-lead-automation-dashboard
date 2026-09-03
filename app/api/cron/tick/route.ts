@@ -58,25 +58,33 @@ async function setLastRunDate(key: string, lastRunDate: string) {
 }
 
 async function runDueRegion() {
-  const [regions, categories] = await Promise.all([
-    listEnabledRegions(),
-    getLeadDiscoveryCategories()
-  ]);
-  for (const region of regions.filter((item) => item.name !== "Custom")) {
-    const local = localParts(region.timezone);
-    const scheduled = cronTime(region.morningCron);
-    const isDue = local.hour > scheduled.hour || (local.hour === scheduled.hour && local.minute >= scheduled.minute);
-    if (!isDue) continue;
+  const organizations = await prisma.organization.findMany({
+    where: { systemStatus: "active" },
+    include: { apiSettings: true }
+  });
+  for (const organization of organizations) {
+    const hasPlacesKey = Boolean(organization.apiSettings?.googlePlacesApiKey) || organization.id === "org_direct_optimize";
+    if (!hasPlacesKey) continue;
+    const [regions, categories] = await Promise.all([
+      listEnabledRegions(organization.id),
+      getLeadDiscoveryCategories(organization.id)
+    ]);
+    for (const region of regions.filter((item) => item.name !== "Custom")) {
+      const local = localParts(region.timezone);
+      const scheduled = cronTime(region.morningCron);
+      const isDue = local.hour > scheduled.hour || (local.hour === scheduled.hour && local.minute >= scheduled.minute);
+      if (!isDue) continue;
 
-    const key = `cron:${region.name}:daily-automation`;
-    const lastRunDate = await getLastRunDate(key);
-    if (lastRunDate === local.date) continue;
+      const key = `cron:${organization.id}:${region.name}:daily-automation`;
+      const lastRunDate = await getLastRunDate(key);
+      if (lastRunDate === local.date) continue;
 
-    const maxResults = Number(process.env.CRON_AUTOMATION_MAX_RESULTS || 3);
-    const target = getDailyAutomationTarget(region.name, region.country, local.date, categories);
-    const result = await enqueueAutomation(region.name, { maxResults, city: target.city, categories: target.categories });
-    await setLastRunDate(key, local.date);
-    return { region: region.name, target, result };
+      const maxResults = Number(process.env.CRON_AUTOMATION_MAX_RESULTS || 3);
+      const target = getDailyAutomationTarget(region.name, region.country, local.date, categories);
+      const result = await enqueueAutomation(region.name, { maxResults, city: target.city, categories: target.categories, organizationId: organization.id });
+      await setLastRunDate(key, local.date);
+      return { organization: organization.companyName, region: region.name, target, result };
+    }
   }
   return null;
 }

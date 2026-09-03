@@ -7,119 +7,193 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Organization {
+  id                String    @id @default(cuid())
+  name              String
+  slug              String    @unique
+  companyName       String    @map("company_name")
+  logoUrl           String?   @map("logo_url")
+  brandColor        String    @default("#38bdf8") @map("brand_color")
+  plan              String    @default("starter")
+  billingStatus     String    @default("trial") @map("billing_status")
+  setupFeeStatus    String    @default("pending") @map("setup_fee_status")
+  monthlyPriceCents Int       @default(9900) @map("monthly_price_cents")
+  setupFeeCents     Int       @default(25000) @map("setup_fee_cents")
+  systemStatus      String    @default("active") @map("system_status")
+  customDomain      String?   @unique @map("custom_domain")
+  subdomain         String?   @unique
+  trialEndsAt       DateTime? @map("trial_ends_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  apiSettings        OrganizationApiSetting?
+  users              User[]
+  regions            Region[]
+  leads              Lead[]
+  adultLeads         AdultLead[]
+  adultLeadCountries AdultLeadCountry[]
+  followUpReminders  FollowUpReminder[]
+  callLogs           CallLog[]
+  clientProjects     ClientProject[]
+  composeEmailLogs   ComposeEmailLog[]
+  emailTemplates     EmailTemplate[]
+  whatsappTemplates  WhatsappTemplate[]
+  automationRuns     AutomationRun[]
+  notifications      Notification[]
+
+  @@index([plan])
+  @@index([billingStatus])
+  @@index([systemStatus])
+  @@map("organizations")
+}
+
+model OrganizationApiSetting {
+  id                 String       @id @default(cuid())
+  organizationId     String       @unique @map("organization_id")
+  googlePlacesApiKey String?      @map("google_places_api_key")
+  googleSearchApiKey String?      @map("google_search_api_key")
+  googleSearchCx     String?      @map("google_search_cx")
+  brevoApiKey        String?      @map("brevo_api_key")
+  brevoSmtpKey       String?      @map("brevo_smtp_key")
+  smtpHost           String?      @map("smtp_host")
+  smtpPort           Int?         @map("smtp_port")
+  smtpUser           String?      @map("smtp_user")
+  smtpPass           String?      @map("smtp_pass")
+  smtpSecure         Boolean?     @map("smtp_secure")
+  telnyxApiKey       String?      @map("telnyx_api_key")
+  telnyxConnectionId String?      @map("telnyx_connection_id")
+  telnyxPhoneNumber  String?      @map("telnyx_phone_number")
+  openaiApiKey       String?      @map("openai_api_key")
+  leadCaptureApiKey  String?      @map("lead_capture_api_key")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_api_settings")
+}
+
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  username     String?  @unique
-  name         String?
-  phone        String?
-  passwordHash String
-  role         String   @default("admin")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  clientProjects   ClientProject[] @relation("ClientProjects")
-  assignedProjects ClientProject[] @relation("EmployeeProjects")
-  workLogs         WorkLog[]       @relation("EmployeeWorkLogs")
-  projectComments  ProjectComment[]
-  callLogs         CallLog[]
-  notifications    Notification[] @relation("UserNotifications")
+  id                String             @id @default(cuid())
+  organizationId    String?            @map("organization_id")
+  email             String             @unique
+  username          String?            @unique
+  name              String?
+  phone             String?
+  passwordHash      String
+  role              String             @default("admin")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  clientProjects    ClientProject[]    @relation("ClientProjects")
+  assignedProjects  ClientProject[]    @relation("EmployeeProjects")
+  workLogs          WorkLog[]          @relation("EmployeeWorkLogs")
+  projectComments   ProjectComment[]
+  callLogs          CallLog[]
+  notifications     Notification[]     @relation("UserNotifications")
   pushSubscriptions PushSubscription[]
   followUpReminders FollowUpReminder[]
+  organization      Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@map("users")
 }
 
 model Region {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  country   String
-  timezone  String
-  enabled   Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  leads     Lead[]
+  id             String        @id @default(cuid())
+  organizationId String?       @map("organization_id")
+  name           String        @unique
+  country        String
+  timezone       String
+  enabled        Boolean       @default(true)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  leads          Lead[]
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@map("regions")
 }
 
 model Lead {
-  id                 String    @id @default(cuid())
-  companyName        String    @map("company_name")
-  region             String
-  country            String
-  city               String?
-  category           String?
-  businessType       String?   @map("business_type")
-  website            String?
-  googleMapsUrl      String?   @map("google_maps_url")
-  phone              String?
-  email              String?
-  whatsappAvailable  Boolean   @default(false) @map("whatsapp_available")
-  whatsappStatus     String    @default("unknown") @map("whatsapp_status")
-  ownerName          String?   @map("owner_name")
-  ceoName            String?   @map("ceo_name")
-  managerName        String?   @map("manager_name")
-  linkedinUrl        String?   @map("linkedin_url")
-  decisionMakerName       String? @map("decision_maker_name")
-  decisionMakerTitle      String? @map("decision_maker_title")
-  decisionMakerSource     String? @map("decision_maker_source")
-  decisionMakerConfidence Int?    @map("decision_maker_confidence")
-  sourcePlatform     String    @default("google_places") @map("source_platform")
-  leadScore          Int       @default(0) @map("lead_score")
-  outreachStatus     String    @default("New") @map("outreach_status")
-  outreachApproved   Boolean   @default(false) @map("outreach_approved")
-  outreachApprovedAt DateTime? @map("outreach_approved_at")
-  emailSent          Boolean   @default(false) @map("email_sent")
-  whatsappSent       Boolean   @default(false) @map("whatsapp_sent")
-  replied            Boolean   @default(false)
-  lastContactedAt    DateTime? @map("last_contacted_at")
-  nextFollowUpAt     DateTime? @map("next_follow_up_at")
-  notes              String?
-  rating             Float?
-  reviewCount        Int?      @map("review_count")
-  lastReviewAt       DateTime? @map("last_review_at")
-  missingSeoMetadata Boolean   @default(false) @map("missing_seo_metadata")
-  unsubscribed       Boolean   @default(false)
-  doNotContact       Boolean   @default(false) @map("do_not_contact")
-  archived           Boolean   @default(false)
-  consentStatus      String    @default("legitimate_interest") @map("consent_status")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                      String    @id @default(cuid())
+  organizationId          String?   @map("organization_id")
+  companyName             String    @map("company_name")
+  region                  String
+  country                 String
+  city                    String?
+  category                String?
+  businessType            String?   @map("business_type")
+  website                 String?
+  googleMapsUrl           String?   @map("google_maps_url")
+  phone                   String?
+  email                   String?
+  whatsappAvailable       Boolean   @default(false) @map("whatsapp_available")
+  whatsappStatus          String    @default("unknown") @map("whatsapp_status")
+  ownerName               String?   @map("owner_name")
+  ceoName                 String?   @map("ceo_name")
+  managerName             String?   @map("manager_name")
+  linkedinUrl             String?   @map("linkedin_url")
+  decisionMakerName       String?   @map("decision_maker_name")
+  decisionMakerTitle      String?   @map("decision_maker_title")
+  decisionMakerSource     String?   @map("decision_maker_source")
+  decisionMakerConfidence Int?      @map("decision_maker_confidence")
+  sourcePlatform          String    @default("google_places") @map("source_platform")
+  leadScore               Int       @default(0) @map("lead_score")
+  outreachStatus          String    @default("New") @map("outreach_status")
+  outreachApproved        Boolean   @default(false) @map("outreach_approved")
+  outreachApprovedAt      DateTime? @map("outreach_approved_at")
+  emailSent               Boolean   @default(false) @map("email_sent")
+  whatsappSent            Boolean   @default(false) @map("whatsapp_sent")
+  replied                 Boolean   @default(false)
+  lastContactedAt         DateTime? @map("last_contacted_at")
+  nextFollowUpAt          DateTime? @map("next_follow_up_at")
+  notes                   String?
+  rating                  Float?
+  reviewCount             Int?      @map("review_count")
+  lastReviewAt            DateTime? @map("last_review_at")
+  missingSeoMetadata      Boolean   @default(false) @map("missing_seo_metadata")
+  unsubscribed            Boolean   @default(false)
+  doNotContact            Boolean   @default(false) @map("do_not_contact")
+  archived                Boolean   @default(false)
+  consentStatus           String    @default("legitimate_interest") @map("consent_status")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
-  regionRef       Region?        @relation(fields: [region], references: [name])
-  contacts        LeadContact[]
-  outreachLogs    OutreachLog[]
-  inboxReplies    InboxReply[]
-  aiReplyDrafts   AiReplyDraft[]
-  notifications   Notification[]
-  checklist       LeadChecklist?
-  opportunities   Opportunity[]
-  clientProjects  ClientProject[]
-  callLogs        CallLog[]
+  regionRef         Region?            @relation(fields: [region], references: [name])
+  contacts          LeadContact[]
+  outreachLogs      OutreachLog[]
+  inboxReplies      InboxReply[]
+  aiReplyDrafts     AiReplyDraft[]
+  notifications     Notification[]
+  checklist         LeadChecklist?
+  opportunities     Opportunity[]
+  clientProjects    ClientProject[]
+  callLogs          CallLog[]
   followUpReminders FollowUpReminder[]
-  websiteVisits   LeadWebsiteVisit[]
+  websiteVisits     LeadWebsiteVisit[]
+  organization      Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([region])
   @@index([email])
   @@map("leads")
 }
 
 model LeadWebsiteVisit {
-  id             String   @id @default(cuid())
-  leadId         String   @map("lead_id")
-  visitorId      String   @map("visitor_id")
-  pageUrl        String?  @map("page_url")
-  pageTitle      String?  @map("page_title")
+  id             String    @id @default(cuid())
+  leadId         String    @map("lead_id")
+  visitorId      String    @map("visitor_id")
+  pageUrl        String?   @map("page_url")
+  pageTitle      String?   @map("page_title")
   referrer       String?
-  utmCampaign    String?  @map("utm_campaign")
-  utmTerm        String?  @map("utm_term")
-  userAgent      String?  @map("user_agent")
+  utmCampaign    String?   @map("utm_campaign")
+  utmTerm        String?   @map("utm_term")
+  userAgent      String?   @map("user_agent")
   ip             String?
-  firstSeenAt    DateTime @default(now()) @map("first_seen_at")
-  lastSeenAt     DateTime @default(now()) @map("last_seen_at")
+  firstSeenAt    DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at")
   lastNotifiedAt DateTime? @map("last_notified_at")
-  visitCount     Int      @default(1) @map("visit_count")
-  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  visitCount     Int       @default(1) @map("visit_count")
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@unique([leadId, visitorId])
   @@index([lastSeenAt])
@@ -128,30 +202,33 @@ model LeadWebsiteVisit {
 }
 
 model AdultLead {
-  id             String   @id @default(cuid())
-  businessName   String   @map("business_name")
-  country        String
-  city           String?
-  category       String
-  website        String   @unique
-  email          String?
-  phone          String?
-  sourceTitle    String?  @map("source_title")
-  sourceSnippet  String?  @map("source_snippet")
-  sourceQuery    String?  @map("source_query")
-  reviewStatus   String   @default("Unverified") @map("review_status")
-  outreachStatus String   @default("New") @map("outreach_status")
-  outreachApproved Boolean @default(false) @map("outreach_approved")
-  outreachApprovedAt DateTime? @map("outreach_approved_at")
-  emailSent      Boolean  @default(false) @map("email_sent")
-  emailOpened    Boolean  @default(false) @map("email_opened")
-  emailClicked   Boolean  @default(false) @map("email_clicked")
-  lastContactedAt DateTime? @map("last_contacted_at")
-  notes          String?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  followUpReminders FollowUpReminder[]
+  id                 String             @id @default(cuid())
+  organizationId     String?            @map("organization_id")
+  businessName       String             @map("business_name")
+  country            String
+  city               String?
+  category           String
+  website            String             @unique
+  email              String?
+  phone              String?
+  sourceTitle        String?            @map("source_title")
+  sourceSnippet      String?            @map("source_snippet")
+  sourceQuery        String?            @map("source_query")
+  reviewStatus       String             @default("Unverified") @map("review_status")
+  outreachStatus     String             @default("New") @map("outreach_status")
+  outreachApproved   Boolean            @default(false) @map("outreach_approved")
+  outreachApprovedAt DateTime?          @map("outreach_approved_at")
+  emailSent          Boolean            @default(false) @map("email_sent")
+  emailOpened        Boolean            @default(false) @map("email_opened")
+  emailClicked       Boolean            @default(false) @map("email_clicked")
+  lastContactedAt    DateTime?          @map("last_contacted_at")
+  notes              String?
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  followUpReminders  FollowUpReminder[]
+  organization       Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([country])
   @@index([category])
   @@index([reviewStatus])
@@ -160,15 +237,19 @@ model AdultLead {
 }
 
 model AdultLeadCountry {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now()) @map("created_at")
+  id             String        @id @default(cuid())
+  organizationId String?       @map("organization_id")
+  name           String        @unique
+  createdAt      DateTime      @default(now()) @map("created_at")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@map("adult_lead_countries")
 }
 
 model FollowUpReminder {
   id              String    @id @default(cuid())
+  organizationId  String?   @map("organization_id")
   leadId          String?   @map("lead_id")
   adultLeadId     String?   @map("adult_lead_id")
   createdByUserId String?   @map("created_by_user_id")
@@ -181,10 +262,12 @@ model FollowUpReminder {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  lead          Lead?      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  adultLead     AdultLead? @relation(fields: [adultLeadId], references: [id], onDelete: Cascade)
-  createdByUser User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  lead          Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  adultLead     AdultLead?    @relation(fields: [adultLeadId], references: [id], onDelete: Cascade)
+  createdByUser User?         @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([status, dueAt])
   @@index([leadId, status])
   @@index([adultLeadId, status])
@@ -192,28 +275,31 @@ model FollowUpReminder {
 }
 
 model CallLog {
-  id              String    @id @default(cuid())
-  leadId          String?   @map("lead_id")
-  userId          String?   @map("user_id")
-  contactName     String?   @map("contact_name")
-  companyName     String?   @map("company_name")
-  provider        String    @default("manual")
-  providerCallSid String?   @unique @map("provider_call_sid")
-  direction       String    @default("outbound")
+  id              String        @id @default(cuid())
+  organizationId  String?       @map("organization_id")
+  leadId          String?       @map("lead_id")
+  userId          String?       @map("user_id")
+  contactName     String?       @map("contact_name")
+  companyName     String?       @map("company_name")
+  provider        String        @default("manual")
+  providerCallSid String?       @unique @map("provider_call_sid")
+  direction       String        @default("outbound")
   phone           String
-  status          String    @default("planned")
+  status          String        @default("planned")
   outcome         String?
   notes           String?
-  durationSeconds Int       @default(0) @map("duration_seconds")
-  startedAt       DateTime? @map("started_at")
-  answeredAt      DateTime? @map("answered_at")
-  endedAt         DateTime? @map("ended_at")
-  followUpAt      DateTime? @map("follow_up_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  lead            Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  durationSeconds Int           @default(0) @map("duration_seconds")
+  startedAt       DateTime?     @map("started_at")
+  answeredAt      DateTime?     @map("answered_at")
+  endedAt         DateTime?     @map("ended_at")
+  followUpAt      DateTime?     @map("follow_up_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  lead            Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([leadId, createdAt])
   @@index([userId])
   @@index([status])
@@ -221,30 +307,33 @@ model CallLog {
 }
 
 model ClientProject {
-  id              String    @id @default(cuid())
-  leadId          String?   @map("lead_id")
-  clientUserId    String?   @map("client_user_id")
-  employeeUserId  String?   @map("employee_user_id")
-  companyName     String    @map("company_name")
-  websiteUrl      String?   @map("website_url")
-  gmbUrl          String?   @map("gmb_url")
-  additionalWebsiteUrls String[] @default([]) @map("additional_website_urls")
-  additionalGmbUrls     String[] @default([]) @map("additional_gmb_urls")
-  status          String    @default("Onboarding")
-  progress        Int       @default(0)
-  estimatedMinutes Int      @default(0) @map("estimated_minutes")
-  notes           String?
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  lead            Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  client          User?     @relation("ClientProjects", fields: [clientUserId], references: [id], onDelete: SetNull)
-  employee        User?     @relation("EmployeeProjects", fields: [employeeUserId], references: [id], onDelete: SetNull)
-  workLogs        WorkLog[]
-  comments        ProjectComment[]
-  milestones      ProjectMilestone[]
-  snapshots       ProjectSnapshot[]
-  weeklyReports   WeeklyReport[]
+  id                    String             @id @default(cuid())
+  organizationId        String?            @map("organization_id")
+  leadId                String?            @map("lead_id")
+  clientUserId          String?            @map("client_user_id")
+  employeeUserId        String?            @map("employee_user_id")
+  companyName           String             @map("company_name")
+  websiteUrl            String?            @map("website_url")
+  gmbUrl                String?            @map("gmb_url")
+  additionalWebsiteUrls String[]           @default([]) @map("additional_website_urls")
+  additionalGmbUrls     String[]           @default([]) @map("additional_gmb_urls")
+  status                String             @default("Onboarding")
+  progress              Int                @default(0)
+  estimatedMinutes      Int                @default(0) @map("estimated_minutes")
+  notes                 String?
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  lead                  Lead?              @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  client                User?              @relation("ClientProjects", fields: [clientUserId], references: [id], onDelete: SetNull)
+  employee              User?              @relation("EmployeeProjects", fields: [employeeUserId], references: [id], onDelete: SetNull)
+  workLogs              WorkLog[]
+  comments              ProjectComment[]
+  milestones            ProjectMilestone[]
+  snapshots             ProjectSnapshot[]
+  weeklyReports         WeeklyReport[]
+  organization          Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([leadId])
   @@index([clientUserId])
   @@index([employeeUserId])
@@ -252,16 +341,16 @@ model ClientProject {
 }
 
 model ProjectComment {
-  id          String   @id @default(cuid())
-  projectId   String   @map("project_id")
-  authorUserId String? @map("author_user_id")
-  body        String
-  type        String   @default("comment")
-  approved    Boolean  @default(false)
-  clientVisible Boolean @default(true) @map("client_visible")
-  createdAt   DateTime @default(now()) @map("created_at")
-  project     ClientProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author      User?    @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  id            String        @id @default(cuid())
+  projectId     String        @map("project_id")
+  authorUserId  String?       @map("author_user_id")
+  body          String
+  type          String        @default("comment")
+  approved      Boolean       @default(false)
+  clientVisible Boolean       @default(true) @map("client_visible")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  project       ClientProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author        User?         @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([authorUserId])
@@ -269,16 +358,16 @@ model ProjectComment {
 }
 
 model ProjectMilestone {
-  id          String   @id @default(cuid())
-  projectId   String   @map("project_id")
+  id          String        @id @default(cuid())
+  projectId   String        @map("project_id")
   title       String
   description String?
-  amount      Int      @default(0)
-  status      String   @default("Pending")
-  dueDate     DateTime? @map("due_date")
-  completedAt DateTime? @map("completed_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  amount      Int           @default(0)
+  status      String        @default("Pending")
+  dueDate     DateTime?     @map("due_date")
+  completedAt DateTime?     @map("completed_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
   project     ClientProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
@@ -286,50 +375,50 @@ model ProjectMilestone {
 }
 
 model ProjectSnapshot {
-  id          String   @id @default(cuid())
-  projectId   String   @map("project_id")
-  kind        String
-  title       String
-  summary     String
-  metrics     Json     @default("{}")
-  screenshotUrls Json  @default("[]") @map("screenshot_urls")
-  createdAt   DateTime @default(now()) @map("created_at")
-  project     ClientProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  projectId      String        @map("project_id")
+  kind           String
+  title          String
+  summary        String
+  metrics        Json          @default("{}")
+  screenshotUrls Json          @default("[]") @map("screenshot_urls")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  project        ClientProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@map("project_snapshots")
 }
 
 model WeeklyReport {
-  id          String   @id @default(cuid())
-  projectId   String   @map("project_id")
-  weekStart   DateTime @map("week_start")
-  weekEnd     DateTime @map("week_end")
-  summary     String
-  wins        Json     @default("[]")
-  nextSteps   Json     @default("[]") @map("next_steps")
-  totalMinutes Int    @default(0) @map("total_minutes")
-  createdAt   DateTime @default(now()) @map("created_at")
-  project     ClientProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  projectId    String        @map("project_id")
+  weekStart    DateTime      @map("week_start")
+  weekEnd      DateTime      @map("week_end")
+  summary      String
+  wins         Json          @default("[]")
+  nextSteps    Json          @default("[]") @map("next_steps")
+  totalMinutes Int           @default(0) @map("total_minutes")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  project      ClientProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@map("weekly_reports")
 }
 
 model WorkLog {
-  id            String   @id @default(cuid())
-  projectId     String   @map("project_id")
-  employeeUserId String? @map("employee_user_id")
-  title         String
-  summary       String
-  changesMade   String   @map("changes_made")
-  timeMinutes   Int      @default(0) @map("time_minutes")
-  screenshotUrls Json    @default("[]") @map("screenshot_urls")
-  clientVisible Boolean  @default(true) @map("client_visible")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  project       ClientProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  employee      User?    @relation("EmployeeWorkLogs", fields: [employeeUserId], references: [id], onDelete: SetNull)
+  id             String        @id @default(cuid())
+  projectId      String        @map("project_id")
+  employeeUserId String?       @map("employee_user_id")
+  title          String
+  summary        String
+  changesMade    String        @map("changes_made")
+  timeMinutes    Int           @default(0) @map("time_minutes")
+  screenshotUrls Json          @default("[]") @map("screenshot_urls")
+  clientVisible  Boolean       @default(true) @map("client_visible")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  project        ClientProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  employee       User?         @relation("EmployeeWorkLogs", fields: [employeeUserId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([employeeUserId])
@@ -337,32 +426,32 @@ model WorkLog {
 }
 
 model LeadChecklist {
-  id                  String   @id @default(cuid())
-  leadId              String   @unique @map("lead_id")
-  websiteChecked      Boolean  @default(false) @map("website_checked")
-  gbpChecked          Boolean  @default(false) @map("gbp_checked")
-  reviewsChecked      Boolean  @default(false) @map("reviews_checked")
-  contactFormChecked  Boolean  @default(false) @map("contact_form_checked")
-  decisionMakerSearched Boolean @default(false) @map("decision_maker_searched")
-  notes               String?
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
-  lead                Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  id                    String   @id @default(cuid())
+  leadId                String   @unique @map("lead_id")
+  websiteChecked        Boolean  @default(false) @map("website_checked")
+  gbpChecked            Boolean  @default(false) @map("gbp_checked")
+  reviewsChecked        Boolean  @default(false) @map("reviews_checked")
+  contactFormChecked    Boolean  @default(false) @map("contact_form_checked")
+  decisionMakerSearched Boolean  @default(false) @map("decision_maker_searched")
+  notes                 String?
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  lead                  Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@map("lead_checklists")
 }
 
 model Opportunity {
-  id          String   @id @default(cuid())
-  leadId      String   @map("lead_id")
-  title       String
-  stage       String   @default("New")
-  value       Int      @default(0)
-  notes       String?
+  id           String    @id @default(cuid())
+  leadId       String    @map("lead_id")
+  title        String
+  stage        String    @default("New")
+  value        Int       @default(0)
+  notes        String?
   nextActionAt DateTime? @map("next_action_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   @@map("opportunities")
 }
@@ -402,63 +491,72 @@ model OutreachLog {
 }
 
 model ComposeEmailLog {
-  id            String    @id @default(cuid())
-  toEmail       String    @map("to_email")
-  subject       String
-  heading       String?
-  status        String
-  providerId    String?   @map("provider_id")
-  message       String?
-  metadata      Json?
-  openedAt      DateTime? @map("opened_at")
-  lastOpenedAt  DateTime? @map("last_opened_at")
-  openCount     Int       @default(0) @map("open_count")
-  clickedAt     DateTime? @map("clicked_at")
-  lastClickedAt DateTime? @map("last_clicked_at")
-  clickCount    Int       @default(0) @map("click_count")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id             String        @id @default(cuid())
+  organizationId String?       @map("organization_id")
+  toEmail        String        @map("to_email")
+  subject        String
+  heading        String?
+  status         String
+  providerId     String?       @map("provider_id")
+  message        String?
+  metadata       Json?
+  openedAt       DateTime?     @map("opened_at")
+  lastOpenedAt   DateTime?     @map("last_opened_at")
+  openCount      Int           @default(0) @map("open_count")
+  clickedAt      DateTime?     @map("clicked_at")
+  lastClickedAt  DateTime?     @map("last_clicked_at")
+  clickCount     Int           @default(0) @map("click_count")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([toEmail])
   @@map("compose_email_logs")
 }
 
 model EmailTemplate {
-  id        String   @id @default(cuid())
-  name      String
-  category  String
-  subject   String
-  body      String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String        @id @default(cuid())
+  organizationId String?       @map("organization_id")
+  name           String
+  category       String
+  subject        String
+  body           String
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@map("email_templates")
 }
 
 model WhatsappTemplate {
-  id           String   @id @default(cuid())
-  name         String
-  providerName String   @map("provider_name")
-  language     String   @default("en")
-  body         String
-  approved     Boolean  @default(false)
-  dailyCap      Int      @default(100)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id             String        @id @default(cuid())
+  organizationId String?       @map("organization_id")
+  name           String
+  providerName   String        @map("provider_name")
+  language       String        @default("en")
+  body           String
+  approved       Boolean       @default(false)
+  dailyCap       Int           @default(100)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@map("whatsapp_templates")
 }
 
 model InboxReply {
-  id          String   @id @default(cuid())
-  leadId      String?  @map("lead_id")
-  fromEmail   String   @map("from_email")
-  subject     String?
-  body        String
-  providerId  String?  @map("provider_id")
-  receivedAt  DateTime @default(now()) @map("received_at")
-  lead        Lead?    @relation(fields: [leadId], references: [id])
+  id         String   @id @default(cuid())
+  leadId     String?  @map("lead_id")
+  fromEmail  String   @map("from_email")
+  subject    String?
+  body       String
+  providerId String?  @map("provider_id")
+  receivedAt DateTime @default(now()) @map("received_at")
+  lead       Lead?    @relation(fields: [leadId], references: [id])
 
   @@map("inbox_replies")
 }
@@ -477,33 +575,39 @@ model AiReplyDraft {
 }
 
 model AutomationRun {
-  id           String    @id @default(cuid())
-  region       String
-  status       String
-  startedAt    DateTime  @default(now()) @map("started_at")
-  completedAt  DateTime? @map("completed_at")
-  leadsFetched Int       @default(0) @map("leads_fetched")
-  emailsSent   Int       @default(0) @map("emails_sent")
-  whatsappSent Int       @default(0) @map("whatsapp_sent")
-  failedCount  Int       @default(0) @map("failed_count")
-  log          Json?
+  id             String        @id @default(cuid())
+  organizationId String?       @map("organization_id")
+  region         String
+  status         String
+  startedAt      DateTime      @default(now()) @map("started_at")
+  completedAt    DateTime?     @map("completed_at")
+  leadsFetched   Int           @default(0) @map("leads_fetched")
+  emailsSent     Int           @default(0) @map("emails_sent")
+  whatsappSent   Int           @default(0) @map("whatsapp_sent")
+  failedCount    Int           @default(0) @map("failed_count")
+  log            Json?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@map("automation_runs")
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  leadId    String?  @map("lead_id")
-  recipientUserId String? @map("recipient_user_id")
-  type      String
-  title     String
-  message   String
-  actionUrl String?  @map("action_url")
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
-  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  recipient User?    @relation("UserNotifications", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  organizationId  String?       @map("organization_id")
+  leadId          String?       @map("lead_id")
+  recipientUserId String?       @map("recipient_user_id")
+  type            String
+  title           String
+  message         String
+  actionUrl       String?       @map("action_url")
+  read            Boolean       @default(false)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  lead            Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  recipient       User?         @relation("UserNotifications", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
   @@index([recipientUserId, createdAt])
   @@map("notifications")
 }

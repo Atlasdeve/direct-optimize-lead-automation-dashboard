@@ -131,9 +131,10 @@ async function inspectPublicWebsite(website: string) {
   }
 }
 
-export async function listAdultLeads(filters: { country?: string; category?: string; status?: string } = {}) {
+export async function listAdultLeads(filters: { country?: string; category?: string; status?: string; organizationId?: string | null } = {}) {
   const leads = await prisma.adultLead.findMany({
     where: {
+      ...(filters.organizationId ? { organizationId: filters.organizationId } : {}),
       ...(filters.country ? { country: filters.country } : {}),
       ...(filters.category ? { category: filters.category } : {}),
       ...(filters.status ? { reviewStatus: filters.status } : {})
@@ -182,6 +183,7 @@ export async function createAdultLeadCountry(value: string) {
 }
 
 async function discoverWithGooglePlaces(input: {
+  organizationId?: string | null;
   country: string;
   city?: string | null;
   categoryId: AdultLeadCategoryId;
@@ -198,7 +200,10 @@ async function discoverWithGooglePlaces(input: {
     .filter((record) => record.website)
     .slice(0, input.limit);
   const existing = new Set((await prisma.adultLead.findMany({
-    where: { website: { in: candidates.map((candidate) => websiteOrigin(candidate.website ?? "")).filter((website): website is string => Boolean(website)) } },
+    where: {
+      ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+      website: { in: candidates.map((candidate) => websiteOrigin(candidate.website ?? "")).filter((website): website is string => Boolean(website)) }
+    },
     select: { website: true }
   })).map((lead) => lead.website));
 
@@ -235,6 +240,7 @@ async function discoverWithGooglePlaces(input: {
         phone: contact.phone || candidate.phone || null
       },
       create: {
+        organizationId: input.organizationId,
         businessName: candidate.companyName,
         country: input.country.trim(),
         city: candidate.city || input.city?.trim() || null,
@@ -256,11 +262,12 @@ async function discoverWithGooglePlaces(input: {
     blocked,
     provider: result.provider,
     warning: `Custom Search was unavailable (${searchError}). Google Places was used instead.`,
-    leads: await listAdultLeads({ country: input.country.trim() })
+    leads: await listAdultLeads({ country: input.country.trim(), organizationId: input.organizationId })
   };
 }
 
 export async function discoverAdultLeads(input: {
+  organizationId?: string | null;
   country: string;
   city?: string | null;
   categoryId: AdultLeadCategoryId;
@@ -301,7 +308,10 @@ export async function discoverAdultLeads(input: {
 
   const uniqueCandidates = [...new Map(candidates.map((candidate) => [candidate.website, candidate])).values()];
   const existing = new Set((await prisma.adultLead.findMany({
-    where: { website: { in: uniqueCandidates.map((candidate) => candidate.website) } },
+    where: {
+      ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+      website: { in: uniqueCandidates.map((candidate) => candidate.website) }
+    },
     select: { website: true }
   })).map((lead) => lead.website));
 
@@ -329,6 +339,7 @@ export async function discoverAdultLeads(input: {
         city: input.city?.trim() || null
       },
       create: {
+        organizationId: input.organizationId,
         businessName: businessName(candidate.title, candidate.hostname),
         country: input.country.trim(),
         city: input.city?.trim() || null,
@@ -350,11 +361,12 @@ export async function discoverAdultLeads(input: {
     blocked,
     provider: "google_custom_search",
     warning: null,
-    leads: await listAdultLeads({ country: input.country.trim() })
+    leads: await listAdultLeads({ country: input.country.trim(), organizationId: input.organizationId })
   };
 }
 
 export async function updateAdultLead(id: string, input: {
+  organizationId?: string | null;
   businessName?: string;
   country?: string;
   city?: string | null;
@@ -378,7 +390,7 @@ export async function updateAdultLead(id: string, input: {
 
   try {
     return toRecord(await prisma.adultLead.update({
-      where: { id },
+      where: { id, ...(input.organizationId ? { organizationId: input.organizationId } : {}) },
       data: {
         ...(input.businessName !== undefined ? { businessName: input.businessName.trim().slice(0, 200) } : {}),
         ...(input.country !== undefined ? { country: input.country.trim().slice(0, 80) } : {}),
@@ -409,8 +421,8 @@ export async function updateAdultLead(id: string, input: {
   }
 }
 
-export async function approveAdultLeadForOutreach(id: string) {
-  const lead = await prisma.adultLead.findUnique({ where: { id } });
+export async function approveAdultLeadForOutreach(id: string, organizationId?: string | null) {
+  const lead = await prisma.adultLead.findFirst({ where: { id, ...(organizationId ? { organizationId } : {}) } });
   if (!lead) throw new Error("Adult Lead was not found.");
   if (!lead.email) throw new Error("Add a valid email address before approving outreach.");
   if (lead.emailSent) throw new Error("Email outreach has already been sent.");
@@ -425,8 +437,8 @@ export async function approveAdultLeadForOutreach(id: string) {
   }));
 }
 
-export async function cancelAdultLeadOutreachApproval(id: string) {
-  const lead = await prisma.adultLead.findUnique({ where: { id } });
+export async function cancelAdultLeadOutreachApproval(id: string, organizationId?: string | null) {
+  const lead = await prisma.adultLead.findFirst({ where: { id, ...(organizationId ? { organizationId } : {}) } });
   if (!lead) throw new Error("Adult Lead was not found.");
   if (lead.emailSent) throw new Error("A sent email cannot be returned to the approval queue.");
   return toRecord(await prisma.adultLead.update({
@@ -439,6 +451,8 @@ export async function cancelAdultLeadOutreachApproval(id: string) {
   }));
 }
 
-export async function deleteAdultLead(id: string) {
+export async function deleteAdultLead(id: string, organizationId?: string | null) {
+  const lead = await prisma.adultLead.findFirst({ where: { id, ...(organizationId ? { organizationId } : {}) }, select: { id: true } });
+  if (!lead) throw new Error("Adult Lead was not found.");
   await prisma.adultLead.delete({ where: { id } });
 }

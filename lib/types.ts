@@ -51,6 +51,7 @@ export type Lead = {
 
 export type RegionConfig = {
   name: RegionKey;
+  label?: string;
   country: string;
   timezone: string;
   morningCron: string;

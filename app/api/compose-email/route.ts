@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { currentUser } from "@/lib/auth";
 import { createComposeEmailLog, updateComposeEmailLogResult } from "@/lib/dbStore";
+import { getOrganizationApiConfig } from "@/lib/organizationSettings";
 import { sendComposedEmail } from "@/lib/providers";
 
 function cleanString(value: unknown) {
@@ -10,7 +12,30 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function appBaseUrl() {
+  return (process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+}
+
+function workspaceDefaultCtas(user: Awaited<ReturnType<typeof currentUser>>) {
+  const workspaceName = user?.organization?.companyName || "Direct Optimize";
+  if (!user?.organization?.slug || user.organization.slug === "direct-optimize") {
+    return [
+      { label: "Visit Direct Optimize", url: "https://directoptimize.com", variant: "primary" as const },
+      { label: "Create Your Portal", url: "https://directoptimize.com/client-portal/", variant: "secondary" as const }
+    ];
+  }
+  const portalUrl = `${appBaseUrl()}/o/${user.organization.slug}/login`;
+  return [
+    { label: `Visit ${workspaceName}`, url: portalUrl, variant: "primary" as const },
+    { label: "Open Your Portal", url: portalUrl, variant: "secondary" as const }
+  ];
+}
+
 export async function POST(request: NextRequest) {
+  const user = await currentUser();
+  if (!user || !["super_admin", "admin", "manager"].includes(user.role)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const body = await request.json().catch(() => ({}));
   const to = cleanString(body.to);
   const subject = cleanString(body.subject);
@@ -33,6 +58,7 @@ export async function POST(request: NextRequest) {
   }
 
   const log = await createComposeEmailLog({
+    organizationId: user.organizationId,
     to,
     subject,
     heading,
@@ -41,6 +67,7 @@ export async function POST(request: NextRequest) {
     ctaUrl: ctaUrl || undefined
   });
 
+  const settings = user.role === "super_admin" ? null : await getOrganizationApiConfig(user.organizationId);
   const result = await sendComposedEmail({
     to,
     subject,
@@ -48,7 +75,20 @@ export async function POST(request: NextRequest) {
     body: message,
     ctaLabel: ctaLabel || undefined,
     ctaUrl: ctaUrl || undefined
-  }, { trackingLogId: log.id });
+  }, {
+    trackingLogId: log.id,
+    config: user.role === "super_admin" ? undefined : {
+      brevoApiKey: settings?.brevoApiKey,
+      smtpHost: settings?.smtpHost,
+      smtpPort: settings?.smtpPort,
+      smtpUser: settings?.smtpUser,
+      smtpPass: settings?.smtpPass,
+      smtpFrom: settings?.smtpUser,
+      smtpFromName: user.organization?.companyName,
+      brandName: user.organization?.companyName,
+      defaultCtas: workspaceDefaultCtas(user)
+    }
+  });
 
   await updateComposeEmailLogResult(log.id, result);
 

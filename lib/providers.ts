@@ -322,8 +322,8 @@ async function fetchLegacyPlacesLeads(region: string, config: RegionConfig, maxR
   };
 }
 
-export async function fetchPlacesLeads(region: string, options?: { city?: string; categories?: string[]; maxResults?: number }) {
-  const config = await getSavedRegion(region) ?? getRegion(region);
+export async function fetchPlacesLeads(region: string, options?: { city?: string; categories?: string[]; maxResults?: number; organizationId?: string | null }) {
+  const config = await getSavedRegion(region, options?.organizationId) ?? getRegion(region);
   const maxResults = Math.max(1, Math.min(options?.maxResults ?? Number(process.env.GOOGLE_PLACES_MAX_RESULTS || 6), 20));
   if (!process.env.GOOGLE_PLACES_API_KEY) {
     return {
@@ -512,8 +512,10 @@ function gmbAuditSummary(gmbAudit?: GmbAudit) {
 export function buildPersonalizedEmail(
   lead: Lead,
   templateCategory = "SEO services",
-  audits?: { website?: LeadIntelligenceAudit; gmb?: GmbAudit }
+  audits?: { website?: LeadIntelligenceAudit; gmb?: GmbAudit },
+  options?: { brandName?: string | null }
 ) {
+  const brandName = options?.brandName?.trim() || "Direct Optimize";
   const missingWebsite = !lead.website;
   const subject = missingWebsite
     ? `${lead.company_name}: website and local visibility idea`
@@ -530,7 +532,7 @@ export function buildPersonalizedEmail(
     "Would you be open to a short audit with the first few fixes I would prioritize?",
     "",
     "Best,",
-    "Direct Optimize",
+    brandName,
     "",
     "To opt out of future messages, reply with Unsubscribe."
   ].join("\n");
@@ -554,37 +556,57 @@ function publicTrackingBaseUrl() {
   }
 }
 
-function buildTrackedEmailHtml(body: string, logId?: string) {
+function buildTrackedEmailHtml(body: string, logId?: string, config?: EmailProviderConfig | null) {
   const trackingBaseUrl = publicTrackingBaseUrl();
   return renderBrandedEmailHtml({
     heading: "Quick local visibility wins",
     body,
-    ctaLabel: "View Direct Optimize",
-    ctaUrl: appBaseUrl(),
+    brandName: config?.brandName || undefined,
+    companyName: config?.brandName || undefined,
+    ctaLabel: config?.defaultCtas?.[0] ? undefined : "View Direct Optimize",
+    ctaUrl: config?.defaultCtas?.[0] ? undefined : appBaseUrl(),
+    defaultCtas: config?.defaultCtas,
     trackingPixelUrl: logId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/open/${encodeURIComponent(logId)}` : undefined,
     clickTrackingBaseUrl: logId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/click/${encodeURIComponent(logId)}` : undefined
   });
 }
 
-function smtpConfigured() {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+export type EmailProviderConfig = {
+  brevoApiKey?: string | null;
+  smtpHost?: string | null;
+  smtpPort?: number | null;
+  smtpUser?: string | null;
+  smtpPass?: string | null;
+  smtpFrom?: string | null;
+  smtpFromName?: string | null;
+  brandName?: string | null;
+  defaultCtas?: Array<{ label: string; url: string; variant?: "primary" | "secondary" }>;
+};
+
+function smtpConfigured(config?: EmailProviderConfig | null) {
+  return Boolean(
+    (config ? config.smtpHost : process.env.SMTP_HOST) &&
+    (config ? config.smtpUser : process.env.SMTP_USER) &&
+    (config ? config.smtpPass : process.env.SMTP_PASS)
+  );
 }
 
-function brevoConfigured() {
-  return Boolean(process.env.BREVO_API_KEY);
+function brevoConfigured(config?: EmailProviderConfig | null) {
+  return Boolean(config ? config.brevoApiKey : process.env.BREVO_API_KEY);
 }
 
-function parseSender() {
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER || "Direct Optimize <hello@directoptimize.com>";
+function parseSender(config?: EmailProviderConfig | null) {
+  const fallbackName = config?.brandName || process.env.SMTP_FROM_NAME || "Direct Optimize";
+  const from = config?.smtpFrom || config?.smtpUser || process.env.SMTP_FROM || process.env.SMTP_USER || `${fallbackName} <hello@directoptimize.com>`;
   const match = from.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
   if (match) {
     return {
-      name: match[1]?.replace(/^"|"$/g, "").trim() || "Direct Optimize",
+      name: match[1]?.replace(/^"|"$/g, "").trim() || fallbackName,
       email: match[2]?.trim()
     };
   }
   return {
-    name: process.env.SMTP_FROM_NAME || "Direct Optimize",
+    name: config?.smtpFromName || fallbackName,
     email: from.trim()
   };
 }
@@ -596,13 +618,13 @@ async function sendViaBrevo(input: {
   html: string;
   tags?: string[];
   attachments?: AuditAttachment[];
-}) {
-  const sender = parseSender();
+}, config?: EmailProviderConfig | null) {
+  const sender = parseSender(config);
   const response = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
       accept: "application/json",
-      "api-key": process.env.BREVO_API_KEY ?? "",
+      "api-key": config?.brevoApiKey ?? process.env.BREVO_API_KEY ?? "",
       "content-type": "application/json"
     },
     body: JSON.stringify({
@@ -633,9 +655,9 @@ async function sendViaBrevo(input: {
 
 export async function sendComposedEmail(
   input: { to: string; subject: string; heading: string; body: string; ctaLabel?: string; ctaUrl?: string },
-  options?: { trackingLogId?: string }
+  options?: { trackingLogId?: string; config?: EmailProviderConfig | null }
 ) {
-  if (!brevoConfigured() && !smtpConfigured()) {
+  if (!brevoConfigured(options?.config) && !smtpConfigured(options?.config)) {
     return { sent: false, status: "failed", reason: "BREVO_API_KEY or SMTP_HOST, SMTP_USER, and SMTP_PASS is missing." };
   }
 
@@ -644,27 +666,33 @@ export async function sendComposedEmail(
   const html = renderBrandedEmailHtml({
     heading: input.heading,
     body: input.body,
+    brandName: options?.config?.brandName || undefined,
+    companyName: options?.config?.brandName || undefined,
     ctaLabel: input.ctaLabel,
     ctaUrl: input.ctaUrl,
+    defaultCtas: options?.config?.defaultCtas,
     trackingPixelUrl: options?.trackingLogId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/open/${encodeURIComponent(options.trackingLogId)}` : undefined,
     clickTrackingBaseUrl: options?.trackingLogId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/click/${encodeURIComponent(options.trackingLogId)}` : undefined
   });
   const text = renderPlainTextEmail({
     heading: input.heading,
     body: input.body,
+    brandName: options?.config?.brandName || undefined,
+    companyName: options?.config?.brandName || undefined,
     ctaLabel: input.ctaLabel,
-    ctaUrl: input.ctaUrl
+    ctaUrl: input.ctaUrl,
+    defaultCtas: options?.config?.defaultCtas
   });
 
   try {
-    if (brevoConfigured()) {
+    if (brevoConfigured(options?.config)) {
       const info = await sendViaBrevo({
         to: input.to,
         subject: input.subject,
         text,
         html,
         tags: ["manual-compose"]
-      });
+      }, options?.config);
       return {
         sent: true,
         status: "sent",
@@ -678,8 +706,8 @@ export async function sendComposedEmail(
       };
     }
 
-    const info = await createSmtpTransport().sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    const info = await createSmtpTransport(options?.config).sendMail({
+      from: options?.config?.smtpFrom || options?.config?.smtpUser || process.env.SMTP_FROM || process.env.SMTP_USER,
       to: input.to,
       subject: input.subject,
       text,
@@ -719,16 +747,16 @@ function isDemoRecipient(email: string) {
   return domain === "example.com" || domain.endsWith(".example");
 }
 
-function createSmtpTransport() {
-  const port = Number(process.env.SMTP_PORT || 587);
+function createSmtpTransport(config?: EmailProviderConfig | null) {
+  const port = Number(config?.smtpPort || process.env.SMTP_PORT || 587);
   const timeout = Number(process.env.SMTP_TIMEOUT_MS || 30000);
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+    host: config?.smtpHost || process.env.SMTP_HOST,
     port,
     secure: port === 465,
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
+      user: config?.smtpUser || process.env.SMTP_USER,
+      pass: config?.smtpPass || process.env.SMTP_PASS
     },
     requireTLS: port === 587,
     connectionTimeout: timeout,
@@ -737,28 +765,29 @@ function createSmtpTransport() {
   });
 }
 
-export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: string }) {
+export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: string; config?: EmailProviderConfig | null }) {
+  const config = options?.config;
   if (lead.unsubscribed || !lead.email) {
     return { sent: false, status: "skipped", reason: "Missing email or unsubscribed" };
   }
 
   if (!emailSendingEnabled()) {
-    const message = buildPersonalizedEmail(lead);
+    const message = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName });
     return { sent: false, status: "skipped", reason: "Live email sending is disabled by OUTREACH_EMAIL_SEND_ENABLED", message };
   }
 
   if (isDemoRecipient(lead.email)) {
-    const message = buildPersonalizedEmail(lead);
+    const message = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName });
     return { sent: false, status: "skipped", reason: "Demo/reserved recipient domain", message };
   }
 
-  if (!brevoConfigured() && !smtpConfigured() && !process.env.GMAIL_CLIENT_ID) {
-    const message = buildPersonalizedEmail(lead);
+  if (!brevoConfigured(config) && !smtpConfigured(config) && !process.env.GMAIL_CLIENT_ID) {
+    const message = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName });
     return { sent: true, status: "simulated", providerId: `demo_email_${lead.id}`, message };
   }
 
-  if (!brevoConfigured() && !smtpConfigured()) {
-    const message = buildPersonalizedEmail(lead);
+  if (!brevoConfigured(config) && !smtpConfigured(config)) {
+    const message = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName });
     return { sent: false, status: "skipped", reason: "SMTP is not configured; Gmail API sending is not implemented in this cPanel setup", message };
   }
 
@@ -767,20 +796,20 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
       auditLeadWebsite(lead),
       auditGmbProfile(lead)
     ]);
-    const message = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit });
+    const message = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit }, { brandName: config?.brandName });
     const attachments = await Promise.all([
-      buildGmbAuditPdf(lead, gmbAudit),
-      buildWebsiteAuditPdf(lead, websiteAudit)
+      buildGmbAuditPdf(lead, gmbAudit, { brandName: config?.brandName }),
+      buildWebsiteAuditPdf(lead, websiteAudit, { brandName: config?.brandName })
     ]);
-    if (brevoConfigured()) {
+    if (brevoConfigured(config)) {
       const info = await sendViaBrevo({
         to: lead.email,
         subject: message.subject,
         text: message.body,
-        html: buildTrackedEmailHtml(message.body, options?.trackingLogId),
+        html: buildTrackedEmailHtml(message.body, options?.trackingLogId, config),
         attachments,
         tags: ["lead-outreach"]
-      });
+      }, config);
       return {
         sent: true,
         status: "sent",
@@ -793,12 +822,12 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
       };
     }
 
-    const info = await createSmtpTransport().sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    const info = await createSmtpTransport(config).sendMail({
+      from: config?.smtpFrom || config?.smtpUser || process.env.SMTP_FROM || process.env.SMTP_USER,
       to: lead.email,
       subject: message.subject,
       text: message.body,
-      html: buildTrackedEmailHtml(message.body, options?.trackingLogId),
+      html: buildTrackedEmailHtml(message.body, options?.trackingLogId, config),
       attachments,
       headers: {
         "X-Entity-Ref-ID": lead.id,
@@ -821,12 +850,13 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
       sent: false,
       status: "failed",
       reason: error instanceof Error ? error.message : "SMTP send failed",
-      message: buildPersonalizedEmail(lead)
+      message: buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName })
     };
   }
 }
 
-export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: { trackingLogId?: string }) {
+export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: { trackingLogId?: string; config?: EmailProviderConfig | null }) {
+  const config = options?.config;
   if (lead.unsubscribed || lead.do_not_contact || !lead.email) {
     return { sent: false, status: "skipped", reason: "Missing email, unsubscribed, or do-not-contact" };
   }
@@ -836,12 +866,13 @@ export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: { tr
   if (isDemoRecipient(lead.email)) {
     return { sent: false, status: "skipped", reason: "Demo/reserved recipient domain" };
   }
-  if (!brevoConfigured() && !smtpConfigured()) {
+  if (!brevoConfigured(config) && !smtpConfigured(config)) {
     return { sent: false, status: "skipped", reason: "Brevo or SMTP is not configured" };
   }
 
   const greetingName = lead.manager_name ?? lead.owner_name ?? lead.decision_maker_name ?? "there";
-  const original = buildPersonalizedEmail(lead);
+  const brandName = config?.brandName?.trim() || "Direct Optimize";
+  const original = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName });
   const subject = `Re: ${original.subject}`;
   const body = stage === 1
     ? [
@@ -853,7 +884,7 @@ export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: { tr
         "Would a short call this week be useful to review the highest-priority fixes?",
         "",
         "Best,",
-        "Direct Optimize",
+        brandName,
         "",
         "To opt out of future messages, reply with Unsubscribe."
       ].join("\n")
@@ -866,29 +897,29 @@ export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: { tr
         "Should I keep this open for a future conversation?",
         "",
         "Best,",
-        "Direct Optimize",
+        brandName,
         "",
         "To opt out of future messages, reply with Unsubscribe."
       ].join("\n");
 
   try {
-    if (brevoConfigured()) {
+    if (brevoConfigured(config)) {
       const info = await sendViaBrevo({
         to: lead.email,
         subject,
         text: body,
-        html: buildTrackedEmailHtml(body, options?.trackingLogId),
+        html: buildTrackedEmailHtml(body, options?.trackingLogId, config),
         tags: [`lead-follow-up-${stage}`]
-      });
+      }, config);
       return { sent: true, status: "sent", provider: "brevo", providerId: info.messageId, message: { subject, body } };
     }
 
-    const info = await createSmtpTransport().sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    const info = await createSmtpTransport(config).sendMail({
+      from: config?.smtpFrom || config?.smtpUser || process.env.SMTP_FROM || process.env.SMTP_USER,
       to: lead.email,
       subject,
       text: body,
-      html: buildTrackedEmailHtml(body, options?.trackingLogId),
+      html: buildTrackedEmailHtml(body, options?.trackingLogId, config),
       headers: {
         "X-Entity-Ref-ID": lead.id,
         "X-Direct-Optimize-Log-ID": options?.trackingLogId ?? lead.id,

@@ -6,7 +6,7 @@ import type { Lead } from "@/lib/types";
 
 export type PortalRole = "admin" | "manager" | "employee" | "client";
 
-async function notifyAdmin(input: { type: string; title: string; message: string; actionUrl?: string; leadId?: string; recipientUserId?: string }) {
+async function notifyAdmin(input: { type: string; title: string; message: string; actionUrl?: string; leadId?: string; recipientUserId?: string; organizationId?: string | null }) {
   await createAppNotification(input).catch(() => null);
 }
 
@@ -128,15 +128,18 @@ export function serializeProject(project: ProjectRecord, viewerRole: string = "a
   };
 }
 
-export async function listPortalUsers(role?: string) {
+export async function listPortalUsers(role?: string, organizationId?: string | null) {
   return prisma.user.findMany({
-    where: role ? { role } : { role: { in: ["employee", "client"] } },
+    where: {
+      ...(organizationId === undefined ? {} : { organizationId }),
+      ...(role ? { role } : { role: { in: ["employee", "client"] } })
+    },
     select: { id: true, email: true, username: true, name: true, role: true, createdAt: true },
     orderBy: { createdAt: "desc" }
   });
 }
 
-export async function createPortalUser(input: { email: string; username?: string; name?: string; password: string; role: PortalRole }) {
+export async function createPortalUser(input: { email: string; username?: string; name?: string; password: string; role: PortalRole; organizationId?: string | null }) {
   const email = normalizeEmail(input.email);
   const username = normalizeUsername(input.username || email.split("@")[0]);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address.");
@@ -150,6 +153,7 @@ export async function createPortalUser(input: { email: string; username?: string
       username,
       name: input.name || username,
       role: input.role,
+      organizationId: input.organizationId || undefined,
       passwordHash: await bcrypt.hash(input.password, 12)
     },
     select: { id: true, email: true, username: true, name: true, role: true }
@@ -189,6 +193,7 @@ export async function registerClientPortal(input: {
   timezone: string;
   websiteUrl?: unknown;
   gmbUrl?: unknown;
+  organizationId?: string | null;
 }) {
   const email = normalizeEmail(input.email);
   const username = normalizeUsername(input.username || email.split("@")[0]);
@@ -214,7 +219,7 @@ export async function registerClientPortal(input: {
       create: { name: input.region, country: input.country, timezone: input.timezone, enabled: true }
     });
     const user = await tx.user.create({
-      data: { email, username, name: name || username, phone, role: "client", passwordHash },
+      data: { email, username, name: name || username, phone, role: "client", passwordHash, organizationId: input.organizationId || undefined },
       select: { id: true, email: true, username: true, name: true, role: true }
     });
     const lead = await tx.lead.create({
@@ -227,6 +232,7 @@ export async function registerClientPortal(input: {
         phone,
         email,
         ownerName: name || null,
+        organizationId: input.organizationId || undefined,
         sourcePlatform: "client_registration",
         leadScore: 80,
         outreachStatus: "Client onboarding",
@@ -237,6 +243,7 @@ export async function registerClientPortal(input: {
     const project = await tx.clientProject.create({
       data: {
         leadId: lead.id,
+        organizationId: input.organizationId || undefined,
         clientUserId: user.id,
         companyName,
         websiteUrl,
@@ -256,15 +263,17 @@ export async function registerClientPortal(input: {
     type: "client_registration",
     title: `New client registration: ${companyName}`,
     message: `${name || username} registered in ${input.region} and submitted business properties.`,
-    actionUrl: `/leads/${result.leadId}`
+    actionUrl: `/leads/${result.leadId}`,
+    organizationId: input.organizationId
   });
   return result;
 }
 
-export async function listProjectsForUser(user: { id: string; role: string }) {
+export async function listProjectsForUser(user: { id: string; role: string; organizationId?: string | null }) {
   const where =
     user.role === "client" ? { clientUserId: user.id } :
     user.role === "employee" ? { employeeUserId: user.id } :
+    user.organizationId ? { organizationId: user.organizationId } :
     {};
   const projects = await prisma.clientProject.findMany({
     where,
@@ -323,12 +332,13 @@ export async function updateClientProfile(userId: string, input: {
     type: "client_profile",
     title: `Client profile updated: ${result.companyName}`,
     message: `${name} changed contact or business property information.`,
-    actionUrl: result.leadId ? `/leads/${result.leadId}` : `/projects/${result.project.id}`
+    actionUrl: result.leadId ? `/leads/${result.leadId}` : `/projects/${result.project.id}`,
+    organizationId: result.project.organizationId
   });
   return { user: result.user, project: result.project };
 }
 
-export async function getProjectForUser(projectId: string, user: { id: string; role: string }) {
+export async function getProjectForUser(projectId: string, user: { id: string; role: string; organizationId?: string | null }) {
   const project = await prisma.clientProject.findUnique({
     where: { id: projectId },
     include: projectInclude()
@@ -336,16 +346,46 @@ export async function getProjectForUser(projectId: string, user: { id: string; r
   if (!project) return null;
   if (user.role === "client" && project.clientUserId !== user.id) return null;
   if (user.role === "employee" && project.employeeUserId !== user.id) return null;
+  if (!["client", "employee", "super_admin"].includes(user.role) && user.organizationId && project.organizationId !== user.organizationId) return null;
   return serializeProject(project, user.role);
 }
 
-export async function getProjectByLeadId(leadId: string) {
+export async function getProjectByLeadId(leadId: string, organizationId?: string | null) {
   const project = await prisma.clientProject.findFirst({
-    where: { leadId },
+    where: {
+      leadId,
+      ...(organizationId === undefined ? {} : { organizationId })
+    },
     include: projectInclude(),
     orderBy: { createdAt: "asc" }
   });
   return project ? serializeProject(project) : null;
+}
+
+async function assertAssignablePortalUsers(input: {
+  organizationId?: string | null;
+  clientUserId?: string | null;
+  employeeUserId?: string | null;
+}) {
+  const ids = [input.clientUserId, input.employeeUserId].filter((id): id is string => Boolean(id));
+  if (!ids.length || input.organizationId === undefined) return;
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, role: true, organizationId: true }
+  });
+  const byId = new Map(users.map((user) => [user.id, user]));
+  if (input.clientUserId) {
+    const client = byId.get(input.clientUserId);
+    if (!client || client.role !== "client" || client.organizationId !== input.organizationId) {
+      throw new Error("Selected client account does not belong to this workspace.");
+    }
+  }
+  if (input.employeeUserId) {
+    const employee = byId.get(input.employeeUserId);
+    if (!employee || employee.role !== "employee" || employee.organizationId !== input.organizationId) {
+      throw new Error("Selected employee account does not belong to this workspace.");
+    }
+  }
 }
 
 export async function createProject(input: {
@@ -359,12 +399,23 @@ export async function createProject(input: {
   progress?: number;
   estimatedMinutes?: number;
   notes?: string;
+  organizationId?: string | null;
 }) {
   let lead: Lead | null = null;
+  await assertAssignablePortalUsers({
+    organizationId: input.organizationId,
+    clientUserId: input.clientUserId,
+    employeeUserId: input.employeeUserId
+  });
   if (input.leadId) {
-    const existingProject = await getProjectByLeadId(input.leadId);
+    const existingProject = await getProjectByLeadId(input.leadId, input.organizationId);
     if (existingProject) return existingProject;
-    const dbLead = await prisma.lead.findUnique({ where: { id: input.leadId } });
+    const dbLead = await prisma.lead.findFirst({
+      where: {
+        id: input.leadId,
+        ...(input.organizationId === undefined ? {} : { organizationId: input.organizationId })
+      }
+    });
     lead = dbLead ? {
       id: dbLead.id,
       company_name: dbLead.companyName,
@@ -396,6 +447,7 @@ export async function createProject(input: {
   const project = await prisma.clientProject.create({
     data: {
       leadId: input.leadId || undefined,
+      organizationId: input.organizationId || undefined,
       clientUserId: input.clientUserId || undefined,
       employeeUserId: input.employeeUserId || undefined,
       companyName: input.companyName || lead?.company_name || "Client project",
@@ -413,7 +465,8 @@ export async function createProject(input: {
     title: `Client project created: ${project.companyName}`,
     message: project.clientUserId ? "A client portal project is ready for work and progress updates." : "A new project was created and is awaiting client assignment.",
     actionUrl: `/projects/${project.id}`,
-    leadId: project.leadId || undefined
+    leadId: project.leadId || undefined,
+    organizationId: project.organizationId
   });
   if (project.employeeUserId) {
     await notifyAdmin({
@@ -422,16 +475,29 @@ export async function createProject(input: {
       title: `New work assigned: ${project.companyName}`,
       message: "An administrator assigned this client project to you.",
       actionUrl: `/projects/${project.id}`,
-      leadId: project.leadId || undefined
+      leadId: project.leadId || undefined,
+      organizationId: project.organizationId
     });
   }
   return serializeProject(project);
 }
 
-export async function updateProject(projectId: string, input: Partial<{ employeeUserId: string | null; clientUserId: string | null; status: string; progress: number; websiteUrl: string; gmbUrl: string; notes: string; estimatedMinutes: number }>) {
-  const before = await prisma.clientProject.findUnique({ where: { id: projectId }, select: { employeeUserId: true, clientUserId: true } });
+export async function updateProject(projectId: string, input: Partial<{ employeeUserId: string | null; clientUserId: string | null; status: string; progress: number; websiteUrl: string; gmbUrl: string; notes: string; estimatedMinutes: number; organizationId: string | null }>) {
+  const before = await prisma.clientProject.findFirst({
+    where: {
+      id: projectId,
+      ...(input.organizationId === undefined ? {} : { organizationId: input.organizationId })
+    },
+    select: { id: true, employeeUserId: true, clientUserId: true }
+  });
+  if (!before) throw new Error("Project not found.");
+  await assertAssignablePortalUsers({
+    organizationId: input.organizationId,
+    clientUserId: input.clientUserId,
+    employeeUserId: input.employeeUserId
+  });
   const project = await prisma.clientProject.update({
-    where: { id: projectId },
+    where: { id: before.id },
     data: {
       employeeUserId: input.employeeUserId === undefined ? undefined : input.employeeUserId || null,
       clientUserId: input.clientUserId === undefined ? undefined : input.clientUserId || null,
@@ -445,7 +511,7 @@ export async function updateProject(projectId: string, input: Partial<{ employee
     include: projectInclude()
   });
   if (before && (before.employeeUserId !== project.employeeUserId || before.clientUserId !== project.clientUserId)) {
-    await notifyAdmin({ type: "project_assignment", title: `Project assignment updated: ${project.companyName}`, message: "The employee or client assignment changed.", actionUrl: `/projects/${project.id}`, leadId: project.leadId || undefined });
+    await notifyAdmin({ type: "project_assignment", title: `Project assignment updated: ${project.companyName}`, message: "The employee or client assignment changed.", actionUrl: `/projects/${project.id}`, leadId: project.leadId || undefined, organizationId: project.organizationId });
     if (project.employeeUserId && before.employeeUserId !== project.employeeUserId) {
       await notifyAdmin({
         recipientUserId: project.employeeUserId,
@@ -453,7 +519,8 @@ export async function updateProject(projectId: string, input: Partial<{ employee
         title: `New work assigned: ${project.companyName}`,
         message: "An administrator assigned this client project to you.",
         actionUrl: `/projects/${project.id}`,
-        leadId: project.leadId || undefined
+        leadId: project.leadId || undefined,
+        organizationId: project.organizationId
       });
     }
   }

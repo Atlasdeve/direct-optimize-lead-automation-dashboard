@@ -9,9 +9,11 @@ const rememberedSessionSeconds = 30 * 24 * 60 * 60;
 
 type SessionPayload = {
   userId: string;
+  organizationId?: string | null;
   username: string | null;
   email: string;
   role: string;
+  plan?: string | null;
   exp: number;
 };
 
@@ -60,7 +62,28 @@ export async function currentUser() {
   if (!session) return null;
   return prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, email: true, username: true, name: true, phone: true, role: true }
+    select: {
+      id: true,
+      organizationId: true,
+      email: true,
+      username: true,
+      name: true,
+      phone: true,
+      role: true,
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          companyName: true,
+          logoUrl: true,
+          brandColor: true,
+          plan: true,
+          billingStatus: true,
+          systemStatus: true
+        }
+      }
+    }
   });
 }
 

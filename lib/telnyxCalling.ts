@@ -1,10 +1,16 @@
 export const integratedCallingRegions = ["USA", "Canada", "UK"] as const;
 
-export function telnyxCallingConfigured() {
+export type TelnyxCallingConfig = {
+  apiKey?: string | null;
+  telephonyCredentialId?: string | null;
+  phoneNumber?: string | null;
+};
+
+export function telnyxCallingConfigured(config?: TelnyxCallingConfig | null) {
   return Boolean(
-    process.env.TELNYX_API_KEY &&
-    process.env.TELNYX_TELEPHONY_CREDENTIAL_ID &&
-    process.env.TELNYX_PHONE_NUMBER
+    (config ? config.apiKey : process.env.TELNYX_API_KEY) &&
+    (config ? config.telephonyCredentialId : process.env.TELNYX_TELEPHONY_CREDENTIAL_ID) &&
+    (config ? config.phoneNumber : process.env.TELNYX_PHONE_NUMBER)
   );
 }
 
@@ -22,13 +28,14 @@ export function normalizeE164(phone: string) {
   return `+${trimmed.slice(1).replace(/\D/g, "")}`;
 }
 
-export async function createTelnyxAccessToken() {
-  if (!telnyxCallingConfigured()) throw new Error("Telnyx browser calling is not configured.");
-  const credentialId = encodeURIComponent(process.env.TELNYX_TELEPHONY_CREDENTIAL_ID!);
+export async function createTelnyxAccessToken(config?: TelnyxCallingConfig | null) {
+  if (!telnyxCallingConfigured(config)) throw new Error("Telnyx browser calling is not configured.");
+  const apiKey = config ? config.apiKey : process.env.TELNYX_API_KEY;
+  const credentialId = encodeURIComponent((config ? config.telephonyCredentialId : process.env.TELNYX_TELEPHONY_CREDENTIAL_ID)!);
   const response = await fetch(`https://api.telnyx.com/v2/telephony_credentials/${credentialId}/token`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.TELNYX_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       Accept: "application/json"
     },
     cache: "no-store"

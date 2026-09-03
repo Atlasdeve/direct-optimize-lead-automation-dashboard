@@ -44,8 +44,9 @@ function toRecord(reminder: NonNullable<ReminderWithLead>): FollowUpReminderReco
   };
 }
 
-export async function listFollowUpReminders() {
+export async function listFollowUpReminders(organizationId?: string | null) {
   const reminders = await prisma.followUpReminder.findMany({
+    where: organizationId ? { organizationId } : undefined,
     include: {
       lead: { select: { companyName: true, country: true, region: true } },
       adultLead: { select: { businessName: true, country: true } }
@@ -59,11 +60,12 @@ export async function listFollowUpReminders() {
   return reminders.map(toRecord);
 }
 
-export async function getActiveFollowUpReminder(input: { leadId?: string; adultLeadId?: string }) {
+export async function getActiveFollowUpReminder(input: { leadId?: string; adultLeadId?: string; organizationId?: string | null }) {
   const reminder = await prisma.followUpReminder.findFirst({
     where: {
       ...(input.leadId ? { leadId: input.leadId } : {}),
       ...(input.adultLeadId ? { adultLeadId: input.adultLeadId } : {}),
+      ...(input.organizationId ? { organizationId: input.organizationId } : {}),
       status: { in: ["Scheduled", "Due"] }
     },
     include: {
@@ -75,10 +77,11 @@ export async function getActiveFollowUpReminder(input: { leadId?: string; adultL
   return reminder ? toRecord(reminder) : null;
 }
 
-export async function getActiveAdultLeadReminderMap() {
+export async function getActiveAdultLeadReminderMap(organizationId?: string | null) {
   const reminders = await prisma.followUpReminder.findMany({
     where: {
       adultLeadId: { not: null },
+      ...(organizationId ? { organizationId } : {}),
       status: { in: ["Scheduled", "Due"] }
     },
     include: {
@@ -96,6 +99,7 @@ export async function scheduleFollowUpReminder(input: {
   preset: FollowUpReminderPreset;
   note?: string | null;
   createdByUserId?: string | null;
+  organizationId?: string | null;
 }) {
   if (Boolean(input.leadId) === Boolean(input.adultLeadId)) {
     throw new Error("Choose exactly one lead for the reminder.");
@@ -104,11 +108,11 @@ export async function scheduleFollowUpReminder(input: {
   if (!option) throw new Error("Select a valid reminder delay.");
 
   if (input.leadId) {
-    const exists = await prisma.lead.findUnique({ where: { id: input.leadId }, select: { id: true } });
+    const exists = await prisma.lead.findFirst({ where: { id: input.leadId, ...(input.organizationId ? { organizationId: input.organizationId } : {}) }, select: { id: true } });
     if (!exists) throw new Error("Lead was not found.");
   }
   if (input.adultLeadId) {
-    const exists = await prisma.adultLead.findUnique({ where: { id: input.adultLeadId }, select: { id: true } });
+    const exists = await prisma.adultLead.findFirst({ where: { id: input.adultLeadId, ...(input.organizationId ? { organizationId: input.organizationId } : {}) }, select: { id: true } });
     if (!exists) throw new Error("Adult Lead was not found.");
   }
 
@@ -118,6 +122,7 @@ export async function scheduleFollowUpReminder(input: {
       where: {
         ...(input.leadId ? { leadId: input.leadId } : {}),
         ...(input.adultLeadId ? { adultLeadId: input.adultLeadId } : {}),
+        ...(input.organizationId ? { organizationId: input.organizationId } : {}),
         status: { in: ["Scheduled", "Due"] }
       },
       data: { status: "Cancelled", completedAt: new Date() }
@@ -126,6 +131,7 @@ export async function scheduleFollowUpReminder(input: {
       data: {
         leadId: input.leadId,
         adultLeadId: input.adultLeadId,
+        organizationId: input.organizationId,
         createdByUserId: input.createdByUserId,
         preset: option.value,
         note: input.note?.trim().slice(0, 1000) || null,
@@ -138,9 +144,12 @@ export async function scheduleFollowUpReminder(input: {
   return toRecord(full);
 }
 
-export async function updateFollowUpReminder(id: string, action: "complete" | "cancel") {
+export async function updateFollowUpReminder(id: string, action: "complete" | "cancel", organizationId?: string | null) {
+  const existing = await prisma.followUpReminder.findFirst({ where: { id, ...(organizationId ? { organizationId } : {}) } });
+  if (!existing) throw new Error("Reminder could not be found.");
+
   const reminder = await prisma.followUpReminder.update({
-    where: { id },
+    where: { id: existing.id },
     data: {
       status: action === "complete" ? "Completed" : "Cancelled",
       completedAt: new Date()
@@ -178,6 +187,7 @@ export async function sendDueLeadFollowUpReminders(now = new Date()) {
     const leadName = reminder.adultLead?.businessName ?? reminder.lead?.companyName ?? "Lead";
     try {
       await createAppNotification({
+        organizationId: reminder.organizationId,
         type: "lead_follow_up_reminder",
         title: `Follow up with ${leadName}`,
         message: reminder.note || "This lead is ready for your scheduled follow-up.",

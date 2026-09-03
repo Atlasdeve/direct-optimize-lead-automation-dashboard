@@ -11,7 +11,8 @@ import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntellig
 import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { enrichLeadWithProviders } from "@/lib/leadEnrichment";
 import { hasWhatsappContactSignal } from "@/lib/whatsappIdentification";
-import { findGoogleBusinessProfileForWebsite, sendEmailFollowUp, sendEmailOutreach } from "@/lib/providers";
+import { getOrganizationApiConfig } from "@/lib/organizationSettings";
+import { findGoogleBusinessProfileForWebsite, sendEmailFollowUp, sendEmailOutreach, type EmailProviderConfig } from "@/lib/providers";
 import type { AutomationResult, Lead, PlaceLeadCandidate } from "@/lib/types";
 
 type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
@@ -31,13 +32,48 @@ export type OutreachAutomationSettings = {
 
 const outreachSettingsKey = "outreach_automation";
 
-export async function getOutreachAutomationSettings(): Promise<OutreachAutomationSettings> {
+function appBaseUrl() {
+  return (process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+}
+
+async function emailProviderConfigForOrganization(organizationId?: string | null): Promise<EmailProviderConfig | undefined> {
+  if (!organizationId || organizationId === "org_direct_optimize") return undefined;
+  const [settings, organization] = await Promise.all([
+    getOrganizationApiConfig(organizationId),
+    prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { companyName: true, slug: true }
+    })
+  ]);
+  const brandName = organization?.companyName || "Direct Optimize";
+  const portalUrl = organization?.slug ? `${appBaseUrl()}/o/${organization.slug}/login` : appBaseUrl();
+  return {
+    brevoApiKey: settings?.brevoApiKey,
+    smtpHost: settings?.smtpHost,
+    smtpPort: settings?.smtpPort,
+    smtpUser: settings?.smtpUser,
+    smtpPass: settings?.smtpPass,
+    smtpFrom: settings?.smtpUser,
+    smtpFromName: brandName,
+    brandName,
+    defaultCtas: [
+      { label: `Visit ${brandName}`, url: portalUrl, variant: "primary" },
+      { label: "Open Your Portal", url: portalUrl, variant: "secondary" }
+    ]
+  };
+}
+
+function outreachSettingsStorageKey(organizationId?: string | null) {
+  return organizationId ? `${outreachSettingsKey}:${organizationId}` : outreachSettingsKey;
+}
+
+export async function getOutreachAutomationSettings(organizationId?: string | null): Promise<OutreachAutomationSettings> {
   const defaults: OutreachAutomationSettings = {
     firstFollowUpDays: Number(process.env.FIRST_FOLLOW_UP_DAYS || 3),
     finalFollowUpDays: Number(process.env.FINAL_FOLLOW_UP_DAYS || 7),
     batchSize: Number(process.env.OUTREACH_AUTOMATION_BATCH_SIZE || 10)
   };
-  const setting = await prisma.setting.findUnique({ where: { key: outreachSettingsKey } });
+  const setting = await prisma.setting.findUnique({ where: { key: outreachSettingsStorageKey(organizationId) } });
   const value = setting?.value && typeof setting.value === "object" && !Array.isArray(setting.value)
     ? setting.value as Record<string, unknown>
     : {};
@@ -49,8 +85,8 @@ export async function getOutreachAutomationSettings(): Promise<OutreachAutomatio
   };
 }
 
-export async function saveOutreachAutomationSettings(input: Partial<OutreachAutomationSettings>) {
-  const current = await getOutreachAutomationSettings();
+export async function saveOutreachAutomationSettings(input: Partial<OutreachAutomationSettings>, organizationId?: string | null) {
+  const current = await getOutreachAutomationSettings(organizationId);
   const firstFollowUpDays = Math.max(1, Math.min(14, Number(input.firstFollowUpDays) || current.firstFollowUpDays));
   const value: OutreachAutomationSettings = {
     firstFollowUpDays,
@@ -58,9 +94,9 @@ export async function saveOutreachAutomationSettings(input: Partial<OutreachAuto
     batchSize: Math.max(1, Math.min(50, Number(input.batchSize) || current.batchSize))
   };
   await prisma.setting.upsert({
-    where: { key: outreachSettingsKey },
+    where: { key: outreachSettingsStorageKey(organizationId) },
     update: { value },
-    create: { key: outreachSettingsKey, value }
+    create: { key: outreachSettingsStorageKey(organizationId), value }
   });
   return value;
 }
@@ -116,9 +152,9 @@ export function toLead(lead: DbLead): Lead {
   };
 }
 
-export async function listDbLeads(region?: string) {
+export async function listDbLeads(region?: string, organizationId?: string | null) {
   const leads = await prisma.lead.findMany({
-    where: { ...(region ? { region } : {}), archived: false },
+    where: { ...(region ? { region } : {}), ...(organizationId ? { organizationId } : {}), archived: false },
     include: {
       contacts: {
         where: { type: "contact_form" },
@@ -143,9 +179,10 @@ export async function listDbLeads(region?: string) {
   return leads.map(toLead);
 }
 
-export async function listReviewQueue(queue: ReviewQueueKey = "needs_review", region?: string) {
+export async function listReviewQueue(queue: ReviewQueueKey = "needs_review", region?: string, organizationId?: string | null) {
   const where: Prisma.LeadWhereInput = {
     ...(region ? { region } : {}),
+    ...(organizationId ? { organizationId } : {}),
     archived: false
   };
 
@@ -183,9 +220,9 @@ export async function listReviewQueue(queue: ReviewQueueKey = "needs_review", re
   return leads.map(toLead);
 }
 
-export async function getDbLead(id: string) {
-  const lead = await prisma.lead.findUnique({
-    where: { id },
+export async function getDbLead(id: string, organizationId?: string | null) {
+  const lead = await prisma.lead.findFirst({
+    where: { id, ...(organizationId ? { organizationId } : {}) },
     include: {
       contacts: {
         where: { type: "contact_form" },
@@ -196,9 +233,9 @@ export async function getDbLead(id: string) {
   return lead ? toLead(lead) : null;
 }
 
-export async function deleteDbLead(id: string) {
-  const lead = await prisma.lead.findUnique({
-    where: { id },
+export async function deleteDbLead(id: string, organizationId?: string | null) {
+  const lead = await prisma.lead.findFirst({
+    where: { id, ...(organizationId ? { organizationId } : {}) },
     select: { id: true, companyName: true }
   });
   if (!lead) return null;
@@ -224,8 +261,8 @@ export type EditableLeadDetails = {
   linkedinUrl: string | null;
 };
 
-export async function updateDbLeadDetails(id: string, details: EditableLeadDetails) {
-  const existing = await prisma.lead.findUnique({ where: { id } });
+export async function updateDbLeadDetails(id: string, details: EditableLeadDetails, organizationId?: string | null) {
+  const existing = await prisma.lead.findFirst({ where: { id, ...(organizationId ? { organizationId } : {}) } });
   if (!existing) return null;
 
   const changedFields = Object.entries(details)
@@ -293,8 +330,8 @@ export async function getLatestLeadIntelligence(leadId: string) {
   return (log?.metadata as LeadIntelligenceAudit | null) ?? null;
 }
 
-export async function runLeadIntelligenceAudit(leadId: string) {
-  const lead = await getDbLead(leadId);
+export async function runLeadIntelligenceAudit(leadId: string, organizationId?: string | null) {
+  const lead = await getDbLead(leadId, organizationId);
   if (!lead) throw new Error("Lead not found");
   const audit = await auditLeadWebsite(lead);
   await prisma.outreachLog.create({
@@ -330,8 +367,8 @@ export async function getLatestGmbAudit(leadId: string) {
   return (log?.metadata as GmbAudit | null) ?? null;
 }
 
-export async function runGmbAudit(leadId: string) {
-  const lead = await getDbLead(leadId);
+export async function runGmbAudit(leadId: string, organizationId?: string | null) {
+  const lead = await getDbLead(leadId, organizationId);
   if (!lead) throw new Error("Lead not found");
   const audit = await auditGmbProfile(lead);
   await prisma.outreachLog.create({
@@ -347,11 +384,11 @@ export async function runGmbAudit(leadId: string) {
   return audit;
 }
 
-export async function listContactFormQueue(region?: string) {
+export async function listContactFormQueue(region?: string, organizationId?: string | null) {
   const contacts = await prisma.leadContact.findMany({
     where: {
       type: "contact_form",
-      lead: { ...(region ? { region } : {}), archived: false }
+      lead: { ...(region ? { region } : {}), ...(organizationId ? { organizationId } : {}), archived: false }
     },
     include: {
       lead: true
@@ -405,13 +442,13 @@ function stringFromMetadata(value: unknown) {
   return typeof value === "string" ? value : null;
 }
 
-export async function listHotEmailLeads() {
+export async function listHotEmailLeads(organizationId?: string | null) {
   const liveSince = new Date(Date.now() - 2 * 60 * 1000);
   const logs = await prisma.outreachLog.findMany({
     where: {
       channel: "email",
       OR: [{ openCount: { gt: 0 } }, { clickCount: { gt: 0 } }],
-      lead: { archived: false }
+      lead: { ...(organizationId ? { organizationId } : {}), archived: false }
     },
     include: {
       lead: {
@@ -580,15 +617,21 @@ export async function recordLeadWebsiteVisit(input: {
   return { recorded: true, live: true };
 }
 
-export async function markContactFormAction(contactId: string, action: "opened" | "submitted" | "skipped", message?: string) {
+export async function markContactFormAction(contactId: string, action: "opened" | "submitted" | "skipped", message?: string, organizationId?: string | null) {
   const statusByAction = {
     opened: "opened",
     submitted: "submitted",
     skipped: "skipped"
   } as const;
 
+  const existing = await prisma.leadContact.findFirst({
+    where: { id: contactId, lead: { ...(organizationId ? { organizationId } : {}) } },
+    include: { lead: true }
+  });
+  if (!existing) throw new Error("Contact form not found");
+
   const contact = await prisma.leadContact.update({
-    where: { id: contactId },
+    where: { id: existing.id },
     data: { status: statusByAction[action] },
     include: { lead: true }
   });
@@ -628,9 +671,12 @@ export async function markContactFormAction(contactId: string, action: "opened" 
   };
 }
 
-export async function archiveDuplicateLead(leadId: string) {
+export async function archiveDuplicateLead(leadId: string, organizationId?: string | null) {
+  const existing = await prisma.lead.findFirst({ where: { id: leadId, ...(organizationId ? { organizationId } : {}) } });
+  if (!existing) throw new Error("Lead not found");
+
   const lead = await prisma.lead.update({
-    where: { id: leadId },
+    where: { id: existing.id },
     data: {
       archived: true,
       outreachApproved: false,
@@ -649,7 +695,10 @@ export async function archiveDuplicateLead(leadId: string) {
   return toLead(lead);
 }
 
-export async function getLeadChecklist(leadId: string) {
+export async function getLeadChecklist(leadId: string, organizationId?: string | null) {
+  const lead = await prisma.lead.findFirst({ where: { id: leadId, ...(organizationId ? { organizationId } : {}) }, select: { id: true } });
+  if (!lead) throw new Error("Lead not found");
+
   return prisma.leadChecklist.upsert({
     where: { leadId },
     update: {},
@@ -664,7 +713,10 @@ export async function updateLeadChecklist(leadId: string, data: {
   contactFormChecked?: boolean;
   decisionMakerSearched?: boolean;
   notes?: string;
-}) {
+}, organizationId?: string | null) {
+  const lead = await prisma.lead.findFirst({ where: { id: leadId, ...(organizationId ? { organizationId } : {}) }, select: { id: true } });
+  if (!lead) throw new Error("Lead not found");
+
   const checklist = await prisma.leadChecklist.upsert({
     where: { leadId },
     update: data,
@@ -683,8 +735,9 @@ export async function updateLeadChecklist(leadId: string, data: {
   return checklist;
 }
 
-export async function listOpportunities() {
+export async function listOpportunities(organizationId?: string | null) {
   return prisma.opportunity.findMany({
+    where: organizationId ? { lead: { organizationId } } : undefined,
     orderBy: [{ updatedAt: "desc" }],
     include: { lead: { select: { companyName: true, region: true, city: true } } }
   });
@@ -697,8 +750,9 @@ export async function createOpportunity(input: {
   value?: number;
   notes?: string;
   nextActionAt?: string | null;
+  organizationId?: string | null;
 }) {
-  const lead = await prisma.lead.findUnique({ where: { id: input.leadId } });
+  const lead = await prisma.lead.findFirst({ where: { id: input.leadId, ...(input.organizationId ? { organizationId: input.organizationId } : {}) } });
   if (!lead) throw new Error("Lead not found");
   const opportunity = await prisma.opportunity.create({
     data: {
@@ -717,46 +771,55 @@ export async function createOpportunity(input: {
   return opportunity;
 }
 
-export async function listDbNotifications(user: { id: string; role: string }, options?: { take?: number }) {
+export async function listDbNotifications(user: { id: string; role: string; organizationId?: string | null }, options?: { take?: number }) {
   return prisma.notification.findMany({
-    where: isOperationsRole(user.role) ? { recipientUserId: null } : { recipientUserId: user.id },
+    where: isOperationsRole(user.role)
+      ? { recipientUserId: null, ...(user.organizationId ? { organizationId: user.organizationId } : {}) }
+      : { recipientUserId: user.id },
     orderBy: { createdAt: "desc" },
     take: Math.max(1, Math.min(options?.take ?? 20, 250))
   });
 }
 
-export async function listDbReplies() {
-  return prisma.inboxReply.findMany({ orderBy: { receivedAt: "desc" } });
+export async function listDbReplies(organizationId?: string | null) {
+  return prisma.inboxReply.findMany({
+    where: organizationId ? { lead: { organizationId } } : undefined,
+    orderBy: { receivedAt: "desc" }
+  });
 }
 
-export async function listDbAiDrafts() {
+export async function listDbAiDrafts(organizationId?: string | null) {
   return prisma.aiReplyDraft.findMany({
+    where: organizationId ? { lead: { organizationId } } : undefined,
     orderBy: { createdAt: "desc" },
     include: { lead: { select: { companyName: true } } }
   });
 }
 
-async function ensureDbRegion(regionName: string) {
-  const region = await getSavedRegion(regionName) ?? getRegion(regionName);
+async function ensureDbRegion(regionName: string, organizationId?: string | null) {
+  const region = await getSavedRegion(regionName, organizationId) ?? getRegion(regionName);
+  const regionOrganizationId = region.name.startsWith("tenant:") ? organizationId : undefined;
   await prisma.region.upsert({
     where: { name: region.name },
     update: {
       country: region.country,
       timezone: region.timezone,
-      enabled: true
+      enabled: true,
+      organizationId: regionOrganizationId || undefined
     },
     create: {
       name: region.name,
       country: region.country,
       timezone: region.timezone,
-      enabled: true
+      enabled: true,
+      organizationId: regionOrganizationId || undefined
     }
   });
   return region;
 }
 
-export async function createDbDemoLeads(regionName: string) {
-  const region = await ensureDbRegion(regionName);
+export async function createDbDemoLeads(regionName: string, organizationId?: string | null) {
+  const region = await ensureDbRegion(regionName, organizationId);
   const city = getDailyAutomationTarget(region.name, region.country).city;
   const base = {
     id: `lead_${region.name.toLowerCase()}_${Date.now()}`,
@@ -810,6 +873,7 @@ export async function createDbDemoLeads(regionName: string) {
   });
   const lead = await prisma.lead.create({
     data: {
+      organizationId,
       ...base,
       leadScore
     }
@@ -826,13 +890,14 @@ export async function createDbDemoLeads(regionName: string) {
   return [toLead(lead)];
 }
 
-export async function createDbLeadsFromPlaces(regionName: string, candidates: PlaceLeadCandidate[]) {
+export async function createDbLeadsFromPlaces(regionName: string, candidates: PlaceLeadCandidate[], organizationId?: string | null) {
   const created: Lead[] = [];
-  const region = await ensureDbRegion(regionName);
+  const region = await ensureDbRegion(regionName, organizationId);
 
   for (const candidate of candidates) {
     const duplicate = await prisma.lead.findFirst({
       where: {
+        ...(organizationId ? { organizationId } : {}),
         OR: [
           candidate.googleMapsUrl ? { googleMapsUrl: candidate.googleMapsUrl } : undefined,
           {
@@ -874,6 +939,7 @@ export async function createDbLeadsFromPlaces(regionName: string, candidates: Pl
 
     const lead = await prisma.lead.create({
       data: {
+        organizationId,
         companyName: candidate.companyName,
         region: region.name,
         country: candidate.country,
@@ -939,6 +1005,7 @@ function websiteDomain(value?: string | null) {
 
 export async function createDbLeadFromExtension(input: {
   regionName: string;
+  organizationId?: string | null;
   companyName: string;
   website: string;
   pageTitle?: string | null;
@@ -948,12 +1015,13 @@ export async function createDbLeadFromExtension(input: {
   category?: string | null;
   city?: string | null;
 }) {
-  const savedRegion = await getSavedRegion(input.regionName);
+  const savedRegion = await getSavedRegion(input.regionName, input.organizationId);
   const region = savedRegion ?? getRegion(input.regionName);
+  const regionOrganizationId = region.name.startsWith("tenant:") ? input.organizationId : undefined;
   await prisma.region.upsert({
     where: { name: region.name },
-    update: { country: region.country, timezone: region.timezone, enabled: true },
-    create: { name: region.name, country: region.country, timezone: region.timezone, enabled: true }
+    update: { country: region.country, timezone: region.timezone, enabled: true, organizationId: regionOrganizationId || undefined },
+    create: { name: region.name, country: region.country, timezone: region.timezone, enabled: true, organizationId: regionOrganizationId || undefined }
   });
 
   const website = normalizeNullableUrl(input.website);
@@ -961,6 +1029,7 @@ export async function createDbLeadFromExtension(input: {
   const domain = websiteDomain(website);
   const existing = await prisma.lead.findFirst({
     where: {
+      ...(input.organizationId ? { organizationId: input.organizationId } : {}),
       OR: [
         { website },
         domain ? { website: { contains: domain, mode: "insensitive" } } : undefined
@@ -1009,6 +1078,7 @@ export async function createDbLeadFromExtension(input: {
   const lead = await prisma.lead.create({
     data: {
       companyName,
+      organizationId: input.organizationId || undefined,
       region: region.name,
       country: (gmbMatch?.country || region.country).trim().slice(0, 120),
       city: (input.city || gmbMatch?.city || region.country).trim().slice(0, 120),
@@ -1078,7 +1148,8 @@ export async function markDbOutreach(leadId: string, channel: "email" | "whatsap
   });
 }
 
-export async function sendTrackedEmailOutreach(lead: Lead) {
+export async function sendTrackedEmailOutreach(lead: Lead, organizationId?: string | null) {
+  const config = await emailProviderConfigForOrganization(organizationId);
   const pendingLog = await prisma.outreachLog.create({
     data: {
       leadId: lead.id,
@@ -1093,11 +1164,11 @@ export async function sendTrackedEmailOutreach(lead: Lead) {
     }
   });
 
-  const result = await sendEmailOutreach(lead, { trackingLogId: pendingLog.id });
+  const result = await sendEmailOutreach(lead, { trackingLogId: pendingLog.id, config });
 
   if (result.sent) {
     const now = new Date();
-    const schedule = await getOutreachAutomationSettings();
+    const schedule = await getOutreachAutomationSettings(organizationId);
     await prisma.lead.update({
       where: { id: lead.id },
       data: {
@@ -1277,6 +1348,7 @@ export async function recordEmailClick(logId: string, url: string, requestMeta: 
 }
 
 export async function createComposeEmailLog(input: {
+  organizationId?: string | null;
   to: string;
   subject: string;
   heading: string;
@@ -1286,6 +1358,7 @@ export async function createComposeEmailLog(input: {
 }) {
   return prisma.composeEmailLog.create({
     data: {
+      organizationId: input.organizationId,
       toEmail: input.to,
       subject: input.subject,
       heading: input.heading,
@@ -1329,8 +1402,9 @@ export async function updateComposeEmailLogResult(
   });
 }
 
-export async function listComposeEmailLogs() {
+export async function listComposeEmailLogs(organizationId?: string | null) {
   const logs = await prisma.composeEmailLog.findMany({
+    where: { ...(organizationId ? { organizationId } : {}) },
     orderBy: { createdAt: "desc" },
     take: 12
   });
@@ -1347,9 +1421,12 @@ export async function listComposeEmailLogs() {
   }));
 }
 
-export async function approveLeadForOutreach(leadId: string) {
+export async function approveLeadForOutreach(leadId: string, organizationId?: string | null) {
+  const existing = await prisma.lead.findFirst({ where: { id: leadId, ...(organizationId ? { organizationId } : {}) } });
+  if (!existing) throw new Error("Lead not found");
+
   const lead = await prisma.lead.update({
-    where: { id: leadId },
+    where: { id: existing.id },
     data: {
       outreachApproved: true,
       outreachApprovedAt: new Date(),
@@ -1376,9 +1453,12 @@ export async function approveLeadForOutreach(leadId: string) {
   return toLead(lead);
 }
 
-export async function blockLeadFromOutreach(leadId: string) {
+export async function blockLeadFromOutreach(leadId: string, organizationId?: string | null) {
+  const existing = await prisma.lead.findFirst({ where: { id: leadId, ...(organizationId ? { organizationId } : {}) } });
+  if (!existing) throw new Error("Lead not found");
+
   const lead = await prisma.lead.update({
-    where: { id: leadId },
+    where: { id: existing.id },
     data: {
       outreachApproved: false,
       outreachApprovedAt: null,
@@ -1509,10 +1589,11 @@ export async function discoverEmailForLead(lead: Lead) {
   return { updated: true, found: result.emails.length, formsFound: result.contactForms.length, failed: false, email: primaryEmail };
 }
 
-export async function discoverEmailsForLeads({ region, limit = 10 }: { region?: string; limit?: number }) {
+export async function discoverEmailsForLeads({ region, limit = 10, organizationId }: { region?: string; limit?: number; organizationId?: string | null }) {
   const rows = await prisma.lead.findMany({
     where: {
       ...(region ? { region } : {}),
+      ...(organizationId ? { organizationId } : {}),
       website: { not: null },
       email: null,
       unsubscribed: false
@@ -1687,10 +1768,11 @@ export async function enrichLeadForDetails(lead: Lead) {
   };
 }
 
-export async function enrichLeadsForDetails({ region, limit = 10 }: { region?: string; limit?: number }) {
+export async function enrichLeadsForDetails({ region, limit = 10, organizationId }: { region?: string; limit?: number; organizationId?: string | null }) {
   const rows = await prisma.lead.findMany({
     where: {
       ...(region ? { region } : {}),
+      ...(organizationId ? { organizationId } : {}),
       archived: false,
       unsubscribed: false
     },
@@ -1775,7 +1857,7 @@ function sendingWindowStatus(region?: string) {
   };
 }
 
-export async function remainingDailyEmailAllowance() {
+export async function remainingDailyEmailAllowance(organizationId?: string | null) {
   const dailyCap = Number(process.env.DAILY_EMAIL_CAP || 150);
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
@@ -1785,13 +1867,15 @@ export async function remainingDailyEmailAllowance() {
         channel: "email",
         action: { in: ["send_outreach", "send_follow_up_1", "send_follow_up_2"] },
         status: "completed",
-        createdAt: { gte: startOfDay }
+        createdAt: { gte: startOfDay },
+        ...(organizationId ? { lead: { organizationId } } : {})
       }
     }),
     prisma.composeEmailLog.count({
       where: {
         status: { in: ["sent", "simulated"] },
-        createdAt: { gte: startOfDay }
+        createdAt: { gte: startOfDay },
+        ...(organizationId ? { organizationId } : {})
       }
     })
   ]);
@@ -1799,9 +1883,9 @@ export async function remainingDailyEmailAllowance() {
   return Math.max(0, dailyCap - sentToday);
 }
 
-export async function sendApprovedEmails({ region, limit = 25 }: { region?: string; limit?: number }) {
+export async function sendApprovedEmails({ region, limit = 25, organizationId }: { region?: string; limit?: number; organizationId?: string | null }) {
   const window = sendingWindowStatus(region);
-  const remaining = await remainingDailyEmailAllowance();
+  const remaining = await remainingDailyEmailAllowance(organizationId);
   const take = Math.max(0, Math.min(limit, remaining));
 
   if (!window.allowed) {
@@ -1831,6 +1915,7 @@ export async function sendApprovedEmails({ region, limit = 25 }: { region?: stri
   const rows = await prisma.lead.findMany({
     where: {
       ...(region ? { region } : {}),
+      ...(organizationId ? { organizationId } : {}),
       outreachApproved: true,
       email: { not: null },
       emailSent: false,
@@ -1854,7 +1939,7 @@ export async function sendApprovedEmails({ region, limit = 25 }: { region?: stri
 
   for (const row of rows) {
     const lead = toLead(row);
-    const result = await sendTrackedEmailOutreach(lead);
+    const result = await sendTrackedEmailOutreach(lead, organizationId);
     if (result.sent) {
       sent += 1;
       logs.push(`Sent email to ${lead.company_name}.`);
@@ -1878,9 +1963,9 @@ export async function sendApprovedEmails({ region, limit = 25 }: { region?: stri
   };
 }
 
-export async function processDueFollowUps({ region, limit = 25 }: { region?: string; limit?: number }) {
+export async function processDueFollowUps({ region, limit = 25, organizationId }: { region?: string; limit?: number; organizationId?: string | null }) {
   const window = sendingWindowStatus(region);
-  const remaining = await remainingDailyEmailAllowance();
+  const remaining = await remainingDailyEmailAllowance(organizationId);
   const take = Math.max(0, Math.min(limit, remaining));
   if (!window.allowed) {
     return { attempted: 0, sent: 0, skipped: 0, failed: 0, remaining, logs: [`Follow-ups are paused outside Monday-Friday 9:00-17:00 in ${window.timezone}.`] };
@@ -1892,6 +1977,7 @@ export async function processDueFollowUps({ region, limit = 25 }: { region?: str
   const rows = await prisma.lead.findMany({
     where: {
       ...(region ? { region } : {}),
+      ...(organizationId ? { organizationId } : {}),
       outreachApproved: true,
       email: { not: null },
       emailSent: true,
@@ -1915,7 +2001,8 @@ export async function processDueFollowUps({ region, limit = 25 }: { region?: str
     take
   });
 
-  const schedule = await getOutreachAutomationSettings();
+  const schedule = await getOutreachAutomationSettings(organizationId);
+  const config = await emailProviderConfigForOrganization(organizationId);
   let sent = 0;
   let skipped = 0;
   let failed = 0;
@@ -1947,7 +2034,7 @@ export async function processDueFollowUps({ region, limit = 25 }: { region?: str
         metadata: { to: row.email, stage, trackingEnabled: true }
       }
     });
-    const result = await sendEmailFollowUp(toLead(row), stage, { trackingLogId: pendingLog.id });
+    const result = await sendEmailFollowUp(toLead(row), stage, { trackingLogId: pendingLog.id, config });
     if (result.sent) {
       const now = new Date();
       const gapDays = Math.max(1, schedule.finalFollowUpDays - schedule.firstFollowUpDays);
@@ -1984,14 +2071,15 @@ export async function processDueFollowUps({ region, limit = 25 }: { region?: str
   return { attempted: rows.length, sent, skipped, failed, remaining: Math.max(0, remaining - sent), logs };
 }
 
-export async function runOutreachAutomationCycle(region: string) {
-  const settings = await getOutreachAutomationSettings();
-  const initial = await sendApprovedEmails({ region, limit: settings.batchSize });
-  const followUps = await processDueFollowUps({ region, limit: Math.max(0, settings.batchSize - initial.sent) });
+export async function runOutreachAutomationCycle(region: string, organizationId?: string | null) {
+  const settings = await getOutreachAutomationSettings(organizationId);
+  const initial = await sendApprovedEmails({ region, limit: settings.batchSize, organizationId });
+  const followUps = await processDueFollowUps({ region, limit: Math.max(0, settings.batchSize - initial.sent), organizationId });
   const sent = initial.sent + followUps.sent;
   const failed = initial.failed + followUps.failed;
   if (sent > 0 || failed > 0) {
     await createAppNotification({
+      organizationId,
       type: failed > 0 ? "failure" : "automation",
       title: failed > 0 ? "Outreach automation needs attention" : "Outreach automation completed",
       message: `${region}: ${initial.sent} initial email(s), ${followUps.sent} follow-up(s), ${failed} failure(s).`,
@@ -2001,9 +2089,9 @@ export async function runOutreachAutomationCycle(region: string) {
   return { region, initial, followUps, sent, failed };
 }
 
-export async function duplicateLeadSignals(region?: string) {
+export async function duplicateLeadSignals(region?: string, organizationId?: string | null) {
   const leads = await prisma.lead.findMany({
-    where: region ? { region } : undefined,
+    where: { ...(region ? { region } : {}), ...(organizationId ? { organizationId } : {}) },
     select: {
       id: true,
       companyName: true,
@@ -2041,9 +2129,10 @@ export async function duplicateLeadSignals(region?: string) {
     .slice(0, 50);
 }
 
-export async function completeDbAutomation(result: AutomationResult) {
+export async function completeDbAutomation(result: AutomationResult, organizationId?: string | null) {
   await prisma.automationRun.create({
     data: {
+      organizationId,
       region: result.region,
       status: result.status,
       completedAt: new Date(),
@@ -2055,6 +2144,7 @@ export async function completeDbAutomation(result: AutomationResult) {
     }
   });
   await createAppNotification({
+    organizationId,
     type: result.status === "completed" ? "automation" : "failure",
     title: result.status === "completed" ? "Automation completed" : "Automation failed",
     message: [
@@ -2064,8 +2154,8 @@ export async function completeDbAutomation(result: AutomationResult) {
   });
 }
 
-export async function dbAnalytics() {
-  const leads = await listDbLeads();
+export async function dbAnalytics(organizationId?: string | null) {
+  const leads = await listDbLeads(undefined, organizationId);
   const today = new Date();
   const daily = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(today);

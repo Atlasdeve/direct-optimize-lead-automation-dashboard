@@ -14,7 +14,7 @@ function durationLabel(seconds: number) {
 export default async function CallsPage() {
   const user = await currentUser();
   if (!user || !["admin", "employee"].includes(user.role)) redirect("/");
-  const calls = (await listRecentCallLogs()).filter(Boolean);
+  const calls = (await listRecentCallLogs(user.organizationId)).filter(Boolean);
   const totalSeconds = calls.reduce((sum, call) => sum + (call?.durationSeconds ?? 0), 0);
   const positive = calls.filter((call) => ["Interested", "Qualified", "Callback"].includes(call?.outcome ?? "")).length;
 

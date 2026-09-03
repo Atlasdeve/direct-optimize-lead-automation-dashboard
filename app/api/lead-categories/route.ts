@@ -5,19 +5,21 @@ import { isOperationsRole } from "@/lib/roles";
 
 async function authorized() {
   const user = await currentUser();
-  return Boolean(user && isOperationsRole(user.role));
+  return user && isOperationsRole(user.role) ? user : null;
 }
 
 export async function GET() {
-  if (!await authorized()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return NextResponse.json({ categories: await getLeadDiscoveryCategories() });
+  const user = await authorized();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return NextResponse.json({ categories: await getLeadDiscoveryCategories(user.organizationId) });
 }
 
 export async function POST(request: NextRequest) {
-  if (!await authorized()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await authorized();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await request.json().catch(() => ({}));
   try {
-    const categories = await saveLeadDiscoveryCategories(body.categories);
+    const categories = await saveLeadDiscoveryCategories(body.categories, user.organizationId);
     return NextResponse.json({ categories });
   } catch (error) {
     return NextResponse.json(

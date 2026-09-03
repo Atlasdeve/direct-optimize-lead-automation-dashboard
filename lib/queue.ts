@@ -11,7 +11,7 @@ export const automationQueue = connection
   ? new Queue("automation-runs", { connection })
   : null;
 
-export async function enqueueAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number }) {
+export async function enqueueAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number; organizationId?: string | null }) {
   if (!automationQueue || process.env.AUTOMATION_INLINE !== "false") {
     return runAutomation(region, options);
   }

@@ -311,7 +311,7 @@ function adultLeadSendingWindow(country: string) {
   };
 }
 
-export async function sendApprovedAdultLeadEmails(country: string, limit: number) {
+export async function sendApprovedAdultLeadEmails(country: string, limit: number, organizationId?: string | null) {
   const window = adultLeadSendingWindow(country);
   if (!window.allowed) {
     return {
@@ -339,6 +339,7 @@ export async function sendApprovedAdultLeadEmails(country: string, limit: number
 
   const rows = await prisma.adultLead.findMany({
     where: {
+      ...(organizationId ? { organizationId } : {}),
       country,
       reviewStatus: "Reviewed",
       outreachApproved: true,
@@ -359,6 +360,7 @@ export async function sendApprovedAdultLeadEmails(country: string, limit: number
     const claimed = await prisma.adultLead.updateMany({
       where: {
         id: row.id,
+        ...(organizationId ? { organizationId } : {}),
         outreachApproved: true,
         emailSent: false,
         outreachStatus: "Approved"
@@ -441,7 +443,7 @@ export async function sendApprovedAdultLeadEmails(country: string, limit: number
   return { country, attempted: rows.length, sent, skipped, failed, logs };
 }
 
-export async function runAdultLeadOutreachAutomationCycle() {
+export async function runAdultLeadOutreachAutomationCycle(organizationId?: string | null) {
   const [countries, settings] = await Promise.all([
     listAdultLeadCountries(),
     getOutreachAutomationSettings()
@@ -451,7 +453,7 @@ export async function runAdultLeadOutreachAutomationCycle() {
 
   for (const country of countries) {
     if (available <= 0) break;
-    const result = await sendApprovedAdultLeadEmails(country, available);
+    const result = await sendApprovedAdultLeadEmails(country, available, organizationId);
     available -= result.sent;
     results.push(result);
   }
@@ -463,6 +465,7 @@ export async function runAdultLeadOutreachAutomationCycle() {
 
   if (sent > 0 || failed > 0) {
     await createAppNotification({
+      organizationId,
       type: failed > 0 ? "failure" : "automation",
       title: failed > 0 ? "Adult Lead outreach needs attention" : "Adult Lead outreach completed",
       message: `${sent} email(s) sent, ${failed} failed, ${skipped} skipped.`,

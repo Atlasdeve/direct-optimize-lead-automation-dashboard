@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const user = await currentUser();
   if (!user || !isOperationsRole(user.role)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const role = request.nextUrl.searchParams.get("role") ?? undefined;
-  return NextResponse.json({ users: await listPortalUsers(role) });
+  return NextResponse.json({ users: await listPortalUsers(role, user.role === "super_admin" ? undefined : user.organizationId) });
 }
 
 export async function POST(request: NextRequest) {
@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
       username: body.username,
       name: body.name,
       password: body.password,
-      role: (body.role === "employee" || body.role === "client" ? body.role : "client") as PortalRole
+      role: (body.role === "employee" || body.role === "client" ? body.role : "client") as PortalRole,
+      organizationId: user.organizationId
     });
     return NextResponse.json({ user: created });
   } catch (error) {

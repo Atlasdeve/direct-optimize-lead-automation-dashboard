@@ -34,8 +34,10 @@ async function operationsSession() {
 }
 
 export async function GET() {
-  if (!(await operationsSession())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  return NextResponse.json({ reminders: await listFollowUpReminders() });
+  const session = await operationsSession();
+  if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const organizationId = session.organizationId;
+  return NextResponse.json({ reminders: await listFollowUpReminders(organizationId) });
 }
 
 export async function POST(request: NextRequest) {
@@ -46,8 +48,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid reminder." }, { status: 400 });
   }
   try {
+    const organizationId = session.organizationId;
     const reminder = await scheduleFollowUpReminder({
       ...parsed.data,
+      organizationId,
       createdByUserId: session.userId
     });
     return NextResponse.json({ reminder });
@@ -59,14 +63,16 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!(await operationsSession())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const session = await operationsSession();
+  if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const parsed = updateSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid reminder update." }, { status: 400 });
   }
   try {
+    const organizationId = session.organizationId;
     return NextResponse.json({
-      reminder: await updateFollowUpReminder(parsed.data.id, parsed.data.action)
+      reminder: await updateFollowUpReminder(parsed.data.id, parsed.data.action, organizationId)
     });
   } catch (error) {
     return NextResponse.json({

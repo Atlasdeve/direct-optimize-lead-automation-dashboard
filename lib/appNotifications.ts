@@ -8,9 +8,11 @@ export async function createAppNotification(input: {
   actionUrl?: string;
   leadId?: string;
   recipientUserId?: string;
+  organizationId?: string | null;
 }) {
   const notification = await prisma.notification.create({
     data: {
+      organizationId: input.organizationId,
       type: input.type,
       title: input.title.slice(0, 180),
       message: input.message.slice(0, 500),

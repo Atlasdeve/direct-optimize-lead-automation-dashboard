@@ -7,7 +7,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const user = await currentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
-  const where = isOperationsRole(user.role) ? { recipientUserId: null } : { recipientUserId: user.id };
+  const where = isOperationsRole(user.role)
+    ? { recipientUserId: null, ...(user.organizationId ? { organizationId: user.organizationId } : {}) }
+    : { recipientUserId: user.id };
 
   const encoder = new TextEncoder();
   let pollTimer: ReturnType<typeof setInterval> | undefined;

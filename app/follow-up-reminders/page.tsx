@@ -8,6 +8,7 @@ export default async function FollowUpRemindersPage() {
   const user = await currentUser();
   if (!user) redirect("/login?next=/follow-up-reminders");
   if (!isOperationsRole(user.role)) redirect("/");
-  const reminders = await listFollowUpReminders();
+  const organizationId = user.organizationId;
+  const reminders = await listFollowUpReminders(organizationId);
   return <FollowUpRemindersWorkspace initialReminders={reminders} />;
 }

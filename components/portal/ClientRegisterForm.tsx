@@ -65,7 +65,7 @@ export function ClientRegisterForm() {
         </label>
         <label className="text-sm font-medium text-slate-300">Region
           <select required value={form.region} onChange={(event) => update("region", event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-line bg-[#091629] px-3 text-white outline-none focus:border-sky-300">
-            {regionOptions.map((region) => <option key={region.name} value={region.name}>{region.name}</option>)}
+            {regionOptions.map((region) => <option key={region.name} value={region.name}>{region.label || region.name}</option>)}
           </select>
         </label>
         <label className="text-sm font-medium text-slate-300">Your name

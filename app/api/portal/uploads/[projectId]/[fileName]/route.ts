@@ -15,9 +15,14 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ projec
   if (!/^[a-zA-Z0-9_-]+$/.test(projectId) || !filePattern.test(fileName)) return NextResponse.json({ error: "File not found." }, { status: 404 });
   const project = await prisma.clientProject.findUnique({
     where: { id: projectId },
-    select: { clientUserId: true, employeeUserId: true }
+    select: { clientUserId: true, employeeUserId: true, organizationId: true }
   });
-  const permitted = isOperationsRole(user.role) || (user.role === "client" && project?.clientUserId === user.id) || (user.role === "employee" && project?.employeeUserId === user.id);
+  const permitted = Boolean(
+    project &&
+    ((isOperationsRole(user.role) && (user.role === "super_admin" || project.organizationId === user.organizationId)) ||
+      (user.role === "client" && project.clientUserId === user.id) ||
+      (user.role === "employee" && project.employeeUserId === user.id))
+  );
   if (!permitted) return NextResponse.json({ error: "File not found." }, { status: 404 });
   try {
     const extension = fileName.split(".").pop()!;

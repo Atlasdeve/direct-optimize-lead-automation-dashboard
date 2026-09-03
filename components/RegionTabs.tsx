@@ -89,13 +89,13 @@ export function RegionTabs({
             key={region.name}
             onClick={() => onSelect(region.name)}
             className={clsx(
-              "h-10 shrink-0 rounded-lg px-4 text-sm font-medium transition soft-border",
+              "h-10 min-w-[4.75rem] shrink-0 rounded-lg px-4 text-center text-sm font-medium transition-colors soft-border",
               selected === region.name
                 ? "bg-sky-400 text-slate-950"
                 : "bg-white/6 text-slate-300 hover:bg-white/12 hover:text-white"
             )}
           >
-            {region.name}
+            {region.label || region.name}
           </button>
         ))}
         <button

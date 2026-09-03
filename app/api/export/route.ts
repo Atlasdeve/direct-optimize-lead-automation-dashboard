@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { currentUser } from "@/lib/auth";
 import { listContactFormQueue, listDbLeads, listDbReplies } from "@/lib/dbStore";
+import { isOperationsRole } from "@/lib/roles";
 
 function csvEscape(value: unknown) {
   const text = value == null ? "" : String(value);
@@ -13,13 +15,17 @@ function toCsv(rows: Record<string, unknown>[]) {
 }
 
 export async function GET(request: NextRequest) {
+  const user = await currentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isOperationsRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const organizationId = user.organizationId;
   const type = request.nextUrl.searchParams.get("type") ?? "leads";
   const region = request.nextUrl.searchParams.get("region") ?? undefined;
 
   let rows: Record<string, unknown>[] = [];
-  if (type === "contact_forms") rows = await listContactFormQueue(region);
+  if (type === "contact_forms") rows = await listContactFormQueue(region, organizationId);
   else if (type === "replies") {
-    rows = (await listDbReplies()).map((reply) => ({
+    rows = (await listDbReplies(organizationId)).map((reply) => ({
       id: reply.id,
       leadId: reply.leadId,
       fromEmail: reply.fromEmail,
@@ -28,7 +34,7 @@ export async function GET(request: NextRequest) {
       body: reply.body
     }));
   } else {
-    rows = (await listDbLeads(region)).map((lead) => ({
+    rows = (await listDbLeads(region, organizationId)).map((lead) => ({
       id: lead.id,
       company: lead.company_name,
       region: lead.region,

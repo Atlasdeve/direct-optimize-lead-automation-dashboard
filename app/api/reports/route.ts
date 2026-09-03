@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { currentUser } from "@/lib/auth";
 import { listContactFormQueue, listDbLeads, listDbReplies } from "@/lib/dbStore";
 import { leadOpportunitySummary, leadTemperature, nextBestAction } from "@/lib/leadStrategy";
+import { isOperationsRole } from "@/lib/roles";
 
 export async function GET(request: NextRequest) {
+  const user = await currentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isOperationsRole(user.role)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const organizationId = user.organizationId;
   const region = request.nextUrl.searchParams.get("region") ?? undefined;
   const [leads, forms, replies] = await Promise.all([
-    listDbLeads(region),
-    listContactFormQueue(region),
-    listDbReplies()
+    listDbLeads(region, organizationId),
+    listContactFormQueue(region, organizationId),
+    listDbReplies(organizationId)
   ]);
   const regionReplies = region ? replies.filter((reply) => leads.some((lead) => lead.id === reply.leadId)) : replies;
   const categories = new Map<string, { leads: number; emails: number; forms: number; contacted: number; replies: number }>();

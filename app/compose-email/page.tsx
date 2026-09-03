@@ -1,8 +1,27 @@
 import { ComposeEmailForm } from "@/components/ComposeEmailForm";
+import { currentUser } from "@/lib/auth";
 import { listComposeEmailLogs } from "@/lib/dbStore";
 
+function appBaseUrl() {
+  return (process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+}
+
 export default async function ComposeEmailPage() {
-  const logs = await listComposeEmailLogs();
+  const user = await currentUser();
+  const workspaceName = user?.organization?.companyName || "Direct Optimize";
+  const workspaceLoginUrl = user?.organization?.slug
+    ? `${appBaseUrl()}/o/${user.organization.slug}/login`
+    : "https://directoptimize.com/client-portal/";
+  const defaultCtas = user?.organization?.slug && user.organization.slug !== "direct-optimize"
+    ? [
+        { label: `Visit ${workspaceName}`, url: workspaceLoginUrl, variant: "primary" as const },
+        { label: "Open Your Portal", url: workspaceLoginUrl, variant: "secondary" as const }
+      ]
+    : [
+        { label: "Visit Direct Optimize", url: "https://directoptimize.com", variant: "primary" as const },
+        { label: "Create Your Portal", url: "https://directoptimize.com/client-portal/", variant: "secondary" as const }
+      ];
+  const logs = await listComposeEmailLogs(user?.organizationId);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -10,10 +29,10 @@ export default async function ComposeEmailPage() {
         <div className="text-sm font-medium text-sky-200">Manual outreach</div>
         <h1 className="mt-2 text-4xl font-semibold text-white">Compose email</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-          Write and send a custom email using the Direct Optimize branded template.
+          Write and send a custom email using the {workspaceName} branded template.
         </p>
       </header>
-      <ComposeEmailForm />
+      <ComposeEmailForm brandName={workspaceName} defaultCtas={defaultCtas} />
       <section className="glass rounded-xl p-5">
         <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
           <div>

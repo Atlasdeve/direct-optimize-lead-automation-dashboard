@@ -46,7 +46,7 @@ function contactName(lead: Lead) {
   return lead.decision_maker_name ?? lead.owner_name ?? lead.manager_name ?? null;
 }
 
-function fallbackPitch(lead: Lead, websiteAudit: LeadIntelligenceAudit, gmbAudit: GmbAudit, auditFingerprint: string): LeadCallPitch {
+function fallbackPitch(lead: Lead, websiteAudit: LeadIntelligenceAudit, gmbAudit: GmbAudit, auditFingerprint: string, brandName = "Direct Optimize"): LeadCallPitch {
   const name = contactName(lead);
   const websiteFinding = websiteAudit.seoFlags[0] ?? (lead.website ? "The website has a foundation we can build on" : "No active website was detected");
   const gmbFinding = gmbAudit.gmbFlags[0] ?? "The Google Business Profile can be reviewed for stronger local conversion";
@@ -55,7 +55,7 @@ function fallbackPitch(lead: Lead, websiteAudit: LeadIntelligenceAudit, gmbAudit
     generatedAt: new Date().toISOString(),
     auditFingerprint,
     generationMode: "audit_fallback",
-    opening: `${greeting} this is [Your name] from Direct Optimize. Have I caught you at an okay time for a quick question about ${lead.company_name}'s online presence?`,
+    opening: `${greeting} this is [Your name] from ${brandName}. Have I caught you at an okay time for a quick question about ${lead.company_name}'s online presence?`,
     contextBridge: `I took a brief look at how ${lead.company_name} appears online in ${lead.city || lead.country}. I noticed a couple of practical opportunities, including ${websiteFinding.toLowerCase()} and ${gmbFinding.toLowerCase()}. I wanted to understand whether these are already being worked on before making any assumptions.`,
     valueStatement: "We help local businesses turn their website and Google profile into clearer paths for enquiries. The aim is not to replace what is already working, but to identify a few measurable improvements worth prioritizing.",
     discoveryQuestions: [
@@ -135,11 +135,13 @@ function promptData(lead: Lead, websiteAudit: LeadIntelligenceAudit, gmbAudit: G
   };
 }
 
-async function createPitch(lead: Lead, websiteAudit: LeadIntelligenceAudit, gmbAudit: GmbAudit, auditFingerprint: string) {
-  if (!process.env.OPENAI_API_KEY) return fallbackPitch(lead, websiteAudit, gmbAudit, auditFingerprint);
+async function createPitch(lead: Lead, websiteAudit: LeadIntelligenceAudit, gmbAudit: GmbAudit, auditFingerprint: string, options?: { brandName?: string; openaiApiKey?: string | null }) {
+  const brandName = options?.brandName || "Direct Optimize";
+  const openaiApiKey = options?.openaiApiKey || process.env.OPENAI_API_KEY;
+  if (!openaiApiKey) return fallbackPitch(lead, websiteAudit, gmbAudit, auditFingerprint, brandName);
 
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: openaiApiKey });
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.65,
@@ -148,7 +150,7 @@ async function createPitch(lead: Lead, websiteAudit: LeadIntelligenceAudit, gmbA
         {
           role: "system",
           content: [
-            "You create natural B2B phone conversation briefs for Direct Optimize, a website, SEO, and Google Business Profile agency.",
+            `You create natural B2B phone conversation briefs for ${brandName}, a website, SEO, and Google Business Profile agency.`,
             "Write like a thoughtful consultant, not a telemarketer. Use plain spoken English, short sentences, and a calm professional tone.",
             "Use only facts supplied in the lead and audit data. Never invent traffic, rankings, revenue, competitors, penalties, or guaranteed results.",
             "Treat automated audit findings as observations to verify in conversation, not accusations or absolute facts.",
@@ -169,7 +171,7 @@ async function createPitch(lead: Lead, websiteAudit: LeadIntelligenceAudit, gmbA
     return { ...parsed, generatedAt: new Date().toISOString(), auditFingerprint, generationMode: "ai" } satisfies LeadCallPitch;
   } catch (error) {
     console.warn("AI call pitch generation unavailable; using the audit-based fallback:", error);
-    return fallbackPitch(lead, websiteAudit, gmbAudit, auditFingerprint);
+    return fallbackPitch(lead, websiteAudit, gmbAudit, auditFingerprint, brandName);
   }
 }
 
@@ -185,7 +187,7 @@ export async function generateLeadCallPitch(
   lead: Lead,
   websiteAudit: LeadIntelligenceAudit,
   gmbAudit: GmbAudit,
-  options?: { force?: boolean }
+  options?: { force?: boolean; brandName?: string | null; openaiApiKey?: string | null }
 ) {
   const auditFingerprint = fingerprint(lead, websiteAudit, gmbAudit);
   if (!options?.force) {
@@ -193,7 +195,10 @@ export async function generateLeadCallPitch(
     if (existing?.auditFingerprint === auditFingerprint) return existing;
   }
 
-  const pitch = await createPitch(lead, websiteAudit, gmbAudit, auditFingerprint);
+  const pitch = await createPitch(lead, websiteAudit, gmbAudit, auditFingerprint, {
+    brandName: options?.brandName?.trim() || "Direct Optimize",
+    openaiApiKey: options?.openaiApiKey
+  });
   await prisma.outreachLog.create({
     data: {
       leadId: lead.id,

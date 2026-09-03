@@ -3,9 +3,12 @@ import { createPortalUser } from "@/lib/portalStore";
 
 export type StaffRole = "admin" | "manager";
 
-export async function listStaffAccounts() {
+export async function listStaffAccounts(organizationId?: string | null) {
   return prisma.user.findMany({
-    where: { role: { in: ["admin", "manager"] } },
+    where: {
+      ...(organizationId === undefined ? {} : { organizationId }),
+      role: { in: ["admin", "manager"] }
+    },
     select: {
       id: true,
       email: true,
@@ -25,6 +28,7 @@ export async function createStaffAccount(input: {
   name?: string;
   password: string;
   role: StaffRole;
+  organizationId?: string | null;
 }) {
   if (!["admin", "manager"].includes(input.role)) throw new Error("Select Administrator or Manager.");
   return createPortalUser(input);

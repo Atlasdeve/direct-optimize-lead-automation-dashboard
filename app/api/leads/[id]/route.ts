@@ -40,8 +40,10 @@ const leadDetailsSchema = z.object({
 });
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await currentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const lead = await getDbLead(id);
+  const lead = await getDbLead(id, user.organizationId);
   if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   return NextResponse.json({ lead });
 }
@@ -53,7 +55,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   }
 
   const { id } = await params;
-  const lead = await deleteDbLead(id);
+  const lead = await deleteDbLead(id, user.organizationId);
   if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
 
   return NextResponse.json({ deleted: true, lead });
@@ -69,7 +71,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const { id } = await params;
-  const lead = await updateDbLeadDetails(id, parsed.data);
+  const lead = await updateDbLeadDetails(id, parsed.data, user.organizationId);
   if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   return NextResponse.json({ lead });
 }

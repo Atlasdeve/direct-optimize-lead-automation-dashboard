@@ -4,6 +4,7 @@ import { currentUser } from "@/lib/auth";
 import { isOperationsRole } from "@/lib/roles";
 import { createDbLeadFromExtension } from "@/lib/dbStore";
 import { prohibitedLeadTerm } from "@/lib/restrictedLeadPolicy";
+import { prisma } from "@/lib/prisma";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,9 +34,13 @@ function json(data: unknown, init?: ResponseInit) {
 async function authorized(request: NextRequest) {
   const configuredKey = process.env.LEAD_CAPTURE_API_KEY;
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-  if (configuredKey && bearer && bearer === configuredKey) return true;
+  if (configuredKey && bearer && bearer === configuredKey) return { organizationId: "org_direct_optimize" };
+  if (bearer) {
+    const tenant = await prisma.organizationApiSetting.findFirst({ where: { leadCaptureApiKey: bearer }, select: { organizationId: true } });
+    if (tenant) return { organizationId: tenant.organizationId };
+  }
   const user = await currentUser().catch(() => null);
-  return Boolean(user && isOperationsRole(user.role));
+  return user && isOperationsRole(user.role) ? { organizationId: user.organizationId } : null;
 }
 
 export async function OPTIONS() {
@@ -43,7 +48,8 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await authorized(request))) {
+  const authorization = await authorized(request);
+  if (!authorization) {
     return json({ error: "Unauthorized. Add LEAD_CAPTURE_API_KEY to the app and extension settings." }, { status: 401 });
   }
 
@@ -73,7 +79,8 @@ export async function POST(request: NextRequest) {
       email: parsed.data.email || null,
       phone: parsed.data.phone,
       category: parsed.data.category,
-      city: parsed.data.city
+      city: parsed.data.city,
+      organizationId: authorization.organizationId
     });
     return json(result);
   } catch (error) {

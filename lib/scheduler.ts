@@ -38,31 +38,40 @@ function cronTime(expression: string) {
 }
 
 async function runDueDiscoveryAutomations() {
-  const [regions, categories] = await Promise.all([
-    listEnabledRegions(),
-    getLeadDiscoveryCategories()
-  ]);
-  for (const region of regions.filter((item) => item.name !== "Custom")) {
-    const local = localParts(region.timezone);
-    const scheduled = cronTime(region.morningCron);
-    const isDue = local.hour > scheduled.hour || (local.hour === scheduled.hour && local.minute >= scheduled.minute);
-    if (!isDue) continue;
-    const key = `cron:${region.name}:daily-automation`;
-    const setting = await prisma.setting.findUnique({ where: { key } });
-    const lastRunDate = (setting?.value as SettingValue | null)?.lastRunDate;
-    if (lastRunDate === local.date) continue;
-    const target = getDailyAutomationTarget(region.name, region.country, local.date, categories);
-    await enqueueAutomation(region.name, {
-      maxResults: Number(process.env.CRON_AUTOMATION_MAX_RESULTS || 3),
-      city: target.city,
-      categories: target.categories
-    });
-    console.log(`${region.name} discovery target: ${target.niche} in ${target.city}.`);
-    await prisma.setting.upsert({
-      where: { key },
-      update: { value: { lastRunDate: local.date } },
-      create: { key, value: { lastRunDate: local.date } }
-    });
+  const organizations = await prisma.organization.findMany({
+    where: { systemStatus: "active" },
+    include: { apiSettings: true }
+  });
+  for (const organization of organizations) {
+    const tenantUsesOwnPlacesKey = Boolean(organization.apiSettings?.googlePlacesApiKey);
+    const canUseGlobalPlacesKey = organization.id === "org_direct_optimize" && Boolean(process.env.GOOGLE_PLACES_API_KEY);
+    if (!tenantUsesOwnPlacesKey && !canUseGlobalPlacesKey) continue;
+
+    const regions = await listEnabledRegions(organization.id);
+    const categories = await getLeadDiscoveryCategories(organization.id);
+    for (const region of regions.filter((item) => item.name !== "Custom")) {
+      const local = localParts(region.timezone);
+      const scheduled = cronTime(region.morningCron);
+      const isDue = local.hour > scheduled.hour || (local.hour === scheduled.hour && local.minute >= scheduled.minute);
+      if (!isDue) continue;
+      const key = `cron:${organization.id}:${region.name}:daily-automation`;
+      const setting = await prisma.setting.findUnique({ where: { key } });
+      const lastRunDate = (setting?.value as SettingValue | null)?.lastRunDate;
+      if (lastRunDate === local.date) continue;
+      const target = getDailyAutomationTarget(region.name, region.country, local.date, categories);
+      await enqueueAutomation(region.name, {
+        maxResults: Number(process.env.CRON_AUTOMATION_MAX_RESULTS || 3),
+        city: target.city,
+        categories: target.categories,
+        organizationId: organization.id
+      });
+      console.log(`${organization.companyName} ${region.name} discovery target: ${target.niche} in ${target.city}.`);
+      await prisma.setting.upsert({
+        where: { key },
+        update: { value: { lastRunDate: local.date } },
+        create: { key, value: { lastRunDate: local.date } }
+      });
+    }
   }
 }
 
@@ -107,11 +116,21 @@ cron.schedule("*/10 * * * *", async () => {
   if (outreachCycleRunning) return;
   outreachCycleRunning = true;
   try {
-    const regions = await listEnabledRegions();
-    for (const region of regions.filter((item) => item.name !== "Custom")) {
-      const result = await runOutreachAutomationCycle(region.name);
-      if (result.sent > 0 || result.failed > 0) {
-        console.log(`${region.name} outreach: ${result.sent} sent, ${result.failed} failed.`);
+    const organizations = await prisma.organization.findMany({
+      where: { systemStatus: "active" },
+      include: { apiSettings: true }
+    });
+    for (const organization of organizations) {
+      const tenantHasEmailProvider = Boolean(organization.apiSettings?.brevoApiKey || organization.apiSettings?.smtpHost);
+      const canUseGlobalEmailProvider = organization.id === "org_direct_optimize" && Boolean(process.env.BREVO_API_KEY || process.env.SMTP_HOST);
+      if (!tenantHasEmailProvider && !canUseGlobalEmailProvider) continue;
+
+      const regions = await listEnabledRegions(organization.id);
+      for (const region of regions.filter((item) => item.name !== "Custom")) {
+        const result = await runOutreachAutomationCycle(region.name, organization.id);
+        if (result.sent > 0 || result.failed > 0) {
+          console.log(`${organization.companyName} ${region.name} outreach: ${result.sent} sent, ${result.failed} failed.`);
+        }
       }
     }
   } catch (error) {

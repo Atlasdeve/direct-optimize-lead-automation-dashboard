@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { currentSession } from "@/lib/auth";
+import { currentUser } from "@/lib/auth";
 import { approveAdultLeadForOutreach, cancelAdultLeadOutreachApproval } from "@/lib/adultLeadStore";
 import { isOperationsRole } from "@/lib/roles";
 
@@ -9,8 +9,8 @@ const schema = z.object({
 }).strict();
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await currentSession();
-  if (!isOperationsRole(session?.role)) {
+  const user = await currentUser();
+  if (!isOperationsRole(user?.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -22,8 +22,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const { id } = await params;
     const lead = parsed.data.action === "approve"
-      ? await approveAdultLeadForOutreach(id)
-      : await cancelAdultLeadOutreachApproval(id);
+      ? await approveAdultLeadForOutreach(id, user.organizationId)
+      : await cancelAdultLeadOutreachApproval(id, user.organizationId);
     return NextResponse.json({ lead });
   } catch (error) {
     return NextResponse.json({

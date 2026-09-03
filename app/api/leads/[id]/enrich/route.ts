@@ -10,7 +10,8 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
   }
 
   const { id } = await params;
-  const lead = await getDbLead(id);
+  const organizationId = user.organizationId;
+  const lead = await getDbLead(id, organizationId);
   if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
 
   const result = await enrichLeadForDetails(lead);

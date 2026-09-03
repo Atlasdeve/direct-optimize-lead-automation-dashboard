@@ -33,6 +33,7 @@ import DialpadIcon from "@mui/icons-material/Dialpad";
 import NightlifeIcon from "@mui/icons-material/Nightlife";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AlarmIcon from "@mui/icons-material/Alarm";
+import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import MarkEmailUnreadIcon from "@mui/icons-material/MarkEmailUnread";
 import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -40,45 +41,48 @@ import CloseIcon from "@mui/icons-material/Close";
 import { clsx } from "clsx";
 import { AdminNotificationCenter } from "@/components/AdminNotificationCenter";
 import { PushNotificationControl } from "@/components/PushNotificationControl";
+import { type FeatureKey, planMeets } from "@/lib/planAccess";
 
 type NavItem = {
   href: string;
   label: string;
   icon: typeof DashboardIcon;
   adminOnly?: boolean;
+  superAdminOnly?: boolean;
+  minPlan?: FeatureKey;
 };
 
 const nav: NavItem[] = [
   { href: "/", label: "Overview", icon: DashboardIcon },
   { href: "/notifications", label: "Notifications", icon: NotificationsIcon },
+  { href: "/super-admin", label: "Super Admin", icon: SupervisorAccountIcon, superAdminOnly: true },
   { href: "/hot-leads", label: "Hot Leads", icon: LocalFireDepartmentIcon },
-  { href: "/follow-up-reminders", label: "Follow-up Reminders", icon: AlarmIcon },
-  { href: "/not-responded", label: "Not Responded", icon: MarkEmailUnreadIcon },
+  { href: "/follow-up-reminders", label: "Follow-up Reminders", icon: AlarmIcon, minPlan: "growth" },
+  { href: "/not-responded", label: "Not Responded", icon: MarkEmailUnreadIcon, minPlan: "growth" },
   { href: "/dashboard", label: "Region Leads", icon: PublicIcon },
-  { href: "/adult-leads", label: "Adult Leads", icon: NightlifeIcon },
-  { href: "/automation", label: "Automation", icon: PlayCircleIcon },
-  { href: "/campaigns", label: "Campaigns", icon: CampaignIcon },
-  { href: "/calls", label: "Calls", icon: PhoneInTalkIcon },
-  { href: "/compose-call", label: "Compose Call", icon: DialpadIcon },
-  { href: "/reports", label: "Reports", icon: AssessmentIcon },
-  { href: "/pipeline", label: "Pipeline", icon: ViewKanbanIcon },
+  { href: "/adult-leads", label: "Adult Leads", icon: NightlifeIcon, minPlan: "agency_pro" },
+  { href: "/automation", label: "Automation", icon: PlayCircleIcon, minPlan: "growth" },
+  { href: "/campaigns", label: "Campaigns", icon: CampaignIcon, minPlan: "growth" },
+  { href: "/calls", label: "Calls", icon: PhoneInTalkIcon, minPlan: "agency_pro" },
+  { href: "/compose-call", label: "Compose Call", icon: DialpadIcon, minPlan: "agency_pro" },
+  { href: "/reports", label: "Reports", icon: AssessmentIcon, minPlan: "agency_pro" },
+  { href: "/pipeline", label: "Pipeline", icon: ViewKanbanIcon, minPlan: "growth" },
   { href: "/review", label: "Review Queue", icon: FactCheckIcon },
   { href: "/contact-forms", label: "Contact Forms", icon: ContactPageIcon },
-  { href: "/opportunities", label: "Opportunities", icon: WorkIcon },
-  { href: "/projects", label: "Client Projects", icon: GroupsIcon },
-  { href: "/portal-users", label: "Portal Users", icon: AccountCircleIcon },
-  { href: "/staff", label: "Staff Accounts", icon: SupervisorAccountIcon, adminOnly: true },
-  { href: "/employee-portal", label: "Employee Portal", icon: BadgeIcon },
-  { href: "/client-portal", label: "Client Portal", icon: AccountCircleIcon },
-  { href: "/duplicates", label: "Duplicates", icon: ContentCopyIcon },
-  { href: "/export", label: "CSV Export", icon: DownloadIcon },
+  { href: "/opportunities", label: "Opportunities", icon: WorkIcon, minPlan: "agency_pro" },
+  { href: "/projects", label: "Client Projects", icon: GroupsIcon, minPlan: "growth" },
+  { href: "/portal-users", label: "Portal Users", icon: AccountCircleIcon, minPlan: "growth" },
+  { href: "/staff", label: "Staff Accounts", icon: SupervisorAccountIcon, adminOnly: true, minPlan: "agency_pro" },
+  { href: "/duplicates", label: "Duplicates", icon: ContentCopyIcon, minPlan: "agency_pro" },
+  { href: "/export", label: "CSV Export", icon: DownloadIcon, minPlan: "agency_pro" },
   { href: "/compose-email", label: "Compose Email", icon: MarkEmailReadIcon },
   { href: "/templates/email", label: "Email Templates", icon: EmailIcon },
-  { href: "/templates/whatsapp", label: "WhatsApp Numbers", icon: WhatsAppIcon },
+  { href: "/templates/whatsapp", label: "WhatsApp Numbers", icon: WhatsAppIcon, minPlan: "agency_pro" },
   { href: "/replies", label: "Inbox Replies", icon: ForumIcon },
-  { href: "/ai-drafts", label: "AI Drafts", icon: AutoAwesomeIcon },
-  { href: "/analytics", label: "Analytics", icon: BarChartIcon },
+  { href: "/ai-drafts", label: "AI Drafts", icon: AutoAwesomeIcon, minPlan: "agency_pro" },
+  { href: "/analytics", label: "Analytics", icon: BarChartIcon, minPlan: "agency_pro" },
   { href: "/settings", label: "Settings", icon: SettingsIcon }
+  , { href: "/onboarding", label: "Setup Guide", icon: RocketLaunchIcon }
 ];
 
 const clientNav = [
@@ -92,14 +96,37 @@ const employeeNav = [
   { href: "/notifications", label: "Notifications", icon: NotificationsIcon }
 ];
 
-export function AppShell({ children, userRole, userName }: { children: React.ReactNode; userRole?: string; userName?: string }) {
+export function AppShell({
+  children,
+  userRole,
+  userName,
+  workspaceName = "Direct Optimize",
+  workspaceSlug,
+  organizationPlan
+}: {
+  children: React.ReactNode;
+  userRole?: string;
+  userName?: string;
+  workspaceName?: string;
+  workspaceSlug?: string | null;
+  organizationPlan?: string | null;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const isClient = userRole === "client";
   const isEmployee = userRole === "employee";
   const isManager = userRole === "manager";
-  const navigation = isClient ? clientNav : isEmployee ? employeeNav : nav.filter((item) => !item.adminOnly || userRole === "admin");
+  const navigation = isClient
+    ? clientNav
+    : isEmployee
+      ? employeeNav
+      : nav.filter((item) => {
+          if (item.superAdminOnly) return userRole === "super_admin";
+          if (item.adminOnly && userRole !== "admin" && userRole !== "super_admin") return false;
+          if (userRole !== "super_admin" && item.minPlan && !planMeets(organizationPlan, item.minPlan)) return false;
+          return true;
+        });
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
@@ -126,7 +153,7 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
     return false;
   }
 
-  if (pathname === "/client-register") {
+  if (pathname === "/client-register" || /^\/o\/[^/]+\/login$/.test(pathname)) {
     return <>{children}</>;
   }
 
@@ -136,7 +163,8 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    const loginPath = workspaceSlug && workspaceSlug !== "direct-optimize" ? `/o/${workspaceSlug}/login` : "/login";
+    router.push(loginPath);
     router.refresh();
   }
 
@@ -175,7 +203,7 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
             <ShieldIcon />
           </div>
           <div>
-            <div className="text-sm text-slate-400">Direct Optimize</div>
+            <div className="text-sm text-slate-400">{workspaceName}</div>
             <div className="font-semibold leading-tight text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : isManager ? "Manager Workspace" : "Lead Automation"}</div>
           </div>
         </div>
@@ -220,7 +248,7 @@ export function AppShell({ children, userRole, userName }: { children: React.Rea
               <div className="flex min-w-0 items-center gap-3">
                 <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-400/15 text-sky-200 soft-border"><ShieldIcon /></div>
                 <div className="min-w-0">
-                  <div className="truncate text-sm text-slate-400">Direct Optimize</div>
+                  <div className="truncate text-sm text-slate-400">{workspaceName}</div>
                   <div className="truncate font-semibold text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : isManager ? "Manager Workspace" : "Lead Automation"}</div>
                 </div>
               </div>

@@ -22,7 +22,13 @@ export async function sendPushForNotification(notification: Notification) {
   if (!configureWebPush()) return { sent: 0, failed: 0 };
   const users = notification.recipientUserId
     ? [{ id: notification.recipientUserId }]
-    : await prisma.user.findMany({ where: { role: "admin" }, select: { id: true } });
+    : await prisma.user.findMany({
+      where: {
+        role: { in: ["super_admin", "admin"] },
+        ...(notification.organizationId ? { organizationId: notification.organizationId } : {})
+      },
+      select: { id: true }
+    });
   if (users.length === 0) return { sent: 0, failed: 0 };
 
   const subscriptions = await prisma.pushSubscription.findMany({

@@ -1,10 +1,13 @@
 export type BrandedEmailInput = {
+  brandName?: string;
+  companyName?: string;
   preheader?: string;
   heading: string;
   body: string;
   ctaLabel?: string;
   ctaUrl?: string;
   ctas?: Array<{ label: string; url: string; variant?: "primary" | "secondary" }>;
+  defaultCtas?: Array<{ label: string; url: string; variant?: "primary" | "secondary" }>;
   trackingPixelUrl?: string;
   clickTrackingBaseUrl?: string;
 };
@@ -63,12 +66,13 @@ const defaultCtas = [
 ];
 
 function emailCtas(input: BrandedEmailInput) {
+  const fallbackCtas = input.defaultCtas ?? defaultCtas;
   const provided = [
     ...(input.ctas ?? []),
     input.ctaLabel && input.ctaUrl ? { label: input.ctaLabel, url: input.ctaUrl, variant: "primary" as const } : null
   ].filter((item): item is { label: string; url: string; variant?: "primary" | "secondary" } => Boolean(item));
 
-  const merged = [...provided, ...defaultCtas];
+  const merged = [...provided, ...fallbackCtas];
   const seen = new Set<string>();
   return merged
     .map((cta) => ({ ...cta, url: normalizeUrl(cta.url) }))
@@ -80,6 +84,8 @@ function emailCtas(input: BrandedEmailInput) {
 }
 
 export function renderBrandedEmailHtml(input: BrandedEmailInput) {
+  const brandName = input.brandName || "Direct Optimize";
+  const companyName = input.companyName || brandName;
   const preheader = input.preheader || input.heading;
   const ctaButtons = emailCtas(input);
   const cta = ctaButtons.length
@@ -118,7 +124,7 @@ export function renderBrandedEmailHtml(input: BrandedEmailInput) {
                 <table role="presentation" width="100%" cellPadding="0" cellSpacing="0">
                   <tr>
                     <td>
-                      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7dd3fc;font-weight:700;">Direct Optimize</div>
+                      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7dd3fc;font-weight:700;">${escapeHtml(brandName)}</div>
                       <div style="margin-top:4px;color:#f8fafc;font-size:18px;font-weight:700;">Lead Automation</div>
                     </td>
                     <td align="right">
@@ -142,7 +148,7 @@ export function renderBrandedEmailHtml(input: BrandedEmailInput) {
             <tr>
               <td style="padding:18px 24px;background:#06111f;border-top:1px solid rgba(148,163,184,.18);">
                 <div style="color:#cbd5e1;font-size:13px;line-height:1.6;">
-                  <strong style="color:#f8fafc;">Direct Optimize</strong><br />
+                  <strong style="color:#f8fafc;">${escapeHtml(companyName)}</strong><br />
                   Local SEO, website audits, and compliant lead outreach.
                 </div>
                 <div style="margin-top:12px;color:#64748b;font-size:11px;line-height:1.5;">
@@ -166,7 +172,7 @@ export function renderPlainTextEmail(input: BrandedEmailInput) {
     input.body,
     ...emailCtas(input).flatMap((cta) => ["", `${cta.label}: ${trackedUrl(cta.url, input.clickTrackingBaseUrl, cta.label)}`]),
     "",
-    "Direct Optimize",
+    input.companyName || input.brandName || "Direct Optimize",
     "To opt out, reply with Unsubscribe."
   ].filter(Boolean).join("\n");
 }

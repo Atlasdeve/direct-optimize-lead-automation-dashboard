@@ -22,8 +22,17 @@ export async function POST(request: NextRequest) {
   const rawProjectId = String(form.get("projectId") || "");
   const projectId = rawProjectId.replace(/[^a-zA-Z0-9_-]/g, "");
   if (!projectId || projectId !== rawProjectId) return NextResponse.json({ error: "A valid project is required." }, { status: 400 });
-  const project = await prisma.clientProject.findUnique({ where: { id: projectId }, select: { employeeUserId: true } });
-  if (!project || (user.role === "employee" && project.employeeUserId !== user.id)) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+  const project = await prisma.clientProject.findUnique({
+    where: { id: projectId },
+    select: { employeeUserId: true, organizationId: true }
+  });
+  const permitted = Boolean(
+    project &&
+    (user.role === "employee"
+      ? project.employeeUserId === user.id
+      : user.role === "super_admin" || project.organizationId === user.organizationId)
+  );
+  if (!permitted) return NextResponse.json({ error: "Project not found." }, { status: 404 });
   if (!(file instanceof File)) return NextResponse.json({ error: "Upload a screenshot file." }, { status: 400 });
   if (!allowedTypes.has(file.type)) return NextResponse.json({ error: "Only PNG, JPG, or WEBP images are allowed." }, { status: 400 });
   if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: "Screenshot must be under 5MB." }, { status: 400 });

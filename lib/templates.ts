@@ -12,17 +12,28 @@ export const whatsappIdentificationRules = [
   { id: "manual_review", name: "Manual verification", active: true, description: "Treat WhatsApp availability as a lead-review signal, not an automated send permission." }
 ];
 
-export function providerSettings() {
+export function providerSettings(overrides?: {
+  googlePlacesApiKey?: string | null;
+  googleSearchApiKey?: string | null;
+  googleSearchCx?: string | null;
+  smtpHost?: string | null;
+  brevoApiKey?: string | null;
+  telnyxApiKey?: string | null;
+  telnyxConnectionId?: string | null;
+  openaiApiKey?: string | null;
+} | null) {
+  const useTenantSettings = overrides !== undefined;
   return {
     rateLimits: { dailyEmailCap: 150 },
     providers: {
-      googlePlaces: Boolean(process.env.GOOGLE_PLACES_API_KEY),
-      googleSearch: Boolean(process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_CX),
-      hunter: Boolean(process.env.HUNTER_API_KEY),
-      builtWith: Boolean(process.env.BUILTWITH_API_KEY),
-      email: Boolean(process.env.SMTP_HOST || process.env.GMAIL_CLIENT_ID),
+      googlePlaces: useTenantSettings ? Boolean(overrides?.googlePlacesApiKey) : Boolean(process.env.GOOGLE_PLACES_API_KEY),
+      googleSearch: useTenantSettings ? Boolean(overrides?.googleSearchApiKey && overrides?.googleSearchCx) : Boolean(process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_CX),
+      hunter: useTenantSettings ? false : Boolean(process.env.HUNTER_API_KEY),
+      builtWith: useTenantSettings ? false : Boolean(process.env.BUILTWITH_API_KEY),
+      email: useTenantSettings ? Boolean(overrides?.brevoApiKey || overrides?.smtpHost) : Boolean(process.env.SMTP_HOST || process.env.GMAIL_CLIENT_ID),
+      calling: useTenantSettings ? Boolean(overrides?.telnyxApiKey && overrides?.telnyxConnectionId) : Boolean(process.env.TELNYX_API_KEY && process.env.TELNYX_CALL_CONTROL_CONNECTION_ID),
       whatsappIdentification: true,
-      openai: Boolean(process.env.OPENAI_API_KEY)
+      openai: useTenantSettings ? Boolean(overrides?.openaiApiKey) : Boolean(process.env.OPENAI_API_KEY)
     },
     compliance: {
       unsubscribeRequired: true,

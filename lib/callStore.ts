@@ -28,9 +28,9 @@ export function serializeCallLog(call: Awaited<ReturnType<typeof prisma.callLog.
   };
 }
 
-export async function listLeadCallLogs(leadId: string) {
+export async function listLeadCallLogs(leadId: string, organizationId?: string | null) {
   const calls = await prisma.callLog.findMany({
-    where: { leadId },
+    where: { leadId, ...(organizationId ? { organizationId } : {}) },
     include: { user: { select: { name: true, username: true } } },
     orderBy: { createdAt: "desc" },
     take: 50
@@ -38,8 +38,9 @@ export async function listLeadCallLogs(leadId: string) {
   return calls.map(serializeCallLog);
 }
 
-export async function listRecentCallLogs() {
+export async function listRecentCallLogs(organizationId?: string | null) {
   const calls = await prisma.callLog.findMany({
+    where: { ...(organizationId ? { organizationId } : {}) },
     include: {
       user: { select: { name: true, username: true } },
       lead: { select: { companyName: true, region: true } }
@@ -54,9 +55,9 @@ export async function listRecentCallLogs() {
   }));
 }
 
-export async function listStandaloneCallLogs() {
+export async function listStandaloneCallLogs(organizationId?: string | null) {
   const calls = await prisma.callLog.findMany({
-    where: { leadId: null },
+    where: { leadId: null, ...(organizationId ? { organizationId } : {}) },
     include: { user: { select: { name: true, username: true } } },
     orderBy: { createdAt: "desc" },
     take: 50
@@ -66,6 +67,7 @@ export async function listStandaloneCallLogs() {
 
 export async function createCallLog(input: {
   leadId?: string | null;
+  organizationId?: string | null;
   userId: string;
   contactName?: string;
   companyName?: string;
@@ -80,6 +82,7 @@ export async function createCallLog(input: {
   const call = await prisma.callLog.create({
     data: {
       leadId: input.leadId,
+      organizationId: input.organizationId,
       userId: input.userId,
       contactName: input.contactName,
       companyName: input.companyName,

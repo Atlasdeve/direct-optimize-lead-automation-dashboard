@@ -38,10 +38,11 @@ export async function getLeadLastActivity(leadId: string, fallback: { createdAt:
   return { at: activity.at.toISOString(), label: activity.label };
 }
 
-export async function listNotRespondedLeads(): Promise<NotRespondedLeadRecord[]> {
+export async function listNotRespondedLeads(organizationId?: string | null): Promise<NotRespondedLeadRecord[]> {
   const cutoff = new Date(Date.now() - inactivityDays * 24 * 60 * 60 * 1000);
   const leads = await prisma.lead.findMany({
     where: {
+      ...(organizationId ? { organizationId } : {}),
       archived: false,
       replied: false,
       unsubscribed: false,
@@ -95,8 +96,8 @@ export async function listNotRespondedLeads(): Promise<NotRespondedLeadRecord[]>
   });
 }
 
-export async function reactivateNotRespondedLead(leadId: string) {
-  const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+export async function reactivateNotRespondedLead(leadId: string, organizationId?: string | null) {
+  const lead = await prisma.lead.findFirst({ where: { id: leadId, ...(organizationId ? { organizationId } : {}) } });
   if (!lead) throw new Error("Lead not found.");
   if (lead.unsubscribed || lead.doNotContact) {
     throw new Error("This lead is suppressed and cannot be reactivated.");

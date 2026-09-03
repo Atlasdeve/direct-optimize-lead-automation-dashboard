@@ -9,7 +9,8 @@ export default async function HotLeadsPage() {
   if (!user) redirect("/login?next=/hot-leads");
   if (!isOperationsRole(user.role)) redirect("/");
 
-  const leads = await listHotEmailLeads();
+  const organizationId = user.organizationId;
+  const leads = await listHotEmailLeads(organizationId);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">

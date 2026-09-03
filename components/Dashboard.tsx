@@ -150,7 +150,7 @@ function ActivityFlag({ active, label, children }: { active: boolean; label: str
   );
 }
 
-export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mode?: DashboardMode; initialRegion?: string }) {
+export function Dashboard({ mode = "overview", initialRegion = "Canada", workspaceName = "Direct Optimize" }: { mode?: DashboardMode; initialRegion?: string; workspaceName?: string }) {
   const [selectedRegion, setSelectedRegion] = useState(() => getRegion(initialRegion).name);
   const [regionConfigs, setRegionConfigs] = useState<RegionConfig[]>([]);
   const [leads, setLeads] = useState(() => listLeads(selectedRegion));
@@ -363,7 +363,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada" }: { mod
             {mode === "overview" ? "Executive overview" : mode === "automation" ? "Automation command center" : "Lead operations"}
           </div>
           <h1 className="mt-2 text-3xl font-semibold tracking-normal text-white md:text-5xl">
-            {mode === "overview" && "Direct Optimize Lead Automation Dashboard"}
+            {mode === "overview" && `${workspaceName} Lead Automation Dashboard`}
             {mode === "automation" && "Run discovery, enrichment, and approved outreach"}
             {mode === "leads" && "Search, filter, and inspect regional leads"}
           </h1>

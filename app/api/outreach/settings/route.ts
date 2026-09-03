@@ -6,7 +6,7 @@ import { getOutreachAutomationSettings, saveOutreachAutomationSettings } from "@
 export async function GET() {
   const user = await currentUser();
   if (!user || !isOperationsRole(user.role)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return NextResponse.json({ settings: await getOutreachAutomationSettings() });
+  return NextResponse.json({ settings: await getOutreachAutomationSettings(user.organizationId) });
 }
 
 export async function POST(request: Request) {
@@ -17,6 +17,6 @@ export async function POST(request: Request) {
     firstFollowUpDays: body.firstFollowUpDays,
     finalFollowUpDays: body.finalFollowUpDays,
     batchSize: body.batchSize
-  });
+  }, user.organizationId);
   return NextResponse.json({ settings });
 }

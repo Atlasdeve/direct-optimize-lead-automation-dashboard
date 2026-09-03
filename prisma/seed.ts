@@ -13,13 +13,14 @@ async function main() {
   }
   await prisma.user.upsert({
     where: { email: "admin@directoptimize.local" },
-    update: { username: "admin" },
+    update: { username: "admin", role: "super_admin", organizationId: "org_direct_optimize" },
     create: {
       email: "admin@directoptimize.local",
       username: "admin",
       name: "Direct Optimize Admin",
       passwordHash: await bcrypt.hash(initialAdminPassword, 12),
-      role: "admin"
+      role: "super_admin",
+      organizationId: "org_direct_optimize"
     }
   });
 

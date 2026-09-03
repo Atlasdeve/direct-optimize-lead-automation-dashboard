@@ -30,12 +30,30 @@ function maxDurationSeconds() {
   return Math.max(45, Math.min(240, Math.round(configured)));
 }
 
+function apiSettingsForCall(call) {
+  return call?.organization?.apiSettings || null;
+}
+
+function brandForCall(call) {
+  return call?.organization?.companyName || "Direct Optimize";
+}
+
+function openaiKeyForCall(call) {
+  return apiSettingsForCall(call)?.openaiApiKey || process.env.OPENAI_API_KEY;
+}
+
+function telnyxKeyForCall(call) {
+  return apiSettingsForCall(call)?.telnyxApiKey || process.env.TELNYX_API_KEY;
+}
+
 function buildInstructions(call) {
   const lead = call.lead;
+  const brandName = brandForCall(call);
+  const callerName = process.env.AI_CALLER_NAME || "Trevor";
   const contactName = lead?.decisionMakerName || lead?.managerName || lead?.ownerName || "the owner or manager";
   const finding = lead?.researchNote || lead?.notes || "a few quick improvement points around Google visibility and website conversion";
   return [
-    "You are Trevor, a polite appointment coordinator for Direct Optimize.",
+    `You are ${callerName}, a polite appointment coordinator for ${brandName}.`,
     "Your tone is friendly, light, confident, and conversational. Smile while speaking. Do not sound like a system voice.",
     "You are not a salesperson. You are asking for a tiny bit of help so you can confirm whether the business owner wants a short free online-presence audit.",
     "Keep this call under ninety seconds unless the person is clearly interested. Speak naturally, warmly, and briefly.",
@@ -53,17 +71,17 @@ function buildInstructions(call) {
     "The opening should feel like a real person asking for quick help, not like a pitch.",
     "Your only goal is to ask permission to send a short audit and, if they are interested, ask whether a developer should follow up.",
     "Do not sell deeply. Do not discuss pricing. Do not answer technical questions.",
-    "If they ask who is speaking, who are you, or say they are only asking who is speaking, answer only: Sorry about that, this is Trevor from Direct Optimize. I was calling about your business listing. Do you have twenty seconds? Then stop and wait.",
+    `If they ask who is speaking, who are you, or say they are only asking who is speaking, answer only: Sorry about that, this is ${callerName} from ${brandName}. I was calling about your business listing. Do you have twenty seconds? Then stop and wait.`,
     "If they ask why you are calling or what the point is, answer naturally: Sure. I was reviewing your business listing and noticed a few quick online visibility points. I just wanted to ask if you would be open to a short audit, no obligation. Then stop and wait.",
-    "If they ask what Direct Optimize does, say: We help businesses improve their website, Google visibility, and lead conversion. For now I am only asking permission to send a quick audit.",
+    `If they ask what ${brandName} does, say: We help businesses improve their website, Google visibility, and lead conversion. For now I am only asking permission to send a quick audit.`,
     "If they ask what kind of audit, answer directly: It is a simple online presence audit. We check the website basics, Google Business Profile visibility, reviews, contact path, and a few conversion points. Then ask: Would you like me to send that over?",
     "If asked technical questions beyond the audit overview, say: That's a good question. A developer from our team can explain the audit properly on a short call.",
-    "If asked for your name, say: My name is Trevor, calling from Direct Optimize.",
+    `If asked for your name, say: My name is ${callerName}, calling from ${brandName}.`,
     "If the person is busy, ask whether email or WhatsApp is better and end politely.",
     "If they say no, no need, or not interested, say: No problem, I understand. We will not bother you further. Have a good day. Then stop.",
     "If they sound confused or the transcript is unclear, say: Sorry, I may have missed that. Are you asking what the audit includes?",
     "If the person speaks Urdu, Hindi, or another language you recognize, respond briefly in that language if you can. Do not keep pushing English channel questions.",
-    "If they ask if this is AI or a bot, be honest: I am an AI assistant helping Direct Optimize with initial appointment calls. A real developer will handle any detailed discussion.",
+    `If they ask if this is AI or a bot, be honest: I am an AI assistant helping ${brandName} with initial appointment calls. A real developer will handle any detailed discussion.`,
     "Never promise rankings, revenue, leads, or guaranteed results.",
     "If interrupted, stop speaking and listen.",
     `Business name: ${lead?.companyName || call.companyName || "the business"}.`,
@@ -72,7 +90,7 @@ function buildInstructions(call) {
     `Known email: ${lead?.email || "not available"}.`,
     `Known phone: ${call.phone}.`,
     `Specific observation to mention in one simple sentence: ${finding}.`,
-    "Opening line must be exactly one short sentence with a question: Hi, this is Trevor from Direct Optimize. Is this the owner or manager? I will be very quick.",
+    `Opening line must be exactly one short sentence with a question: Hi, this is ${callerName} from ${brandName}. Is this the owner or manager? I will be very quick.`,
     "After the opening line, wait. Do not explain the audit until they confirm they can listen or ask what this is about.",
     "If they confirm they can listen, say: Thanks, I appreciate it. I was reviewing your business listing and noticed a couple of small online visibility points. Would it be okay if I send you a short audit? Then stop and wait.",
     "Only after they agree to receive the audit, ask: Would email or WhatsApp be easier?",
@@ -86,11 +104,12 @@ function updateCall(callLogId, data) {
 }
 
 async function hangupCall(call) {
-  if (!call?.providerCallSid || !process.env.TELNYX_API_KEY) return;
+  const telnyxApiKey = telnyxKeyForCall(call);
+  if (!call?.providerCallSid || !telnyxApiKey) return;
   await fetch(`https://api.telnyx.com/v2/calls/${encodeURIComponent(call.providerCallSid)}/actions/hangup`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.TELNYX_API_KEY}`,
+      Authorization: `Bearer ${telnyxApiKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({})
@@ -134,7 +153,8 @@ async function finishAiCall({ call, status, transcriptParts, aiParts, reason }) 
         title: outcome === "Not interested" ? "AI call: not interested" : "AI call needs review",
         message: `${call.lead?.companyName || call.companyName || call.phone}: ${outcome}.`,
         actionUrl: `/leads/${call.leadId}`,
-        leadId: call.leadId
+        leadId: call.leadId,
+        organizationId: call.organizationId
       }
     }).catch(() => undefined);
   }
@@ -276,10 +296,12 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
     if (greetingRequested || !streamId || !openaiReady || openaiWs?.readyState !== WebSocket.OPEN) return;
     greetingRequested = true;
     responseActive = true;
+    const brandName = brandForCall(callRecord);
+    const callerName = process.env.AI_CALLER_NAME || "Trevor";
     openaiWs.send(JSON.stringify({
       type: "response.create",
       response: {
-        instructions: "Say only this exact line, then stop speaking and wait: Hi, this is Trevor from Direct Optimize. Is this the owner or manager? I will be very quick."
+        instructions: `Say only this exact line, then stop speaking and wait: Hi, this is ${callerName} from ${brandName}. Is this the owner or manager? I will be very quick.`
       }
     }));
   };
@@ -314,7 +336,12 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
       });
       callRecord = await prisma.callLog.findUnique({
         where: { id: callLogId },
-        include: { lead: true }
+        include: {
+          lead: true,
+          organization: {
+            include: { apiSettings: true }
+          }
+        }
       });
       if (!callRecord) {
         void finishOnce("failed", "Call log was not found.");
@@ -323,9 +350,15 @@ function setupAiCallStream(telnyxWs, request, callLogId) {
       await updateCall(callLogId, { status: "in-progress", answeredAt: new Date() });
       startSilenceKeepalive();
 
+      const openaiApiKey = openaiKeyForCall(callRecord);
+      if (!openaiApiKey) {
+        void finishOnce("failed", "OpenAI API key is not configured for this workspace.");
+        return;
+      }
+
       openaiWs = new WebSocket(`wss://api.openai.com/v1/realtime?model=${encodeURIComponent(process.env.OPENAI_REALTIME_MODEL || "gpt-realtime-mini")}`, {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+          Authorization: `Bearer ${openaiApiKey}`
         }
       });
 

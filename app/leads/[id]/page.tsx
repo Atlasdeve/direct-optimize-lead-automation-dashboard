@@ -27,6 +27,7 @@ import { getActiveFollowUpReminder } from "@/lib/followUpReminders";
 import { generateLeadCallPitch } from "@/lib/callPitch";
 import { LeadCallPitchPanel } from "@/components/lead/LeadCallPitchPanel";
 import { getLeadLastActivity } from "@/lib/notRespondedLeads";
+import { currentUser } from "@/lib/auth";
 
 function websiteHref(website: string) {
   return /^https?:\/\//i.test(website) ? website : `https://${website}`;
@@ -34,7 +35,8 @@ function websiteHref(website: string) {
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const lead = await getDbLead(id);
+  const user = await currentUser();
+  const lead = await getDbLead(id, user?.organizationId);
 
   if (!lead) {
     return (
@@ -68,11 +70,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const contacts = await getDbLeadContacts(lead.id);
   const emailTracking = await getLeadEmailTracking(lead.id);
   const contactForms = contacts.filter((contact) => contact.type === "contact_form");
+  const organizationId = user?.organizationId;
   const [websiteAudit, gmbAudit, existingProject, followUpReminder] = await Promise.all([
-    getLatestLeadIntelligence(lead.id).then((audit) => audit ?? runLeadIntelligenceAudit(lead.id)),
-    getLatestGmbAudit(lead.id).then((audit) => audit ?? runGmbAudit(lead.id)),
-    getProjectByLeadId(lead.id),
-    getActiveFollowUpReminder({ leadId: lead.id })
+    getLatestLeadIntelligence(lead.id).then((audit) => audit ?? runLeadIntelligenceAudit(lead.id, organizationId)),
+    getLatestGmbAudit(lead.id).then((audit) => audit ?? runGmbAudit(lead.id, organizationId)),
+    getProjectByLeadId(lead.id, organizationId),
+    getActiveFollowUpReminder({ leadId: lead.id, organizationId })
   ]);
   const preview = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit });
   const callPitch = await generateLeadCallPitch(lead, websiteAudit, gmbAudit);

@@ -15,7 +15,9 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const scope = isOperationsRole(user.role) ? { recipientUserId: null } : { recipientUserId: user.id };
+  const scope = isOperationsRole(user.role)
+    ? { recipientUserId: null, ...(user.organizationId ? { organizationId: user.organizationId } : {}) }
+    : { recipientUserId: user.id };
   const body = await request.json().catch(() => ({}));
   if (body.all === true) {
     await prisma.notification.updateMany({ where: { ...scope, read: false }, data: { read: true } });

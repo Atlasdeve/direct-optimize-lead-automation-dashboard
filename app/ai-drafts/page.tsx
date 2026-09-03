@@ -1,7 +1,14 @@
+import { redirect } from "next/navigation";
+import { currentUser } from "@/lib/auth";
 import { listDbAiDrafts } from "@/lib/dbStore";
+import { isOperationsRole } from "@/lib/roles";
 
 export default async function AiDraftsPage() {
-  const drafts = await listDbAiDrafts();
+  const user = await currentUser();
+  if (!user) redirect("/login?next=/ai-drafts");
+  if (!isOperationsRole(user.role)) redirect("/");
+  const organizationId = user.organizationId;
+  const drafts = await listDbAiDrafts(organizationId);
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <h1 className="text-3xl font-semibold text-white">AI reply drafts</h1>

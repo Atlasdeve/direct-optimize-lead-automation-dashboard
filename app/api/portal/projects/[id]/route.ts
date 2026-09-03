@@ -27,7 +27,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         websiteUrl: body.websiteUrl,
         gmbUrl: body.gmbUrl,
         notes: body.notes,
-        estimatedMinutes: body.estimatedMinutes === undefined ? undefined : Number(body.estimatedMinutes)
+        estimatedMinutes: body.estimatedMinutes === undefined ? undefined : Number(body.estimatedMinutes),
+        organizationId: user.role === "super_admin" ? undefined : user.organizationId
       })
     });
   } catch (error) {

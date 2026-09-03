@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
       status: body.status,
       progress: Number(body.progress ?? 5),
       estimatedMinutes: Number(body.estimatedMinutes ?? 0),
-      notes: body.notes
+      notes: body.notes,
+      organizationId: user.organizationId
     });
     return NextResponse.json({ project });
   } catch (error) {

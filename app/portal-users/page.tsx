@@ -8,7 +8,7 @@ export default async function PortalUsersPage() {
   const user = await currentUser();
   if (!user) redirect("/login");
   if (!isOperationsRole(user.role)) redirect("/");
-  const users = await listPortalUsers();
+  const users = await listPortalUsers(undefined, user.role === "super_admin" ? undefined : user.organizationId);
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>

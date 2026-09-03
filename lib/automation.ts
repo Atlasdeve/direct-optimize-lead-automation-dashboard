@@ -1,9 +1,14 @@
 import { completeDbAutomation, createDbDemoLeads, createDbLeadsFromPlaces, discoverEmailForLead } from "@/lib/dbStore";
 import { fetchPlacesLeads } from "@/lib/providers";
 import { qualifyPlaceCandidates } from "@/lib/leadQualification";
+import { withOrganizationProviderEnv } from "@/lib/organizationSettings";
 import type { AutomationResult } from "@/lib/types";
 
-export async function runAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number }): Promise<AutomationResult> {
+export async function runAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number; organizationId?: string | null }): Promise<AutomationResult> {
+  return withOrganizationProviderEnv(options?.organizationId, () => runAutomationWithEnv(region, options));
+}
+
+async function runAutomationWithEnv(region: string, options?: { city?: string; categories?: string[]; maxResults?: number; organizationId?: string | null }): Promise<AutomationResult> {
   const logs: string[] = [];
   let emailsSent = 0;
   let failedCount = 0;
@@ -25,8 +30,8 @@ export async function runAutomation(region: string, options?: { city?: string; c
     }
 
     const newLeads = places.records.length
-      ? await createDbLeadsFromPlaces(region, (qualification?.qualified ?? []).slice(0, places.requestedResults))
-      : await createDbDemoLeads(region);
+      ? await createDbLeadsFromPlaces(region, (qualification?.qualified ?? []).slice(0, places.requestedResults), options?.organizationId)
+      : await createDbDemoLeads(region, options?.organizationId);
     logs.push(`Stored ${newLeads.length} new lead(s) for ${region}.`);
 
     for (const lead of newLeads) {
@@ -51,7 +56,7 @@ export async function runAutomation(region: string, options?: { city?: string; c
       failedCount,
       logs
     };
-    await completeDbAutomation(result);
+    await completeDbAutomation(result, options?.organizationId);
     return result;
   } catch (error) {
     failedCount += 1;
@@ -65,7 +70,7 @@ export async function runAutomation(region: string, options?: { city?: string; c
       failedCount,
       logs
     };
-    await completeDbAutomation(result);
+    await completeDbAutomation(result, options?.organizationId);
     return result;
   }
 }

@@ -9,6 +9,14 @@ export type AuditAttachment = {
   contentType: "application/pdf";
 };
 
+type AuditPdfOptions = {
+  brandName?: string | null;
+};
+
+function pdfBrand(options?: AuditPdfOptions) {
+  return options?.brandName?.trim() || "Direct Optimize";
+}
+
 const page = { width: 595.28, height: 841.89, margin: 42 };
 const colors = {
   ink: "#0f172a",
@@ -28,20 +36,22 @@ const colors = {
   white: "#ffffff"
 };
 
-function pdfBuffer(build: (doc: PDFKit.PDFDocument) => void) {
+function pdfBuffer(build: (doc: PDFKit.PDFDocument) => void, options?: AuditPdfOptions) {
+  const brandName = pdfBrand(options);
   return new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({
       size: "A4",
       margin: page.margin,
       bufferPages: true,
-      info: { Creator: "Direct Optimize Lead Automation" }
+      info: { Creator: `${brandName} Lead Automation` }
     });
     const chunks: Buffer[] = [];
+    (doc as PDFKit.PDFDocument & { _auditBrandName?: string })._auditBrandName = brandName;
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
     doc.on("error", reject);
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     build(doc);
-    drawPageFooters(doc);
+    drawPageFooters(doc, brandName);
     doc.end();
   });
 }
@@ -71,17 +81,17 @@ function scoreBg(score: number) {
 function addPageIfNeeded(doc: PDFKit.PDFDocument, neededHeight = 120) {
   if (doc.y + neededHeight <= page.height - 74) return;
   doc.addPage();
-  drawMiniHeader(doc);
+  drawMiniHeader(doc, (doc as PDFKit.PDFDocument & { _auditBrandName?: string })._auditBrandName);
   doc.y = 92;
 }
 
-function drawPageFooters(doc: PDFKit.PDFDocument) {
+function drawPageFooters(doc: PDFKit.PDFDocument, brandName = "Direct Optimize") {
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i += 1) {
     doc.switchToPage(i);
     doc.moveTo(page.margin, page.height - 52).lineTo(page.width - page.margin, page.height - 52).strokeColor("#e2e8f0").lineWidth(1).stroke();
     doc.fillColor(colors.muted).font("Helvetica").fontSize(8)
-      .text("Prepared by Direct Optimize - Local visibility, website audits, and compliant lead outreach.", page.margin, page.height - 40, {
+      .text(`Prepared by ${brandName} - Local visibility, website audits, and compliant lead outreach.`, page.margin, page.height - 40, {
         width: page.width - page.margin * 2,
         align: "left"
       });
@@ -89,17 +99,17 @@ function drawPageFooters(doc: PDFKit.PDFDocument) {
   }
 }
 
-function drawMiniHeader(doc: PDFKit.PDFDocument) {
+function drawMiniHeader(doc: PDFKit.PDFDocument, brandName = "Direct Optimize") {
   doc.rect(0, 0, page.width, 58).fill(colors.dark);
-  doc.fillColor(colors.sky).font("Helvetica-Bold").fontSize(9).text("DIRECT OPTIMIZE", page.margin, 22, { characterSpacing: 1 });
+  doc.fillColor(colors.sky).font("Helvetica-Bold").fontSize(9).text(brandName.toUpperCase(), page.margin, 22, { characterSpacing: 1 });
   doc.fillColor(colors.white).font("Helvetica-Bold").fontSize(10).text("Audit Report", page.width - 180, 22, { width: 138, align: "right" });
 }
 
-function coverHeader(doc: PDFKit.PDFDocument, title: string, lead: Lead, kicker: string) {
+function coverHeader(doc: PDFKit.PDFDocument, title: string, lead: Lead, kicker: string, brandName = "Direct Optimize") {
   doc.rect(0, 0, page.width, 154).fill(colors.dark);
   doc.circle(page.width - 70, 46, 60).fill("#123a55");
   doc.circle(page.width - 122, 120, 46).fill("#0f3a3d");
-  doc.fillColor(colors.sky).font("Helvetica-Bold").fontSize(10).text("DIRECT OPTIMIZE", page.margin, 32, { characterSpacing: 1.4 });
+  doc.fillColor(colors.sky).font("Helvetica-Bold").fontSize(10).text(brandName.toUpperCase(), page.margin, 32, { characterSpacing: 1.4 });
   doc.fillColor(colors.white).font("Helvetica-Bold").fontSize(title.length > 24 ? 24 : 28).text(title, page.margin, 54, { width: 380, lineGap: 2 });
   const leadY = Math.max(112, doc.y + 4);
   doc.fillColor("#cbd5e1").font("Helvetica").fontSize(11)
@@ -208,9 +218,10 @@ function smallBullets(doc: PDFKit.PDFDocument, title: string, items: string[], f
   });
 }
 
-export async function buildGmbAuditPdf(lead: Lead, audit: GmbAudit): Promise<AuditAttachment> {
+export async function buildGmbAuditPdf(lead: Lead, audit: GmbAudit, options?: AuditPdfOptions): Promise<AuditAttachment> {
+  const brandName = pdfBrand(options);
   const content = await pdfBuffer((doc) => {
-    coverHeader(doc, "Google Business Profile Audit", lead, "A presentable snapshot of profile quality, reputation strength, conversion readiness, and local visibility gaps.");
+    coverHeader(doc, "Google Business Profile Audit", lead, "A presentable snapshot of profile quality, reputation strength, conversion readiness, and local visibility gaps.", brandName);
 
     const overall = audit.overallScore ?? audit.profileCompleteness;
     const rating = audit.rating ? `${audit.rating}/5` : "N/A";
@@ -252,7 +263,7 @@ export async function buildGmbAuditPdf(lead: Lead, audit: GmbAudit): Promise<Aud
     }
 
     if (audit.error) narrativeCard(doc, "Audit Note", audit.error, colors.roseSoft);
-  });
+  }, options);
 
   return {
     filename: `${cleanFilename(lead.company_name)}-gmb-audit.pdf`,
@@ -261,9 +272,10 @@ export async function buildGmbAuditPdf(lead: Lead, audit: GmbAudit): Promise<Aud
   };
 }
 
-export async function buildWebsiteAuditPdf(lead: Lead, audit: LeadIntelligenceAudit): Promise<AuditAttachment> {
+export async function buildWebsiteAuditPdf(lead: Lead, audit: LeadIntelligenceAudit, options?: AuditPdfOptions): Promise<AuditAttachment> {
+  const brandName = pdfBrand(options);
   const content = await pdfBuffer((doc) => {
-    coverHeader(doc, lead.website ? "Website Audit" : "Website Creation Opportunity", lead, "A deep website audit covering search metadata, technical health, local signals, conversion paths, trust, and performance.");
+    coverHeader(doc, lead.website ? "Website Audit" : "Website Creation Opportunity", lead, "A deep website audit covering search metadata, technical health, local signals, conversion paths, trust, and performance.", brandName);
 
     const overall = audit.overallScore ?? audit.roughSpeedScore;
     const cardW = (page.width - page.margin * 2 - 36) / 4;
@@ -337,7 +349,7 @@ export async function buildWebsiteAuditPdf(lead: Lead, audit: LeadIntelligenceAu
       smallBullets(doc, "Pages Scanned", audit.pagesScanned.map((scannedPage) => `${scannedPage.status || "Unknown"} - ${scannedPage.title || "Untitled"} - ${scannedPage.url}`), "Only the homepage was scanned.");
     }
     if (audit.error) narrativeCard(doc, "Audit Note", audit.error, colors.roseSoft);
-  });
+  }, options);
 
   return {
     filename: `${cleanFilename(lead.company_name)}-${lead.website ? "website-audit" : "website-proposal"}.pdf`,

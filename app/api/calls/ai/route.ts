@@ -5,11 +5,8 @@ import { currentUser } from "@/lib/auth";
 import { createAppNotification } from "@/lib/appNotifications";
 import { createCallLog, updateCallLog } from "@/lib/callStore";
 import { getDbLead } from "@/lib/dbStore";
+import { getOrganizationApiConfig } from "@/lib/organizationSettings";
 import { normalizeE164, validE164 } from "@/lib/telnyxCalling";
-
-function connectionId() {
-  return process.env.TELNYX_CALL_CONTROL_CONNECTION_ID || "";
-}
 
 function callbackUrl(request: NextRequest) {
   const base = process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || request.headers.get("origin") || "";
@@ -25,7 +22,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const leadId = typeof body.leadId === "string" ? body.leadId : "";
   if (!leadId) return NextResponse.json({ error: "leadId is required." }, { status: 400 });
-  const lead = await getDbLead(leadId);
+  const lead = await getDbLead(leadId, user.organizationId);
   if (!lead) return NextResponse.json({ error: "Lead not found." }, { status: 404 });
   if (lead.do_not_contact || lead.unsubscribed) {
     return NextResponse.json({ error: "This lead is marked as do-not-contact." }, { status: 400 });
@@ -33,18 +30,31 @@ export async function POST(request: NextRequest) {
 
   const phone = normalizeE164(lead.phone ?? "");
   if (!validE164(phone)) return NextResponse.json({ error: "Lead does not have a valid E.164 phone number." }, { status: 400 });
-  const fromNumber = normalizeE164(process.env.TELNYX_PHONE_NUMBER || "");
+  const settings = user.role === "super_admin" ? null : await getOrganizationApiConfig(user.organizationId);
+  const telnyxPhoneNumber = user.role === "super_admin" ? process.env.TELNYX_PHONE_NUMBER : settings?.telnyxPhoneNumber;
+  const telnyxApiKey = user.role === "super_admin" ? process.env.TELNYX_API_KEY : settings?.telnyxApiKey;
+  const telnyxConnectionId = user.role === "super_admin" ? process.env.TELNYX_CALL_CONTROL_CONNECTION_ID : settings?.telnyxConnectionId;
+  const openaiApiKey = user.role === "super_admin" ? process.env.OPENAI_API_KEY : settings?.openaiApiKey;
+  const aiConfig = {
+    openaiApiKey,
+    telnyxApiKey,
+    telnyxPhoneNumber,
+    telnyxConnectionId,
+    brandName: user.organization?.companyName
+  };
+  const fromNumber = normalizeE164(telnyxPhoneNumber || "");
   if (!validE164(fromNumber)) {
-    return NextResponse.json({ error: "TELNYX_PHONE_NUMBER must be a valid E.164 number, for example +17278004968." }, { status: 503 });
+    return NextResponse.json({ error: "Tenant Telnyx phone number must be configured as a valid E.164 number, for example +17278004968." }, { status: 503 });
   }
-  if (!aiAppointmentCallingConfigured(request.headers.get("origin"))) {
+  if (!openaiApiKey || !telnyxApiKey || !telnyxConnectionId || !telnyxPhoneNumber || !aiAppointmentCallingConfigured(request.headers.get("origin"), aiConfig)) {
     return NextResponse.json({
-      error: "AI calling is not configured. Add OPENAI_API_KEY, TELNYX_CALL_CONTROL_CONNECTION_ID, TELNYX_PHONE_NUMBER, APP_PUBLIC_URL, and AI_CALL_STREAM_SECRET. TELNYX_CALL_CONTROL_CONNECTION_ID must be a Call Control App ID, not the SIP/WebRTC connection ID."
+      error: "AI calling is not configured for this client workspace. Add OpenAI API key, Telnyx API key, Telnyx Call Control App ID, Telnyx phone number, APP_PUBLIC_URL, and AI_CALL_STREAM_SECRET."
     }, { status: 503 });
   }
 
   const call = await createCallLog({
     leadId,
+    organizationId: user.organizationId,
     userId: user.id,
     contactName: lead.decision_maker_name || lead.manager_name || lead.owner_name || undefined,
     companyName: lead.company_name,
@@ -60,12 +70,12 @@ export async function POST(request: NextRequest) {
     const response = await fetch("https://api.telnyx.com/v2/calls", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.TELNYX_API_KEY}`,
+        Authorization: `Bearer ${telnyxApiKey}`,
         "Content-Type": "application/json",
         Accept: "application/json"
       },
       body: JSON.stringify({
-        connection_id: connectionId(),
+        connection_id: telnyxConnectionId,
         to: phone,
         from: fromNumber,
         timeout_secs: 30,
@@ -95,6 +105,7 @@ export async function POST(request: NextRequest) {
       notes: `AI appointment setter call started. Max duration: ${aiCallMaxDurationSeconds()} seconds.`
     });
     await createAppNotification({
+      organizationId: user.organizationId,
       type: "ai_call_started",
       title: "AI call started",
       message: `${lead.company_name} is being called by the AI appointment setter.`,

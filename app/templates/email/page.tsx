@@ -1,7 +1,10 @@
 import { emailTemplates } from "@/lib/templates";
+import { currentUser } from "@/lib/auth";
 import Link from "next/link";
 
-export default function EmailTemplatesPage() {
+export default async function EmailTemplatesPage() {
+  const user = await currentUser();
+  const workspaceName = user?.organization?.companyName || "Direct Optimize";
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -14,7 +17,7 @@ export default function EmailTemplatesPage() {
         </Link>
       </div>
       <section className="glass rounded-xl p-5">
-        <div className="text-lg font-semibold text-white">Direct Optimize branded template</div>
+        <div className="text-lg font-semibold text-white">{workspaceName} branded template</div>
         <p className="mt-2 text-sm leading-6 text-slate-400">
           Dark navy dashboard theme, glass-style container, sky accent CTA, plain-text fallback, unsubscribe language, and optional open/click tracking for automated outreach.
         </p>

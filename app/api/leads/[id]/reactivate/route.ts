@@ -10,7 +10,8 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
   }
   const { id } = await params;
   try {
-    return NextResponse.json({ lead: await reactivateNotRespondedLead(id) });
+    const organizationId = user.organizationId;
+    return NextResponse.json({ lead: await reactivateNotRespondedLead(id, organizationId) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Lead could not be reactivated.";
     return NextResponse.json({ error: message }, { status: message === "Lead not found." ? 404 : 400 });

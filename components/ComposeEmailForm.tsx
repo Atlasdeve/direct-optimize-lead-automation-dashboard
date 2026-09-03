@@ -13,7 +13,13 @@ I was reviewing your local online presence and noticed a few quick opportunities
 
 I can send a short audit with the first fixes I would prioritize for your business.`;
 
-export function ComposeEmailForm() {
+export function ComposeEmailForm({
+  brandName = "Direct Optimize",
+  defaultCtas
+}: {
+  brandName?: string;
+  defaultCtas?: Array<{ label: string; url: string; variant?: "primary" | "secondary" }>;
+}) {
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("Quick local visibility wins");
   const [heading, setHeading] = useState("A few local growth opportunities");
@@ -24,11 +30,14 @@ export function ComposeEmailForm() {
   const [status, setStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const previewHtml = useMemo(() => renderBrandedEmailHtml({
+    brandName,
+    companyName: brandName,
     heading,
     body: message,
     ctaLabel,
-    ctaUrl
-  }), [heading, message, ctaLabel, ctaUrl]);
+    ctaUrl,
+    defaultCtas
+  }), [brandName, heading, message, ctaLabel, ctaUrl, defaultCtas]);
 
   async function sendEmail(event: React.FormEvent) {
     event.preventDefault();
@@ -62,7 +71,7 @@ export function ComposeEmailForm() {
       <section className="glass rounded-xl p-5">
         <div className="mb-5">
           <h2 className="font-semibold text-white">Compose message</h2>
-          <p className="mt-1 text-sm text-slate-400">Send a branded Direct Optimize email through your configured Brevo or SMTP sender.</p>
+          <p className="mt-1 text-sm text-slate-400">Send a branded {brandName} email through your configured Brevo or SMTP sender.</p>
         </div>
         <form onSubmit={sendEmail} className="space-y-4">
           <label className="block text-sm text-slate-300">
@@ -93,16 +102,23 @@ export function ComposeEmailForm() {
           </div>
           <div className="rounded-xl border border-line bg-white/5 p-4">
             <div className="text-sm font-semibold text-white">Default tracked buttons</div>
-            <p className="mt-1 text-sm text-slate-400">These buttons are automatically included in every compose email.</p>
+            <p className="mt-1 text-sm text-slate-400">These workspace-branded buttons are automatically included in every compose email.</p>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <a href="https://directoptimize.com" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-300">
-                <LanguageIcon fontSize="small" />
-                Visit Direct Optimize
-              </a>
-              <a href="https://directoptimize.com/client-portal/" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-semibold text-emerald-950 hover:bg-emerald-300">
-                <PersonAddIcon fontSize="small" />
-                Create Your Portal
-              </a>
+              {(defaultCtas ?? [
+                { label: "Visit Direct Optimize", url: "https://directoptimize.com", variant: "primary" as const },
+                { label: "Create Your Portal", url: "https://directoptimize.com/client-portal/", variant: "secondary" as const }
+              ]).map((cta, index) => (
+                <a
+                  key={`${cta.label}-${cta.url}`}
+                  href={cta.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cta.variant === "secondary" ? "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-semibold text-emerald-950 hover:bg-emerald-300" : "inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 hover:bg-sky-300"}
+                >
+                  {index === 0 ? <LanguageIcon fontSize="small" /> : <PersonAddIcon fontSize="small" />}
+                  {cta.label}
+                </a>
+              ))}
             </div>
           </div>
 

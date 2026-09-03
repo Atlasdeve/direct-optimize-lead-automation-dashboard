@@ -3,6 +3,15 @@ import type { Lead } from "@/lib/types";
 
 const defaultMaxDurationSeconds = 90;
 
+type AiAppointmentConfig = {
+  openaiApiKey?: string | null;
+  telnyxApiKey?: string | null;
+  telnyxPhoneNumber?: string | null;
+  telnyxConnectionId?: string | null;
+  brandName?: string | null;
+  callerName?: string | null;
+};
+
 function publicBaseUrl(fallbackOrigin?: string | null) {
   const configured = process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.RAILWAY_PUBLIC_DOMAIN;
   if (configured) return configured.startsWith("http") ? configured.replace(/\/$/, "") : `https://${configured.replace(/\/$/, "")}`;
@@ -14,12 +23,12 @@ function streamSecret() {
   return process.env.AI_CALL_STREAM_SECRET || process.env.NEXTAUTH_SECRET || process.env.LEAD_CAPTURE_API_KEY || "";
 }
 
-export function aiAppointmentCallingConfigured(fallbackOrigin?: string | null) {
+export function aiAppointmentCallingConfigured(fallbackOrigin?: string | null, config?: AiAppointmentConfig | null) {
   return Boolean(
-    process.env.OPENAI_API_KEY &&
-    process.env.TELNYX_API_KEY &&
-    process.env.TELNYX_PHONE_NUMBER &&
-    process.env.TELNYX_CALL_CONTROL_CONNECTION_ID &&
+    (config?.openaiApiKey || process.env.OPENAI_API_KEY) &&
+    (config?.telnyxApiKey || process.env.TELNYX_API_KEY) &&
+    (config?.telnyxPhoneNumber || process.env.TELNYX_PHONE_NUMBER) &&
+    (config?.telnyxConnectionId || process.env.TELNYX_CALL_CONTROL_CONNECTION_ID) &&
     publicBaseUrl(fallbackOrigin) &&
     streamSecret()
   );
@@ -54,11 +63,13 @@ export function aiCallMaxDurationSeconds() {
   return Math.max(30, Math.min(180, Math.round(configured)));
 }
 
-export function aiAppointmentInstructions(lead: Lead, auditPoints: string[]) {
+export function aiAppointmentInstructions(lead: Lead, auditPoints: string[], config?: AiAppointmentConfig | null) {
+  const brandName = config?.brandName?.trim() || "Direct Optimize";
+  const callerName = config?.callerName?.trim() || "Trevor";
   const contactName = lead.decision_maker_name || lead.manager_name || lead.owner_name || "the owner or manager";
   const finding = auditPoints[0] || "a few quick improvement points around Google visibility and website conversion";
   return [
-    "You are Trevor, an appointment coordinator for Direct Optimize.",
+    `You are ${callerName}, an appointment coordinator for ${brandName}.`,
     "Your job is only to run a short, polite appointment-setting call. Do not sell deeply or sound like a cold caller.",
     "Keep the call natural, calm, human, and brief. Speak in short sentences.",
     "If interrupted, stop talking and listen.",

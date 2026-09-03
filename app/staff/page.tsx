@@ -8,7 +8,7 @@ export default async function StaffPage() {
   const user = await currentUser();
   if (!user) redirect("/login");
   if (!isAdminRole(user.role)) redirect("/");
-  const staff = await listStaffAccounts();
+  const staff = await listStaffAccounts(user.role === "super_admin" ? undefined : user.organizationId);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">

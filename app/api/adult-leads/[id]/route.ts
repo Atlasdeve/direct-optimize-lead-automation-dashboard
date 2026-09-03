@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { currentSession } from "@/lib/auth";
+import { currentUser } from "@/lib/auth";
 import { isOperationsRole } from "@/lib/roles";
 import { deleteAdultLead, updateAdultLead } from "@/lib/adultLeadStore";
 
@@ -38,29 +38,31 @@ const updateSchema = z.object({
 }).strict().refine((value) => Object.keys(value).length > 0, "No changes were provided.");
 
 async function requireAdmin() {
-  const session = await currentSession();
-  return isOperationsRole(session?.role);
+  const user = await currentUser();
+  return user && isOperationsRole(user.role) ? user : null;
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await requireAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const user = await requireAdmin();
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const parsed = updateSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message || "Invalid update." }, { status: 400 });
   }
   try {
     const { id } = await params;
-    return NextResponse.json({ lead: await updateAdultLead(id, parsed.data) });
+    return NextResponse.json({ lead: await updateAdultLead(id, { ...parsed.data, organizationId: user.organizationId }) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Lead could not be updated." }, { status: 400 });
   }
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await requireAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const user = await requireAdmin();
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   try {
     const { id } = await params;
-    await deleteAdultLead(id);
+    await deleteAdultLead(id, user.organizationId);
     return NextResponse.json({ deleted: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Lead could not be deleted." }, { status: 400 });

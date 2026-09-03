@@ -3,6 +3,7 @@ import { currentUser } from "@/lib/auth";
 import { aiAppointmentCallingConfigured } from "@/lib/aiAppointmentCall";
 import { callOutcomes, createCallLog, listLeadCallLogs, listStandaloneCallLogs } from "@/lib/callStore";
 import { getDbLead } from "@/lib/dbStore";
+import { getOrganizationApiConfig } from "@/lib/organizationSettings";
 import { integratedCallingAllowed, normalizeE164, telnyxCallingConfigured, validE164 } from "@/lib/telnyxCalling";
 
 function parseFollowUp(value: unknown) {
@@ -15,22 +16,29 @@ export async function GET(request: NextRequest) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const leadId = request.nextUrl.searchParams.get("leadId");
+  const settings = user.role === "super_admin" ? null : await getOrganizationApiConfig(user.organizationId);
+  const telnyxConfig = user.role === "super_admin" ? undefined : {
+    apiKey: settings?.telnyxApiKey,
+    telephonyCredentialId: settings?.telnyxConnectionId,
+    phoneNumber: settings?.telnyxPhoneNumber
+  };
+  const telnyxConfigured = telnyxCallingConfigured(telnyxConfig);
   if (request.nextUrl.searchParams.get("standalone") === "1") {
     return NextResponse.json({
-      calls: await listStandaloneCallLogs(),
+      calls: await listStandaloneCallLogs(user.organizationId),
       callingProvider: "telnyx",
-      providerConfigured: telnyxCallingConfigured(),
+      providerConfigured: telnyxConfigured,
       aiCallingConfigured: aiAppointmentCallingConfigured(request.headers.get("origin")),
       outcomes: callOutcomes
     });
   }
   if (!leadId) return NextResponse.json({ error: "leadId is required" }, { status: 400 });
-  const lead = await getDbLead(leadId);
+  const lead = await getDbLead(leadId, user.organizationId);
   if (!lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   return NextResponse.json({
-    calls: await listLeadCallLogs(leadId),
+    calls: await listLeadCallLogs(leadId, user.organizationId),
     callingProvider: "telnyx",
-    providerConfigured: telnyxCallingConfigured(),
+    providerConfigured: telnyxConfigured,
     aiCallingConfigured: aiAppointmentCallingConfigured(request.headers.get("origin")),
     browserCallingAllowed: integratedCallingAllowed(lead.region),
     callablePhone: normalizeE164(lead.phone ?? ""),
@@ -46,7 +54,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const leadId = typeof body.leadId === "string" ? body.leadId : "";
   const provider = body.provider === "telnyx" ? "telnyx" : "manual";
-  const lead = leadId ? await getDbLead(leadId) : null;
+  const lead = leadId ? await getDbLead(leadId, user.organizationId) : null;
   if (leadId && !lead) return NextResponse.json({ error: "Lead not found" }, { status: 404 });
   const phone = normalizeE164(typeof body.phone === "string" ? body.phone : lead?.phone ?? "");
   if (!validE164(phone)) return NextResponse.json({ error: "A valid E.164 phone number is required." }, { status: 400 });
@@ -55,7 +63,13 @@ export async function POST(request: NextRequest) {
     if (lead && !integratedCallingAllowed(lead.region)) {
       return NextResponse.json({ error: "Integrated calling is limited to USA, Canada, and UK leads." }, { status: 400 });
     }
-    if (!telnyxCallingConfigured()) {
+    const settings = user.role === "super_admin" ? null : await getOrganizationApiConfig(user.organizationId);
+    const telnyxConfig = user.role === "super_admin" ? undefined : {
+      apiKey: settings?.telnyxApiKey,
+      telephonyCredentialId: settings?.telnyxConnectionId,
+      phoneNumber: settings?.telnyxPhoneNumber
+    };
+    if (!telnyxCallingConfigured(telnyxConfig)) {
       return NextResponse.json({ error: "Telnyx calling is not configured yet." }, { status: 503 });
     }
   }
@@ -63,6 +77,7 @@ export async function POST(request: NextRequest) {
   const outcome = typeof body.outcome === "string" && callOutcomes.includes(body.outcome as (typeof callOutcomes)[number]) ? body.outcome : undefined;
   const call = await createCallLog({
     leadId: leadId || null,
+    organizationId: user.organizationId,
     userId: user.id,
     contactName: typeof body.contactName === "string" ? body.contactName.trim().slice(0, 160) : undefined,
     companyName: typeof body.companyName === "string" ? body.companyName.trim().slice(0, 160) : undefined,

@@ -9,7 +9,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
 type Mode = "login" | "register";
 
-export function AuthForm() {
+export function AuthForm({ organizationSlug }: { organizationSlug?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
@@ -32,7 +32,7 @@ export function AuthForm() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
         mode === "login"
-          ? { identifier, password, remember }
+          ? { identifier, password, remember, organizationSlug }
           : { username, email, name, password }
       )
     });
@@ -43,7 +43,8 @@ export function AuthForm() {
       return;
     }
     const next = searchParams.get("next");
-    router.push(next?.startsWith("/") && !next.startsWith("//") ? next : "/");
+    const fallbackPath = organizationSlug ? "/dashboard" : "/";
+    router.push(next?.startsWith("/") && !next.startsWith("//") ? next : fallbackPath);
     router.refresh();
   }
 

@@ -3,6 +3,10 @@ import { businessDiscoveryCategories } from "@/lib/discoveryTargets";
 
 const leadCategoriesKey = "lead_discovery_categories";
 
+function categoryStorageKey(organizationId?: string | null) {
+  return organizationId ? `${leadCategoriesKey}:${organizationId}` : leadCategoriesKey;
+}
+
 export function normalizeLeadCategories(input: unknown) {
   const source = Array.isArray(input)
     ? input
@@ -23,8 +27,8 @@ export function normalizeLeadCategories(input: unknown) {
     .slice(0, 100);
 }
 
-export async function getLeadDiscoveryCategories() {
-  const setting = await prisma.setting.findUnique({ where: { key: leadCategoriesKey } });
+export async function getLeadDiscoveryCategories(organizationId?: string | null) {
+  const setting = await prisma.setting.findUnique({ where: { key: categoryStorageKey(organizationId) } });
   const value = setting?.value && typeof setting.value === "object" && !Array.isArray(setting.value)
     ? setting.value as Record<string, unknown>
     : {};
@@ -32,13 +36,13 @@ export async function getLeadDiscoveryCategories() {
   return categories.length ? categories : businessDiscoveryCategories;
 }
 
-export async function saveLeadDiscoveryCategories(input: unknown) {
+export async function saveLeadDiscoveryCategories(input: unknown, organizationId?: string | null) {
   const categories = normalizeLeadCategories(input);
   if (!categories.length) throw new Error("Add at least one lead-search category.");
   await prisma.setting.upsert({
-    where: { key: leadCategoriesKey },
+    where: { key: categoryStorageKey(organizationId) },
     update: { value: { categories } },
-    create: { key: leadCategoriesKey, value: { categories } }
+    create: { key: categoryStorageKey(organizationId), value: { categories } }
   });
   return categories;
 }

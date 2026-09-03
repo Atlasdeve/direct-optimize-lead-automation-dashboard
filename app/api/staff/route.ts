@@ -6,7 +6,7 @@ import { createStaffAccount, listStaffAccounts, type StaffRole } from "@/lib/sta
 export async function GET() {
   const user = await currentUser();
   if (!user || !isAdminRole(user.role)) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
-  return NextResponse.json({ staff: await listStaffAccounts() });
+  return NextResponse.json({ staff: await listStaffAccounts(user.role === "super_admin" ? undefined : user.organizationId) });
 }
 
 export async function POST(request: NextRequest) {
@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
       username: typeof body.username === "string" ? body.username : "",
       name: typeof body.name === "string" ? body.name : "",
       password: typeof body.password === "string" ? body.password : "",
-      role: role as StaffRole
+      role: role as StaffRole,
+      organizationId: user.organizationId
     });
     return NextResponse.json({ staff });
   } catch (error) {
