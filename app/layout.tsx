@@ -6,17 +6,21 @@ import "./globals.css";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Direct Optimize Lead Automation Dashboard",
-  description: "Compliant lead generation, outreach, and analytics dashboard.",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "Direct Optimize"
-  },
-  icons: { icon: "/app-icon-192.png", apple: "/app-icon-192.png" }
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const user = await currentUser().catch(() => null);
+  const workspaceName = user?.organization?.companyName || "Direct Optimize";
+  return {
+    title: `${workspaceName} Lead Automation Dashboard`,
+    description: "Compliant lead generation, outreach, and analytics dashboard.",
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: workspaceName
+    },
+    icons: { icon: "/app-icon-192.png", apple: "/app-icon-192.png" }
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#071426",
