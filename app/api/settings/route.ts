@@ -21,7 +21,8 @@ export async function PUT(request: Request) {
   const body = await request.json().catch(() => ({}));
   const allowed = [
     "googlePlacesApiKey", "googleSearchApiKey", "googleSearchCx", "brevoApiKey", "brevoSmtpKey",
-    "smtpHost", "smtpUser", "smtpPass", "telnyxApiKey", "telnyxConnectionId", "telnyxPhoneNumber", "openaiApiKey"
+    "smtpHost", "smtpUser", "smtpPass", "telnyxApiKey", "telnyxConnectionId", "telnyxPhoneNumber", "openaiApiKey",
+    "primaryCtaLabel", "primaryCtaUrl", "secondaryCtaLabel", "secondaryCtaUrl"
   ];
   const input: Record<string, unknown> = {};
   for (const key of allowed) {

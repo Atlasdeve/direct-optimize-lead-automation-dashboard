@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { createComposeEmailLog, updateComposeEmailLogResult } from "@/lib/dbStore";
-import { getOrganizationApiConfig } from "@/lib/organizationSettings";
+import { getOrganizationApiConfig, organizationCtas } from "@/lib/organizationSettings";
 import { sendComposedEmail } from "@/lib/providers";
 
 function cleanString(value: unknown) {
@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
   });
 
   const settings = user.role === "super_admin" ? null : await getOrganizationApiConfig(user.organizationId);
+  const defaultCtas = organizationCtas(settings, workspaceDefaultCtas(user));
   const result = await sendComposedEmail({
     to,
     subject,
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
       smtpFrom: settings?.smtpUser,
       smtpFromName: user.organization?.companyName,
       brandName: user.organization?.companyName,
-      defaultCtas: workspaceDefaultCtas(user)
+      defaultCtas
     }
   });
 

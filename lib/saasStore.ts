@@ -202,7 +202,7 @@ export async function updateOrganizationApiSettings(organizationId: string, inpu
     "telnyxConnectionId",
     "telnyxPhoneNumber",
     "openaiApiKey",
-    "leadCaptureApiKey"
+    "leadCaptureApiKey", "primaryCtaLabel", "primaryCtaUrl", "secondaryCtaLabel", "secondaryCtaUrl"
   ] as const;
   const data: Prisma.OrganizationApiSettingUpdateInput = {};
   for (const key of keys) {

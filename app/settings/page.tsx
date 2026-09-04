@@ -3,11 +3,18 @@ import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { currentUser } from "@/lib/auth";
 import { getOrganizationApiConfig } from "@/lib/organizationSettings";
 import { TenantProviderSettingsForm } from "@/components/TenantProviderSettingsForm";
+import { organizationCtas } from "@/lib/organizationSettings";
 
 export default async function SettingsPage() {
   const user = await currentUser();
   const tenantApiSettings = user?.role === "super_admin" ? undefined : await getOrganizationApiConfig(user?.organizationId);
   const settings = providerSettings(tenantApiSettings);
+  const appBaseUrl = (process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  const workspacePortalUrl = user?.organization?.slug ? `${appBaseUrl}/o/${user.organization.slug}/login` : appBaseUrl;
+  const defaultCtas = [
+    { label: `Visit ${user?.organization?.companyName || "our website"}`, url: workspacePortalUrl },
+    { label: "Open your portal", url: workspacePortalUrl }
+  ];
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -45,7 +52,7 @@ export default async function SettingsPage() {
       </section>
       {user?.organizationId && user.role !== "super_admin" && <section className="glass rounded-xl p-5">
         <h2 className="mb-4 font-semibold text-white">Workspace provider settings</h2>
-        <TenantProviderSettingsForm />
+        <TenantProviderSettingsForm initialCtas={organizationCtas(tenantApiSettings ?? null, defaultCtas)} />
       </section>}
       <section className="glass rounded-xl p-5">
         <h2 className="mb-4 font-semibold text-white">Rate limits and compliance</h2>

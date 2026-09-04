@@ -11,7 +11,7 @@ import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntellig
 import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { enrichLeadWithProviders } from "@/lib/leadEnrichment";
 import { hasWhatsappContactSignal } from "@/lib/whatsappIdentification";
-import { getOrganizationApiConfig } from "@/lib/organizationSettings";
+import { getOrganizationApiConfig, organizationCtas } from "@/lib/organizationSettings";
 import { findGoogleBusinessProfileForWebsite, sendEmailFollowUp, sendEmailOutreach, type EmailProviderConfig } from "@/lib/providers";
 import type { AutomationResult, Lead, PlaceLeadCandidate } from "@/lib/types";
 
@@ -47,6 +47,10 @@ async function emailProviderConfigForOrganization(organizationId?: string | null
   ]);
   const brandName = organization?.companyName || "Direct Optimize";
   const portalUrl = organization?.slug ? `${appBaseUrl()}/o/${organization.slug}/login` : appBaseUrl();
+  const portalCtas = [
+    { label: `Visit ${brandName}`, url: portalUrl, variant: "primary" as const },
+    { label: "Open Your Portal", url: portalUrl, variant: "secondary" as const }
+  ];
   return {
     brevoApiKey: settings?.brevoApiKey,
     smtpHost: settings?.smtpHost,
@@ -56,10 +60,7 @@ async function emailProviderConfigForOrganization(organizationId?: string | null
     smtpFrom: settings?.smtpUser,
     smtpFromName: brandName,
     brandName,
-    defaultCtas: [
-      { label: `Visit ${brandName}`, url: portalUrl, variant: "primary" },
-      { label: "Open Your Portal", url: portalUrl, variant: "secondary" }
-    ]
+    defaultCtas: organizationCtas(settings, portalCtas)
   };
 }
 

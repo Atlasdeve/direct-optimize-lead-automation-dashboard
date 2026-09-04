@@ -5,6 +5,7 @@ import { getOutreachAutomationSettings, remainingDailyEmailAllowance } from "@/l
 import { getCityOptionsForRegion } from "@/lib/discoveryTargets";
 import { prisma } from "@/lib/prisma";
 import { buildPersonalizedEmail, sendEmailOutreach } from "@/lib/providers";
+import { getOrganizationApiConfig, organizationCtas } from "@/lib/organizationSettings";
 import type { Lead } from "@/lib/types";
 
 const automationKey = "adult-leads:automation";
@@ -389,7 +390,26 @@ export async function sendApprovedAdultLeadEmails(country: string, limit: number
         }
       }
     });
-    const result = await sendEmailOutreach(lead, { trackingLogId: pendingLog.id });
+    const organization = organizationId ? await prisma.organization.findUnique({ where: { id: organizationId }, select: { companyName: true, slug: true } }) : null;
+    const settings = organizationId ? await getOrganizationApiConfig(organizationId) : null;
+    const portalUrl = organization?.slug ? `${(process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "")}/o/${organization.slug}/login` : "http://localhost:3000";
+    const result = await sendEmailOutreach(lead, {
+      trackingLogId: pendingLog.id,
+      config: organizationId ? {
+        brevoApiKey: settings?.brevoApiKey,
+        smtpHost: settings?.smtpHost,
+        smtpPort: settings?.smtpPort,
+        smtpUser: settings?.smtpUser,
+        smtpPass: settings?.smtpPass,
+        smtpFrom: settings?.smtpUser,
+        smtpFromName: organization?.companyName,
+        brandName: organization?.companyName,
+        defaultCtas: organizationCtas(settings, [
+          { label: `Visit ${organization?.companyName || "our website"}`, url: portalUrl, variant: "primary" },
+          { label: "Open Your Portal", url: portalUrl, variant: "secondary" }
+        ])
+      } : undefined
+    });
 
     await prisma.composeEmailLog.update({
       where: { id: pendingLog.id },

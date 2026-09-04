@@ -1,6 +1,7 @@
 import { ComposeEmailForm } from "@/components/ComposeEmailForm";
 import { currentUser } from "@/lib/auth";
 import { listComposeEmailLogs } from "@/lib/dbStore";
+import { getOrganizationApiConfig, organizationCtas } from "@/lib/organizationSettings";
 
 function appBaseUrl() {
   return (process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -12,7 +13,7 @@ export default async function ComposeEmailPage() {
   const workspaceLoginUrl = user?.organization?.slug
     ? `${appBaseUrl()}/o/${user.organization.slug}/login`
     : "https://directoptimize.com/client-portal/";
-  const defaultCtas = user?.organization?.slug && user.organization.slug !== "direct-optimize"
+  const fallbackCtas = user?.organization?.slug && user.organization.slug !== "direct-optimize"
     ? [
         { label: `Visit ${workspaceName}`, url: workspaceLoginUrl, variant: "primary" as const },
         { label: "Open Your Portal", url: workspaceLoginUrl, variant: "secondary" as const }
@@ -20,7 +21,9 @@ export default async function ComposeEmailPage() {
     : [
         { label: "Visit Direct Optimize", url: "https://directoptimize.com", variant: "primary" as const },
         { label: "Create Your Portal", url: "https://directoptimize.com/client-portal/", variant: "secondary" as const }
-      ];
+    ];
+  const tenantSettings = user?.role === "super_admin" ? null : await getOrganizationApiConfig(user?.organizationId);
+  const defaultCtas = organizationCtas(tenantSettings, fallbackCtas);
   const logs = await listComposeEmailLogs(user?.organizationId);
 
   return (

@@ -7,6 +7,14 @@ export async function getOrganizationApiConfig(organizationId?: string | null) {
   return prisma.organizationApiSetting.findUnique({ where: { organizationId } });
 }
 
+export function organizationCtas(settings: Awaited<ReturnType<typeof getOrganizationApiConfig>>, fallback: Array<{ label: string; url: string; variant?: "primary" | "secondary" }> = []) {
+  const stored = [
+    settings?.primaryCtaLabel && settings.primaryCtaUrl ? { label: settings.primaryCtaLabel, url: settings.primaryCtaUrl, variant: "primary" as const } : null,
+    settings?.secondaryCtaLabel && settings.secondaryCtaUrl ? { label: settings.secondaryCtaLabel, url: settings.secondaryCtaUrl, variant: "secondary" as const } : null
+  ].filter((cta): cta is { label: string; url: string; variant: "primary" | "secondary" } => Boolean(cta));
+  return stored.length === 2 ? stored : fallback;
+}
+
 export function configuredValue(tenantValue?: string | null, envValue?: string) {
   return tenantValue?.trim() || envValue || "";
 }
