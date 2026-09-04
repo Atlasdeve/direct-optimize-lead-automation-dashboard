@@ -58,6 +58,11 @@ function gmbOpportunityReasons(candidate: PlaceLeadCandidate) {
   else if (candidate.reviewCount < 10) reasons.push(`Very low GMB review volume (${candidate.reviewCount})`);
   else if (candidate.reviewCount < 25) reasons.push(`Low GMB review volume (${candidate.reviewCount})`);
   else if (candidate.reviewCount < 50) reasons.push(`Limited GMB review depth (${candidate.reviewCount})`);
+  if (candidate.photoCount === 0) reasons.push("GMB has no profile photos detected");
+  else if (candidate.photoCount != null && candidate.photoCount < 5) reasons.push(`GMB has only ${candidate.photoCount} profile photo${candidate.photoCount === 1 ? "" : "s"}`);
+  if (candidate.hasOpeningHours === false) reasons.push("GMB business hours are missing");
+  if (candidate.hasAddress === false) reasons.push("GMB address details are incomplete");
+  if (candidate.hasCategories === false) reasons.push("GMB categories are missing");
   return reasons;
 }
 
@@ -84,13 +89,15 @@ async function qualifyCandidate(candidate: PlaceLeadCandidate) {
     ...candidateAsLead(candidate),
     missing_seo_metadata: missingSeoMetadata
   });
-  const hasGmbNeed = candidate.rating == null || candidate.rating < 4.3 || candidate.reviewCount == null || candidate.reviewCount < 25;
+  const completenessGaps = [candidate.photoCount === 0, candidate.hasOpeningHours === false, candidate.hasAddress === false, candidate.hasCategories === false].filter(Boolean).length;
+  const hasGmbNeed = candidate.rating == null || candidate.rating < 4.3 || candidate.reviewCount == null || candidate.reviewCount < 25 || completenessGaps > 0;
   const hasMaterialNeed = !candidate.website || missingSeoMetadata || Boolean(audit.error) || hasGmbNeed;
+  const hasStrongProfile = Boolean(candidate.website) && candidate.rating != null && candidate.rating >= 4.3 && candidate.reviewCount != null && candidate.reviewCount >= 250 && completenessGaps === 0 && !missingSeoMetadata && !audit.error;
 
-  if (!hasMaterialNeed || qualificationScore < 28) {
+  if (hasStrongProfile || !hasMaterialNeed || qualificationScore < 28) {
     return {
       qualified: false as const,
-      reasons: reasons.length ? reasons : ["Strong public presence with no material opportunity detected"]
+      reasons: hasStrongProfile ? ["Strong Google profile with 250+ reviews, 4.3+ rating, complete details, and no material website gap"] : reasons.length ? reasons : ["Strong public presence with no material opportunity detected"]
     };
   }
 

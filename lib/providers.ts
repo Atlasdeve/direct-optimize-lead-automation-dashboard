@@ -24,6 +24,8 @@ type GooglePlace = {
   rating?: number;
   userRatingCount?: number;
   businessStatus?: string;
+  photos?: Array<unknown>;
+  regularOpeningHours?: { weekdayDescriptions?: string[] };
   primaryTypeDisplayName?: { text?: string };
   types?: string[];
   addressComponents?: Array<{
@@ -69,6 +71,8 @@ type LegacyDetailsResult = {
   user_ratings_total?: number;
   business_status?: string;
   types?: string[];
+  opening_hours?: { weekday_text?: string[] };
+  photos?: Array<unknown>;
   address_components?: Array<{
     long_name?: string;
     short_name?: string;
@@ -137,7 +141,9 @@ async function searchGooglePlacesText(textQuery: string, pageSize = 5) {
         "places.businessStatus",
         "places.primaryTypeDisplayName",
         "places.types",
-        "places.addressComponents"
+        "places.addressComponents",
+        "places.photos",
+        "places.regularOpeningHours"
       ].join(",")
     },
     body: JSON.stringify({
@@ -305,6 +311,10 @@ async function fetchLegacyPlacesLeads(region: string, config: RegionConfig, maxR
           rating: details.rating ?? item.rating ?? null,
           reviewCount: details.user_ratings_total ?? item.user_ratings_total ?? null,
           businessStatus: details.business_status ?? null,
+          photoCount: details.photos?.length ?? null,
+          hasOpeningHours: Boolean(details.opening_hours?.weekday_text?.length),
+          hasAddress: Boolean(details.formatted_address),
+          hasCategories: Boolean(details.types?.length),
           sourceQuery: textQuery
         });
       } catch (error) {
@@ -365,7 +375,9 @@ export async function fetchPlacesLeads(region: string, options?: { city?: string
           "places.businessStatus",
           "places.primaryTypeDisplayName",
           "places.types",
-          "places.addressComponents"
+          "places.addressComponents",
+          "places.photos",
+          "places.regularOpeningHours"
         ].join(",")
       },
       body: JSON.stringify({
@@ -402,6 +414,10 @@ export async function fetchPlacesLeads(region: string, options?: { city?: string
         rating: place.rating ?? null,
         reviewCount: place.userRatingCount ?? null,
         businessStatus: place.businessStatus ?? null,
+        photoCount: place.photos?.length ?? null,
+        hasOpeningHours: Boolean(place.regularOpeningHours?.weekdayDescriptions?.length),
+        hasAddress: Boolean(place.formattedAddress),
+        hasCategories: Boolean(place.primaryTypeDisplayName?.text || place.types?.length),
         sourceQuery: textQuery
       });
       if (records.size >= candidateLimit) break;

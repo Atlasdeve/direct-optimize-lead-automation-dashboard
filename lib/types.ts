@@ -85,5 +85,9 @@ export type PlaceLeadCandidate = {
   websiteAuditFlags?: string[];
   qualificationReasons?: string[];
   qualificationScore?: number;
+  photoCount?: number | null;
+  hasOpeningHours?: boolean | null;
+  hasAddress?: boolean | null;
+  hasCategories?: boolean | null;
   sourceQuery: string;
 };
