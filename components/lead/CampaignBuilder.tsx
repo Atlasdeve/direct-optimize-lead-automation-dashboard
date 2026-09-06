@@ -9,6 +9,7 @@ import EventRepeatIcon from "@mui/icons-material/EventRepeat";
 import SaveIcon from "@mui/icons-material/Save";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
+import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import { RegionTabs } from "@/components/RegionTabs";
 import { businessDiscoveryCategories, getCityOptionsForRegion, getDailyAutomationTarget } from "@/lib/discoveryTargets";
 import type { AutomationResult, RegionConfig } from "@/lib/types";
@@ -28,6 +29,8 @@ export function CampaignBuilder() {
   const [finalDelay, setFinalDelay] = useState(7);
   const [running, setRunning] = useState<"discover" | "enrich" | "emails" | "send" | null>(null);
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [discoveryEnabled, setDiscoveryEnabled] = useState(true);
+  const [savingDiscovery, setSavingDiscovery] = useState(false);
   const [result, setResult] = useState<string[]>([]);
   const selectedRegion = regionOptions.find((item) => item.name === region);
   const cityOptions = getCityOptionsForRegion(region, selectedRegion?.country);
@@ -42,6 +45,15 @@ export function CampaignBuilder() {
         setFollowUpDelay(data.settings.firstFollowUpDays);
         setFinalDelay(data.settings.finalFollowUpDays);
         setDailyLimit(data.settings.batchSize);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/automation/settings")
+      .then((response) => response.json())
+      .then((data) => {
+        if (typeof data.enabled === "boolean") setDiscoveryEnabled(data.enabled);
       })
       .catch(() => undefined);
   }, []);
@@ -150,6 +162,25 @@ export function CampaignBuilder() {
       setResult([error instanceof Error ? error.message : "Unable to save the automation schedule."]);
     } finally {
       setSavingSchedule(false);
+    }
+  }
+
+  async function toggleDiscovery() {
+    setSavingDiscovery(true);
+    try {
+      const response = await fetch("/api/automation/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !discoveryEnabled })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Lead search setting could not be updated.");
+      setDiscoveryEnabled(data.enabled);
+      setResult([data.enabled ? "Lead search automation resumed. Email sending remains active." : "Lead search automation paused. Approved email sending and follow-ups remain active."]);
+    } catch (error) {
+      setResult([error instanceof Error ? error.message : "Lead search setting could not be updated."]);
+    } finally {
+      setSavingDiscovery(false);
     }
   }
 
@@ -341,6 +372,17 @@ export function CampaignBuilder() {
           Today&apos;s automation target for {region}: {todayTarget.niche} in {todayTarget.city}. The daily worker rotates both niche and city automatically.
         </div>
 
+        <div className="mt-4 flex flex-col gap-3 rounded-lg bg-white/6 p-4 soft-border sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="font-semibold text-white">Lead search automation</div>
+            <p className="mt-1 text-sm text-slate-400">{discoveryEnabled ? "Daily lead discovery is active." : "New lead discovery is paused. Approved email sending and follow-ups continue."}</p>
+          </div>
+          <button type="button" onClick={toggleDiscovery} disabled={savingDiscovery} className={discoveryEnabled ? "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-400/14 px-4 text-sm font-semibold text-rose-100 soft-border hover:bg-rose-400/22 disabled:opacity-60" : "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60"}>
+            {discoveryEnabled ? <PauseCircleOutlineIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
+            {savingDiscovery ? "Saving..." : discoveryEnabled ? "Stop lead search" : "Resume lead search"}
+          </button>
+        </div>
+
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <div className="rounded-lg bg-white/6 p-3 soft-border">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -385,7 +427,7 @@ export function CampaignBuilder() {
         </button>
 
         <div className="mt-5 grid gap-3 md:grid-cols-4">
-          <button onClick={runDiscovery} disabled={Boolean(running)} className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 font-semibold text-slate-950 hover:bg-sky-300 disabled:opacity-60">
+          <button onClick={runDiscovery} disabled={Boolean(running) || !discoveryEnabled} className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 font-semibold text-slate-950 hover:bg-sky-300 disabled:opacity-60">
             <PlayArrowIcon />
             {running === "discover" ? "Running..." : "Find Leads"}
           </button>

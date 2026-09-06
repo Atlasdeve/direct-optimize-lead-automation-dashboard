@@ -9,6 +9,7 @@ import { getDailyAutomationTarget } from "@/lib/discoveryTargets";
 import { runAdultLeadOutreachAutomationCycle, runDueAdultLeadAutomations } from "@/lib/adultLeadAutomation";
 import { sendDueLeadFollowUpReminders } from "@/lib/followUpReminders";
 import { getLeadDiscoveryCategories } from "@/lib/leadCategories";
+import { getLeadDiscoveryAutomationEnabled } from "@/lib/leadDiscoveryAutomation";
 
 startAutomationWorker();
 
@@ -46,6 +47,7 @@ async function runDueDiscoveryAutomations() {
     const tenantUsesOwnPlacesKey = Boolean(organization.apiSettings?.googlePlacesApiKey);
     const canUseGlobalPlacesKey = organization.id === "org_direct_optimize" && Boolean(process.env.GOOGLE_PLACES_API_KEY);
     if (!tenantUsesOwnPlacesKey && !canUseGlobalPlacesKey) continue;
+    if (!(await getLeadDiscoveryAutomationEnabled(organization.id))) continue;
 
     const regions = await listEnabledRegions(organization.id);
     const categories = await getLeadDiscoveryCategories(organization.id);

@@ -18,6 +18,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
+import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import { RegionTabs } from "@/components/RegionTabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getLocalTime, getRegion } from "@/lib/regions";
@@ -157,6 +158,8 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
   const [allLeads, setAllLeads] = useState(() => listLeads());
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [running, setRunning] = useState(false);
+  const [discoveryEnabled, setDiscoveryEnabled] = useState(true);
+  const [savingDiscovery, setSavingDiscovery] = useState(false);
   const [discoveringEmails, setDiscoveringEmails] = useState(false);
   const [enrichingLeads, setEnrichingLeads] = useState(false);
   const [result, setResult] = useState<AutomationResult | null>(null);
@@ -233,6 +236,15 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
   }, [leads, search, statusFilter, contactFilter, scoreFilter]);
 
   useEffect(() => {
+    fetch("/api/automation/settings")
+      .then((response) => response.json())
+      .then((data) => {
+        if (typeof data.enabled === "boolean") setDiscoveryEnabled(data.enabled);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     async function loadRegionData() {
       const [leadData, allLeadData, notificationData, regionData] = await Promise.all([
@@ -245,7 +257,12 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
       setLeads(leadData.leads ?? []);
       setAllLeads(allLeadData.leads ?? []);
       setNotifications(notificationData.notifications ?? []);
-      if (Array.isArray(regionData.regions)) setRegionConfigs(regionData.regions);
+      if (Array.isArray(regionData.regions)) {
+        setRegionConfigs(regionData.regions);
+        if (regionData.regions.length && !regionData.regions.some((item: RegionConfig) => item.name === selectedRegion)) {
+          setSelectedRegion(regionData.regions[0].name);
+        }
+      }
     }
     void loadRegionData();
     const timer = window.setInterval(() => void loadRegionData(), 30000);
@@ -265,6 +282,10 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
   }, []);
 
   async function startAutomation() {
+    if (!discoveryEnabled) {
+      setResult({ region: selectedRegion, status: "failed", leadsFetched: 0, emailsSent: 0, whatsappSent: 0, failedCount: 0, logs: ["Lead search automation is paused. Resume it before finding new leads."] });
+      return;
+    }
     setRunning(true);
     const response = await fetch("/api/automation/start", {
       method: "POST",
@@ -285,6 +306,24 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
     setAllLeads(allLeadData.leads ?? []);
     setNotifications(notificationData.notifications);
     setRunning(false);
+  }
+
+  async function toggleDiscovery() {
+    setSavingDiscovery(true);
+    try {
+      const response = await fetch("/api/automation/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !discoveryEnabled })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Lead search setting could not be updated.");
+      setDiscoveryEnabled(data.enabled);
+    } catch (error) {
+      setResult({ region: selectedRegion, status: "failed", leadsFetched: 0, emailsSent: 0, whatsappSent: 0, failedCount: 1, logs: [error instanceof Error ? error.message : "Lead search setting could not be updated."] });
+    } finally {
+      setSavingDiscovery(false);
+    }
   }
 
   async function discoverEmails() {
@@ -396,16 +435,27 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
           </button>
           <button
             onClick={startAutomation}
-            disabled={running}
+            disabled={running || !discoveryEnabled}
             className="inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-sky-400 px-6 font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-70"
           >
             <PlayArrowIcon />
-            {running ? "Running..." : "Start Automation"}
+            {running ? "Running..." : discoveryEnabled ? "Start Automation" : "Search Paused"}
           </button>
         </div>}
       </header>
 
       <RegionTabs selected={selectedRegion} onSelect={selectRegion} regionOptions={regionConfigs.length ? regionConfigs : undefined} onRegionsChange={setRegionConfigs} />
+
+      {mode !== "overview" && <div className="flex flex-col gap-3 rounded-lg bg-white/6 px-4 py-3 soft-border sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="text-sm font-semibold text-white">Lead search automation: {discoveryEnabled ? "Active" : "Paused"}</div>
+          <div className="text-xs text-slate-400">Pausing discovery does not stop approved email sending or follow-up reminders.</div>
+        </div>
+        <button type="button" onClick={toggleDiscovery} disabled={savingDiscovery} className={discoveryEnabled ? "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-400/14 px-4 text-sm font-semibold text-rose-100 soft-border hover:bg-rose-400/22 disabled:opacity-60" : "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60"}>
+          {discoveryEnabled ? <PauseCircleOutlineIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
+          {savingDiscovery ? "Saving..." : discoveryEnabled ? "Stop lead search" : "Resume lead search"}
+        </button>
+      </div>}
 
       {mode !== "automation" && <section className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
         <div className="glass rounded-xl p-5">

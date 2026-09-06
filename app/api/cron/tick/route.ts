@@ -5,6 +5,7 @@ import { listEnabledRegions } from "@/lib/regionStore";
 import { syncInboxReplies } from "@/lib/replySync";
 import { getDailyAutomationTarget } from "@/lib/discoveryTargets";
 import { getLeadDiscoveryCategories } from "@/lib/leadCategories";
+import { getLeadDiscoveryAutomationEnabled } from "@/lib/leadDiscoveryAutomation";
 
 type SettingValue = {
   lastRunDate?: string;
@@ -65,6 +66,7 @@ async function runDueRegion() {
   for (const organization of organizations) {
     const hasPlacesKey = Boolean(organization.apiSettings?.googlePlacesApiKey) || organization.id === "org_direct_optimize";
     if (!hasPlacesKey) continue;
+    if (!(await getLeadDiscoveryAutomationEnabled(organization.id))) continue;
     const [regions, categories] = await Promise.all([
       listEnabledRegions(organization.id),
       getLeadDiscoveryCategories(organization.id)
