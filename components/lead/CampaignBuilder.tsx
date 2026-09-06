@@ -14,8 +14,8 @@ import { RegionTabs } from "@/components/RegionTabs";
 import { businessDiscoveryCategories, getCityOptionsForRegion, getDailyAutomationTarget } from "@/lib/discoveryTargets";
 import type { AutomationResult, RegionConfig } from "@/lib/types";
 
-export function CampaignBuilder() {
-  const [region, setRegion] = useState("Canada");
+export function CampaignBuilder({ initialRegion = "Canada" }: { initialRegion?: string }) {
+  const [region, setRegion] = useState(initialRegion);
   const [regionOptions, setRegionOptions] = useState<RegionConfig[]>([]);
   const [city, setCity] = useState("Toronto");
   const [customCity, setCustomCity] = useState("");
