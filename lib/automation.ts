@@ -31,7 +31,12 @@ async function runAutomationWithEnv(region: string, options?: { city?: string; c
 
     const newLeads = places.records.length
       ? await createDbLeadsFromPlaces(region, (qualification?.qualified ?? []).slice(0, places.requestedResults), options?.organizationId)
-      : await createDbDemoLeads(region, options?.organizationId);
+      : options?.organizationId
+        ? []
+        : await createDbDemoLeads(region, options?.organizationId);
+    if (!places.records.length && options?.organizationId) {
+      logs.push("No live leads were imported. Check this workspace's Google Places key and API billing/quota before retrying.");
+    }
     logs.push(`Stored ${newLeads.length} new lead(s) for ${region}.`);
 
     for (const lead of newLeads) {

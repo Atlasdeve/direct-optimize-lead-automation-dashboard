@@ -192,6 +192,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
   const [contactFilter, setContactFilter] = useState("all");
   const [scoreFilter, setScoreFilter] = useState("all");
   const region = regionConfigs.find((item) => item.name === selectedRegion) ?? getRegion(selectedRegion);
+  const regionDisplayName = region.label || selectedRegion;
 
   const pageLeads = leads;
   const metrics = useMemo(() => metricCards(pageLeads), [pageLeads]);
@@ -410,8 +411,8 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
         <div className="glass rounded-xl p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-white">{mode === "overview" ? `${selectedRegion} overview` : `${selectedRegion} leads`}</h2>
-              <p className="text-sm text-slate-400">{mode === "overview" ? `Filtered performance for ${selectedRegion}` : `${region.country} local time: ${getLocalTime(region.timezone)}`}</p>
+              <h2 className="text-xl font-semibold text-white">{mode === "overview" ? `${regionDisplayName} overview` : `${regionDisplayName} leads`}</h2>
+              <p className="text-sm text-slate-400">{mode === "overview" ? `Filtered performance for ${regionDisplayName}` : `${region.country} local time: ${getLocalTime(region.timezone)}`}</p>
             </div>
             <div className="rounded-lg bg-white/7 px-3 py-2 text-sm text-slate-200 soft-border">{region.timezone}</div>
           </div>

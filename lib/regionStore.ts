@@ -54,14 +54,19 @@ export async function ensureDefaultRegions() {
 
 export async function listEnabledRegions(organizationId?: string | null) {
   await ensureDefaultRegions();
+  // Shared default regions belong to the Direct Optimize workspace only. A
+  // tenant must see and schedule only the regions explicitly configured for it.
+  const where = organizationId && organizationId !== "org_direct_optimize"
+    ? { enabled: true, organizationId }
+    : {
+        enabled: true,
+        OR: [
+          { organizationId: null },
+          ...(organizationId ? [{ organizationId }] : [])
+        ]
+      };
   const rows = await prisma.region.findMany({
-    where: {
-      enabled: true,
-      OR: [
-        { organizationId: null },
-        ...(organizationId ? [{ organizationId }] : [])
-      ]
-    },
+    where,
     orderBy: { createdAt: "asc" },
     select: { name: true, country: true, timezone: true }
   });

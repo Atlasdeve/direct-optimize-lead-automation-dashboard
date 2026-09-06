@@ -155,7 +155,12 @@ export function toLead(lead: DbLead): Lead {
 
 export async function listDbLeads(region?: string, organizationId?: string | null) {
   const leads = await prisma.lead.findMany({
-    where: { ...(region ? { region } : {}), ...(organizationId ? { organizationId } : {}), archived: false },
+    where: {
+      ...(region ? { region } : {}),
+      ...(organizationId ? { organizationId } : {}),
+      ...(organizationId && organizationId !== "org_direct_optimize" ? { NOT: { sourcePlatform: "demo_google_places" } } : {}),
+      archived: false
+    },
     include: {
       contacts: {
         where: { type: "contact_form" },
@@ -184,6 +189,7 @@ export async function listReviewQueue(queue: ReviewQueueKey = "needs_review", re
   const where: Prisma.LeadWhereInput = {
     ...(region ? { region } : {}),
     ...(organizationId ? { organizationId } : {}),
+    ...(organizationId && organizationId !== "org_direct_optimize" ? { NOT: { sourcePlatform: "demo_google_places" } } : {}),
     archived: false
   };
 
