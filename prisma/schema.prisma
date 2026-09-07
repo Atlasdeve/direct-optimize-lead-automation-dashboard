@@ -20,6 +20,7 @@ model Organization {
   monthlyPriceCents Int       @default(9900) @map("monthly_price_cents")
   setupFeeCents     Int       @default(25000) @map("setup_fee_cents")
   systemStatus      String    @default("active") @map("system_status")
+  strictLeadQualification Boolean @default(false) @map("strict_lead_qualification")
   customDomain      String?   @unique @map("custom_domain")
   subdomain         String?   @unique
   trialEndsAt       DateTime? @map("trial_ends_at")

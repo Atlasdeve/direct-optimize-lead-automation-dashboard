@@ -50,7 +50,7 @@ function maskSecret(value?: string | null) {
 export async function ensureDefaultOrganization() {
   return prisma.organization.upsert({
     where: { slug: "direct-optimize" },
-    update: {},
+    update: { strictLeadQualification: true },
     create: {
       id: defaultOrganizationId,
       name: "Direct Optimize",
@@ -101,7 +101,8 @@ export async function listOrganizations() {
     setupFeeStatus: organization.setupFeeStatus,
     monthlyPriceCents: organization.monthlyPriceCents,
     setupFeeCents: organization.setupFeeCents,
-    systemStatus: organization.systemStatus,
+      systemStatus: organization.systemStatus,
+    strictLeadQualification: organization.strictLeadQualification,
     customDomain: organization.customDomain,
     subdomain: organization.subdomain,
     trialEndsAt: organization.trialEndsAt?.toISOString() ?? null,
@@ -138,6 +139,7 @@ export async function createOrganization(input: {
   subdomain?: unknown;
   logoUrl?: unknown;
   brandColor?: unknown;
+  strictLeadQualification?: unknown;
 }) {
   const name = typeof input.name === "string" ? input.name.trim().slice(0, 160) : "";
   if (!name) throw new Error("Client/company name is required.");
@@ -163,6 +165,7 @@ export async function createOrganization(input: {
       monthlyPriceCents: normalizeMoneyCents(input.monthlyPrice, planDefaults.monthlyPriceCents),
       setupFeeCents: normalizeMoneyCents(input.setupFee, planDefaults.setupFeeCents),
       systemStatus: "active",
+      strictLeadQualification: input.strictLeadQualification === true,
       customDomain,
       subdomain,
       apiSettings: { create: {} }
@@ -180,6 +183,7 @@ export async function updateOrganization(id: string, input: Record<string, unkno
   if (typeof input.billingStatus === "string") data.billingStatus = input.billingStatus;
   if (typeof input.setupFeeStatus === "string") data.setupFeeStatus = input.setupFeeStatus;
   if (typeof input.systemStatus === "string") data.systemStatus = input.systemStatus;
+  if (typeof input.strictLeadQualification === "boolean") data.strictLeadQualification = input.strictLeadQualification;
   if (typeof input.monthlyPrice === "number" || typeof input.monthlyPrice === "string") data.monthlyPriceCents = normalizeMoneyCents(input.monthlyPrice, 0);
   if (typeof input.setupFee === "number" || typeof input.setupFee === "string") data.setupFeeCents = normalizeMoneyCents(input.setupFee, 0);
   if (typeof input.customDomain === "string") data.customDomain = input.customDomain.trim().toLowerCase() || null;

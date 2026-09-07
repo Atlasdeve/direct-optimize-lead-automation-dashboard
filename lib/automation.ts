@@ -3,6 +3,7 @@ import { fetchPlacesLeads } from "@/lib/providers";
 import { qualifyPlaceCandidates } from "@/lib/leadQualification";
 import { withOrganizationProviderEnv } from "@/lib/organizationSettings";
 import { getLeadDiscoveryCategories } from "@/lib/leadCategories";
+import { prisma } from "@/lib/prisma";
 import type { AutomationResult } from "@/lib/types";
 
 export async function runAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number; organizationId?: string | null }): Promise<AutomationResult> {
@@ -37,16 +38,21 @@ async function runAutomationWithEnv(region: string, options?: { city?: string; c
     if (places.warning) logs.push(places.warning);
     logs.push(`Lead discovery source: ${places.provider}.`);
 
-    const qualification = places.records.length ? await qualifyPlaceCandidates(places.records) : null;
+    const strictQualification = options?.organizationId
+      ? (await prisma.organization.findUnique({ where: { id: options.organizationId }, select: { strictLeadQualification: true } }))?.strictLeadQualification ?? false
+      : true;
+    const qualification = strictQualification && places.records.length ? await qualifyPlaceCandidates(places.records) : null;
     if (qualification) {
       logs.push(`Qualified ${qualification.qualified.length} of ${places.records.length} discovered businesses as genuine service opportunities.`);
       if (qualification.rejected.length) {
         logs.push(`Rejected ${qualification.rejected.length} healthy, unreachable, or low-opportunity businesses.`);
       }
+    } else if (places.records.length) {
+      logs.push("Standard lead discovery rules are active for this workspace.");
     }
 
     const newLeads = places.records.length
-      ? await createDbLeadsFromPlaces(region, (qualification?.qualified ?? []).slice(0, places.requestedResults), options?.organizationId)
+      ? await createDbLeadsFromPlaces(region, (qualification?.qualified ?? places.records).slice(0, places.requestedResults), options?.organizationId)
       : options?.organizationId
         ? []
         : await createDbDemoLeads(region, options?.organizationId);

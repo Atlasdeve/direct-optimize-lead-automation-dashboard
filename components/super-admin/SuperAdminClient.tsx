@@ -34,6 +34,7 @@ type Organization = {
   monthlyPriceCents: number;
   setupFeeCents: number;
   systemStatus: string;
+  strictLeadQualification: boolean;
   customDomain: string | null;
   subdomain: string | null;
   trialEndsAt: string | null;
@@ -318,6 +319,17 @@ export function SuperAdminClient({ initialOrganizations, plans }: { initialOrgan
                   >
                     {Object.entries(plans).map(([key, plan]) => <option key={key} value={key}>{plan.label}</option>)}
                   </select>
+                  <button
+                    type="button"
+                    onClick={() => patchOrganization({ id: organization.id, strictLeadQualification: !organization.strictLeadQualification })}
+                    className={clsx(
+                      "inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold soft-border",
+                      organization.strictLeadQualification ? "bg-emerald-400/12 text-emerald-100" : "text-slate-300 hover:bg-white/7"
+                    )}
+                    title="Choose whether this workspace filters for measurable service opportunities"
+                  >
+                    {organization.strictLeadQualification ? "Strict leads: On" : "Strict leads: Off"}
+                  </button>
                   <select
                     value={organization.billingStatus}
                     onChange={(event) => patchOrganization({ id: organization.id, billingStatus: event.target.value })}
