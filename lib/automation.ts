@@ -2,10 +2,26 @@ import { completeDbAutomation, createDbDemoLeads, createDbLeadsFromPlaces, disco
 import { fetchPlacesLeads } from "@/lib/providers";
 import { qualifyPlaceCandidates } from "@/lib/leadQualification";
 import { withOrganizationProviderEnv } from "@/lib/organizationSettings";
+import { getLeadDiscoveryCategories } from "@/lib/leadCategories";
 import type { AutomationResult } from "@/lib/types";
 
 export async function runAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number; organizationId?: string | null }): Promise<AutomationResult> {
-  return withOrganizationProviderEnv(options?.organizationId, () => runAutomationWithEnv(region, options));
+  const effectiveOptions = options?.organizationId
+    ? await resolveTenantDiscoveryOptions(options)
+    : options;
+  return withOrganizationProviderEnv(effectiveOptions?.organizationId, () => runAutomationWithEnv(region, effectiveOptions));
+}
+
+async function resolveTenantDiscoveryOptions(options: { city?: string; categories?: string[]; maxResults?: number; organizationId?: string | null }) {
+  const savedCategories = await getLeadDiscoveryCategories(options.organizationId);
+  const savedByKey = new Map(savedCategories.map((category) => [category.toLowerCase(), category]));
+  const requestedCategories = (options.categories ?? [])
+    .map((category) => savedByKey.get(category.trim().toLowerCase()))
+    .filter((category): category is string => Boolean(category));
+  return {
+    ...options,
+    categories: requestedCategories.length ? requestedCategories : savedCategories
+  };
 }
 
 async function runAutomationWithEnv(region: string, options?: { city?: string; categories?: string[]; maxResults?: number; organizationId?: string | null }): Promise<AutomationResult> {
