@@ -91,13 +91,15 @@ async function qualifyCandidate(candidate: PlaceLeadCandidate) {
   });
   const completenessGaps = [candidate.photoCount === 0, candidate.hasOpeningHours === false, candidate.hasAddress === false, candidate.hasCategories === false].filter(Boolean).length;
   const hasGmbNeed = candidate.rating == null || candidate.rating < 4.3 || candidate.reviewCount == null || candidate.reviewCount < 25 || completenessGaps > 0;
-  const hasMaterialNeed = !candidate.website || missingSeoMetadata || Boolean(audit.error) || hasGmbNeed;
-  const hasStrongProfile = Boolean(candidate.website) && candidate.rating != null && candidate.rating >= 4.3 && candidate.reviewCount != null && candidate.reviewCount >= 250 && completenessGaps === 0 && !missingSeoMetadata && !audit.error;
+  // An unreachable site is not evidence of a service opportunity. Only keep
+  // leads with a measurable website or Google profile gap.
+  const hasMaterialNeed = !candidate.website || missingSeoMetadata || hasGmbNeed;
+  const hasStrongProfile = Boolean(candidate.website) && candidate.rating != null && candidate.rating >= 4.3 && candidate.reviewCount != null && candidate.reviewCount >= 100 && completenessGaps === 0 && !missingSeoMetadata;
 
   if (hasStrongProfile || !hasMaterialNeed || qualificationScore < 28) {
     return {
       qualified: false as const,
-      reasons: hasStrongProfile ? ["Strong Google profile with 250+ reviews, 4.3+ rating, complete details, and no material website gap"] : reasons.length ? reasons : ["Strong public presence with no material opportunity detected"]
+      reasons: hasStrongProfile ? ["Strong Google profile with 100+ reviews, 4.3+ rating, complete details, and no material website gap"] : reasons.length ? reasons : ["Strong public presence with no measurable service opportunity detected"]
     };
   }
 
