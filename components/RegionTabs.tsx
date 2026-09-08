@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { clsx } from "clsx";
 import AddIcon from "@mui/icons-material/Add";
-import { regions } from "@/lib/regions";
 import type { RegionConfig } from "@/lib/types";
 
 const commonTimezones = [
@@ -32,7 +31,7 @@ export function RegionTabs({
   regionOptions?: RegionConfig[];
   onRegionsChange?: (regions: RegionConfig[]) => void;
 }) {
-  const [items, setItems] = useState<RegionConfig[]>(regionOptions ?? regions);
+  const [items, setItems] = useState<RegionConfig[]>(regionOptions ?? []);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", country: "", timezone: "UTC" });
   const [saving, setSaving] = useState(false);
@@ -51,6 +50,9 @@ export function RegionTabs({
         if (!active || !Array.isArray(data.regions)) return;
         setItems(data.regions);
         onRegionsChange?.(data.regions);
+        if (data.regions.length && !data.regions.some((region: RegionConfig) => region.name === selected)) {
+          onSelect(data.regions[0].name);
+        }
       })
       .catch(() => undefined);
     return () => {
