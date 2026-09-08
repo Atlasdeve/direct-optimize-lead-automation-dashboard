@@ -4,6 +4,7 @@ import { qualifyPlaceCandidates } from "@/lib/leadQualification";
 import { withOrganizationProviderEnv } from "@/lib/organizationSettings";
 import { getLeadDiscoveryCategories } from "@/lib/leadCategories";
 import { prisma } from "@/lib/prisma";
+import { defaultOrganizationId } from "@/lib/saasStore";
 import type { AutomationResult } from "@/lib/types";
 
 export async function runAutomation(region: string, options?: { city?: string; categories?: string[]; maxResults?: number; organizationId?: string | null }): Promise<AutomationResult> {
@@ -38,9 +39,9 @@ async function runAutomationWithEnv(region: string, options?: { city?: string; c
     if (places.warning) logs.push(places.warning);
     logs.push(`Lead discovery source: ${places.provider}.`);
 
-    const strictQualification = options?.organizationId
-      ? (await prisma.organization.findUnique({ where: { id: options.organizationId }, select: { strictLeadQualification: true } }))?.strictLeadQualification ?? false
-      : true;
+    const strictQualification = !options?.organizationId || options.organizationId === defaultOrganizationId
+      ? true
+      : (await prisma.organization.findUnique({ where: { id: options.organizationId }, select: { strictLeadQualification: true } }))?.strictLeadQualification ?? false;
     const qualification = strictQualification && places.records.length ? await qualifyPlaceCandidates(places.records) : null;
     if (qualification) {
       logs.push(`Qualified ${qualification.qualified.length} of ${places.records.length} discovered businesses as genuine service opportunities.`);

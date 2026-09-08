@@ -4,7 +4,7 @@ import { callOutcomes, getCallLog, updateCallLog } from "@/lib/callStore";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
-  if (!user || !["admin", "employee"].includes(user.role)) {
+  if (!user || !["super_admin", "admin", "employee"].includes(user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;

@@ -5,7 +5,7 @@ import { createTelnyxAccessToken, telnyxCallingConfigured } from "@/lib/telnyxCa
 
 export async function GET() {
   const user = await currentUser();
-  if (!user || !["admin", "employee"].includes(user.role)) {
+  if (!user || !["super_admin", "admin", "employee"].includes(user.role)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const settings = user.role === "super_admin" ? null : await getOrganizationApiConfig(user.organizationId);
