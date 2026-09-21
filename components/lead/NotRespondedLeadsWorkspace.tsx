@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import CheckBoxIcon from "@mui/icons-material/CheckBox";
+import CheckBoxOutlineBlankIcon from "@mui/icons-material/CheckBoxOutlineBlank";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -24,6 +26,9 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
   const [search, setSearch] = useState("");
   const [region, setRegion] = useState("all");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const regions = useMemo(() => [...new Set(leads.map((lead) => lead.region))].sort(), [leads]);
@@ -37,6 +42,26 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
         .some((value) => value!.toLowerCase().includes(query));
     });
   }, [leads, region, search]);
+  const visibleIds = useMemo(() => filtered.map((lead) => lead.id), [filtered]);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) visibleIds.forEach((id) => next.delete(id));
+      else visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
 
   async function reactivate(lead: NotRespondedLeadRecord) {
     setBusyId(lead.id);
@@ -49,6 +74,11 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
       return;
     }
     setLeads((current) => current.filter((item) => item.id !== lead.id));
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.delete(lead.id);
+      return next;
+    });
     setMessage(`${lead.companyName} was returned to active review. No outreach was sent.`);
   }
 
@@ -63,8 +93,36 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
       return;
     }
     setLeads((current) => current.filter((item) => item.id !== lead.id));
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.delete(lead.id);
+      return next;
+    });
     setConfirmDeleteId(null);
     setMessage(`${lead.companyName} and its history were permanently deleted.`);
+  }
+
+  async function deleteSelectedLeads() {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setBulkDeleting(true);
+    setMessage("");
+    const response = await fetch("/api/leads/bulk-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids })
+    });
+    const data = await response.json().catch(() => ({}));
+    setBulkDeleting(false);
+    if (!response.ok) {
+      setMessage(data.error || "Selected leads could not be deleted.");
+      return;
+    }
+    const deletedIds = new Set<string>(data.deletedIds || ids);
+    setLeads((current) => current.filter((lead) => !deletedIds.has(lead.id)));
+    setSelectedIds(new Set());
+    setConfirmBulkDelete(false);
+    setMessage(`${data.deletedCount ?? deletedIds.size} selected lead${(data.deletedCount ?? deletedIds.size) === 1 ? " was" : "s were"} permanently deleted.`);
   }
 
   return (
@@ -115,10 +173,35 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
         {filtered.length === 0 ? (
           <div className="px-5 py-14 text-center text-sm text-slate-400">No inactive leads match these filters.</div>
         ) : (
-          <div className="divide-y divide-white/10">
+          <div>
+            <div className="flex flex-col gap-3 border-b border-white/10 bg-white/[0.025] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <button type="button" onClick={toggleAllVisible} disabled={bulkDeleting} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-200 disabled:opacity-50">
+                {allVisibleSelected ? <CheckBoxIcon fontSize="small" className="text-sky-300" /> : <CheckBoxOutlineBlankIcon fontSize="small" className="text-slate-500" />}
+                {allVisibleSelected ? "Clear visible selection" : `Select all visible (${visibleIds.length})`}
+              </button>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-400">{selectedIds.size} selected</span>
+                <button type="button" onClick={() => setConfirmBulkDelete(true)} disabled={!selectedIds.size || bulkDeleting} className="inline-flex h-10 items-center gap-2 rounded-lg bg-rose-500 px-4 text-sm font-semibold text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40">
+                  <DeleteForeverIcon fontSize="small" /> Delete selected
+                </button>
+              </div>
+            </div>
+            {confirmBulkDelete && (
+              <div className="flex flex-col gap-3 border-b border-rose-300/20 bg-rose-400/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-rose-100">Permanently delete {selectedIds.size} selected lead{selectedIds.size === 1 ? "" : "s"} and all related history?</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setConfirmBulkDelete(false)} disabled={bulkDeleting} className="h-9 rounded-lg bg-white/6 px-3 text-sm font-semibold text-slate-200 soft-border hover:bg-white/10 disabled:opacity-50">Cancel</button>
+                  <button type="button" onClick={deleteSelectedLeads} disabled={bulkDeleting} className="h-9 rounded-lg bg-rose-500 px-3 text-sm font-semibold text-white hover:bg-rose-400 disabled:opacity-60">{bulkDeleting ? "Deleting..." : "Confirm delete"}</button>
+                </div>
+              </div>
+            )}
+            <div className="divide-y divide-white/10">
             {filtered.map((lead) => (
-              <article key={lead.id} className="px-5 py-5">
-                <div className="grid gap-4 xl:grid-cols-[1.15fr_0.7fr_0.85fr_0.8fr_auto] xl:items-center">
+              <article key={lead.id} className={`px-5 py-5 ${selectedIds.has(lead.id) ? "bg-sky-400/[0.045]" : ""}`}>
+                <div className="grid gap-4 xl:grid-cols-[auto_1.15fr_0.7fr_0.85fr_0.8fr_auto] xl:items-center">
+                  <button type="button" onClick={() => toggleSelected(lead.id)} disabled={bulkDeleting} aria-label={`${selectedIds.has(lead.id) ? "Deselect" : "Select"} ${lead.companyName}`} className="grid h-10 w-10 place-items-center rounded-lg text-slate-500 hover:bg-sky-400/10 hover:text-sky-300 disabled:opacity-50">
+                    {selectedIds.has(lead.id) ? <CheckBoxIcon className="text-sky-300" /> : <CheckBoxOutlineBlankIcon />}
+                  </button>
                   <div className="min-w-0">
                     <div className="truncate font-semibold text-white">{lead.companyName}</div>
                     <div className="mt-1 text-xs text-slate-500">{[lead.city, lead.country, lead.category].filter(Boolean).join(" · ")}</div>
@@ -163,6 +246,7 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
                 )}
               </article>
             ))}
+            </div>
           </div>
         )}
       </section>
