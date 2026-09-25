@@ -19,6 +19,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
 import StarIcon from "@mui/icons-material/Star";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import { RegionTabs } from "@/components/RegionTabs";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -195,6 +196,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
   const [statusFilter, setStatusFilter] = useState("all");
   const [contactFilter, setContactFilter] = useState("all");
   const [scoreFilter, setScoreFilter] = useState("all");
+  const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
   const region = regionConfigs.find((item) => item.name === selectedRegion) ?? getRegion(selectedRegion);
   const regionDisplayName = region.label || selectedRegion;
 
@@ -235,6 +237,20 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
       return true;
     });
   }, [leads, search, statusFilter, contactFilter, scoreFilter]);
+
+  async function deleteLead(lead: Lead) {
+    if (!window.confirm(`Delete ${lead.company_name} and its outreach history? This cannot be undone.`)) return;
+    setDeletingLeadId(lead.id);
+    const response = await fetch(`/api/leads/${encodeURIComponent(lead.id)}`, { method: "DELETE" });
+    const data = await response.json().catch(() => ({}));
+    setDeletingLeadId(null);
+    if (!response.ok) {
+      window.alert(data.error || "Lead could not be deleted.");
+      return;
+    }
+    setLeads((current) => current.filter((item) => item.id !== lead.id));
+    setAllLeads((current) => current.filter((item) => item.id !== lead.id));
+  }
 
   useEffect(() => {
     fetch("/api/automation/settings")
@@ -752,6 +768,16 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
                     <ChannelIconLink href={whatsappHref} label={whatsappHref ? "Open WhatsApp chat" : "WhatsApp unavailable"}>
                       <WhatsAppIcon fontSize="small" />
                     </ChannelIconLink>
+                    <button
+                      type="button"
+                      onClick={() => deleteLead(lead)}
+                      disabled={deletingLeadId === lead.id}
+                      aria-label={`Delete ${lead.company_name}`}
+                      title="Delete lead"
+                      className="grid h-8 w-8 place-items-center rounded-lg bg-rose-400/10 text-rose-200 soft-border transition hover:bg-rose-400/20 disabled:cursor-wait disabled:opacity-50"
+                    >
+                      <DeleteForeverIcon fontSize="small" />
+                    </button>
                   </div>
                 </div>
               );
