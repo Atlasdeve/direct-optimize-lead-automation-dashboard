@@ -18,6 +18,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
+import StarIcon from "@mui/icons-material/Star";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
 import { RegionTabs } from "@/components/RegionTabs";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -655,7 +656,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
               <div>Company</div>
               <div>Contact</div>
               <div>Research note</div>
-              <div>Score</div>
+              <div>Scores</div>
               <div>Status & activity</div>
               <div>Channels</div>
             </div>
@@ -714,11 +715,15 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
                     )}
                   </div>
 
-                  <div>
+                  <div className="space-y-2">
                     <div className="h-2 w-full max-w-28 rounded-full bg-white/10">
                       <div className="h-2 rounded-full bg-sky-300" style={{ width: `${lead.lead_score}%` }} />
                     </div>
-                    <div className="mt-1 text-xs text-slate-400">{lead.lead_score}/100</div>
+                    <div className="text-xs text-slate-400">Lead {lead.lead_score}/100</div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="rounded-md bg-violet-400/10 px-2 py-1 text-violet-200" title="Latest website audit score">Website {lead.website_score != null ? `${lead.website_score}/100` : "—"}</span>
+                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/10 px-2 py-1 text-amber-200" title="Google Business Profile rating"><StarIcon sx={{ fontSize: 13 }} /> {lead.rating != null ? `${lead.rating.toFixed(1)}/5` : "—"}</span>
+                    </div>
                   </div>
 
                   <div>

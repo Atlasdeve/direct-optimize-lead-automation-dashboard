@@ -24,6 +24,7 @@ export type Lead = {
   decision_maker_confidence?: number | null;
   source_platform: string;
   lead_score: number;
+  website_score?: number | null;
   outreach_status: "New" | "Approved" | "Contacted" | "Replied" | "Follow-up" | "Meeting Booked" | "Closed" | "Failed";
   outreach_approved: boolean;
   outreach_approved_at?: string | null;
