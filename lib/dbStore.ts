@@ -103,10 +103,6 @@ export async function saveOutreachAutomationSettings(input: Partial<OutreachAuto
 }
 
 export function toLead(lead: DbLead): Lead {
-  const websiteAudit = lead.outreachLogs?.find((log) => log.action === "lead_intelligence_audit")?.metadata;
-  const websiteScore = websiteAudit && typeof websiteAudit === "object" && !Array.isArray(websiteAudit)
-    ? (typeof websiteAudit.overallScore === "number" ? websiteAudit.overallScore : typeof websiteAudit.roughSpeedScore === "number" ? websiteAudit.roughSpeedScore : null)
-    : null;
   return {
     id: lead.id,
     company_name: lead.companyName,
@@ -131,7 +127,6 @@ export function toLead(lead: DbLead): Lead {
     decision_maker_confidence: lead.decisionMakerConfidence,
     source_platform: lead.sourcePlatform,
     lead_score: lead.leadScore,
-    website_score: websiteScore,
     outreach_status: lead.outreachStatus as Lead["outreach_status"],
     outreach_approved: lead.outreachApproved,
     outreach_approved_at: lead.outreachApprovedAt?.toISOString() ?? null,
@@ -175,12 +170,10 @@ export async function listDbLeads(region?: string, organizationId?: string | nul
         where: {
           OR: [
             { channel: "email", OR: [{ openCount: { gt: 0 } }, { clickCount: { gt: 0 } }] },
-            { action: "lead_intelligence_audit" }
           ]
         },
-        select: { openCount: true, clickCount: true, action: true, metadata: true },
-        orderBy: { createdAt: "desc" },
-        take: 5
+        select: { openCount: true, clickCount: true },
+        take: 1
       },
       callLogs: {
         where: { status: { not: "planned" } },

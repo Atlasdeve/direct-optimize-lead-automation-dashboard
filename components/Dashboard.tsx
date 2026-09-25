@@ -652,11 +652,11 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
             )}
           </div>
           <div className="divide-y divide-line">
-            <div className="hidden grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_72px_150px_minmax(0,0.9fr)] gap-3 bg-white/5 px-5 py-3 text-xs uppercase text-slate-400 xl:grid">
+            <div className="hidden grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_150px_150px_minmax(0,0.9fr)] gap-3 bg-white/5 px-5 py-3 text-xs uppercase text-slate-400 xl:grid">
               <div>Company</div>
               <div>Contact</div>
               <div>Research note</div>
-              <div>Scores</div>
+              <div>GMB rating</div>
               <div>Status & activity</div>
               <div>Channels</div>
             </div>
@@ -668,7 +668,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
               return (
                 <div
                   key={lead.id}
-                  className="grid gap-4 px-5 py-4 text-sm xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_72px_150px_minmax(0,0.9fr)] xl:items-center xl:gap-3"
+                  className="grid gap-4 px-5 py-4 text-sm xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_150px_150px_minmax(0,0.9fr)] xl:items-center xl:gap-3"
                 >
                   <div className="min-w-0">
                     <Link href={`/leads/${lead.id}`} className="block truncate font-medium text-white hover:text-sky-200">
@@ -715,15 +715,12 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="h-2 w-full max-w-28 rounded-full bg-white/10">
-                      <div className="h-2 rounded-full bg-sky-300" style={{ width: `${lead.lead_score}%` }} />
+                  <div>
+                    <div className="inline-flex items-center gap-1 rounded-md bg-amber-400/10 px-2 py-1 text-amber-200" title="Google Business Profile rating">
+                      <StarIcon sx={{ fontSize: 15 }} />
+                      <span>{lead.rating != null ? `${lead.rating.toFixed(1)}/5` : "No rating"}</span>
                     </div>
-                    <div className="text-xs text-slate-400">Lead {lead.lead_score}/100</div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                      <span className="rounded-md bg-violet-400/10 px-2 py-1 text-violet-200" title="Latest website audit score">Website {lead.website_score != null ? `${lead.website_score}/100` : "—"}</span>
-                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-400/10 px-2 py-1 text-amber-200" title="Google Business Profile rating"><StarIcon sx={{ fontSize: 13 }} /> {lead.rating != null ? `${lead.rating.toFixed(1)}/5` : "—"}</span>
-                    </div>
+                    <div className="mt-2 text-xs text-slate-400">{lead.review_count != null ? `${lead.review_count.toLocaleString()} reviews` : "Reviews unavailable"}</div>
                   </div>
 
                   <div>
