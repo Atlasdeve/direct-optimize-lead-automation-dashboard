@@ -77,12 +77,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     getProjectByLeadId(lead.id, organizationId),
     getActiveFollowUpReminder({ leadId: lead.id, organizationId })
   ]);
+  const initialEmailTemplate = initialEmailTemplateForOrganization(organizationId);
   const preview = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit }, {
-    template: initialEmailTemplateForOrganization(organizationId)
+    template: initialEmailTemplate
   });
   const callPitch = await generateLeadCallPitch(lead, websiteAudit, gmbAudit);
   const whatsappNumber = whatsappNumberFromPhone(lead.phone);
   const opportunitySummary = leadOpportunitySummary(lead);
+  const recommendedSequence = opportunitySummary.sequence.map((step) =>
+    initialEmailTemplate === "direct-optimize-14-day" && step.day === "Day 1" && lead.email
+      ? { ...step, action: "Send the complimentary 14-day Google Business Profile offer with the case-study PDF." }
+      : step
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -237,7 +243,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {opportunitySummary.sequence.map((step) => (
+          {recommendedSequence.map((step) => (
             <div key={step.day} className="rounded-lg bg-white/6 p-3 soft-border">
               <div className="text-xs uppercase text-slate-500">{step.day}</div>
               <div className="mt-1 font-semibold text-white">{step.channel}</div>
