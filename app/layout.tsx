@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#071426",
+  themeColor: "#e2eff9",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover"
@@ -36,6 +36,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   ]);
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `try { document.documentElement.dataset.dashboardTheme = localStorage.getItem("direct-optimize-dashboard-theme") === "dark" ? "dark" : "light"; } catch (_) { document.documentElement.dataset.dashboardTheme = "light"; }` }} />
+      </head>
       <body suppressHydrationWarning>
         <PwaRegistration />
         <AppShell

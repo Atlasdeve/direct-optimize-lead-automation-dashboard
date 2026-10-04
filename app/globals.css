@@ -168,6 +168,18 @@ body:has(.apple-dashboard) { background: #e2eff9; }
   object-fit: contain;
 }
 
+.apple-theme-switch {
+  color: #2d526f;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 8px 20px rgba(72, 118, 157, 0.1), inset 0 1px #fff;
+}
+.apple-theme-switch:hover { background: rgba(255, 255, 255, 0.82); }
+.apple-theme-switch:focus-visible { outline: 2px solid #448fcb; outline-offset: 2px; }
+.apple-theme-icon { color: #a97921; background: rgba(255, 210, 126, 0.24); }
+.apple-theme-track { background: #bdd5e8; box-shadow: inset 0 1px 3px rgba(49, 85, 115, 0.16); }
+.apple-theme-thumb { left: 3px; background: #fff; box-shadow: 0 2px 5px rgba(50, 80, 112, 0.3); transition: transform 180ms ease; }
+
 .apple-nav-link:not(.apple-nav-active):hover { background: rgba(255, 255, 255, 0.72); color: #17324b; }
 .apple-nav-active {
   background: linear-gradient(135deg, #3b97da, #64afe4);
@@ -218,4 +230,135 @@ body:has(.apple-dashboard) { background: #e2eff9; }
   .apple-sidebar,
   .apple-mobile-panel,
   .apple-hero { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: #f3f9fd; }
+}
+
+/* Night mode keeps the same layered-glass structure with a deep navy palette. */
+html[data-dashboard-theme="dark"] body:has(.apple-dashboard) { background: #07111e; }
+html[data-dashboard-theme="dark"] .apple-dashboard {
+  color-scheme: dark;
+  color: #edf7ff;
+  background:
+    radial-gradient(circle at 15% 6%, rgba(37, 126, 169, 0.32), transparent 31%),
+    radial-gradient(circle at 86% 77%, rgba(93, 72, 163, 0.24), transparent 35%),
+    linear-gradient(155deg, #081422 0%, #0c1b2d 53%, #090f1d 100%);
+}
+html[data-dashboard-theme="dark"] .apple-dashboard .glass {
+  border-color: rgba(155, 203, 232, 0.22);
+  background: linear-gradient(145deg, rgba(25, 51, 72, 0.78), rgba(12, 29, 50, 0.76));
+  box-shadow: 0 22px 58px rgba(0, 5, 18, 0.34), inset 0 1px rgba(220, 244, 255, 0.1);
+}
+html[data-dashboard-theme="dark"] .apple-dashboard .soft-border,
+html[data-dashboard-theme="dark"] .apple-dashboard .border-line { border-color: rgba(148, 190, 217, 0.2); }
+
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-white"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-slate-100"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-slate-200"] { color: #edf7ff; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-slate-300"] { color: #c3d5e2; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-slate-400"] { color: #9cb4c6; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-slate-500"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-slate-600"] { color: #819db3; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-sky-100"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-sky-200"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-sky-300"] { color: #9ce3f8; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-emerald-100"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-emerald-200"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-emerald-300"] { color: #9ae6ce; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-rose-100"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-rose-200"] { color: #ffc0ce; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-amber-100"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-amber-200"] { color: #f2d391; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-cyan-100"] { color: #a7e6f2; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-lime-100"] { color: #c4e797; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="text-indigo-100"] { color: #c1c8ff; }
+
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-white/5"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-white/6"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-white/7"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-white/8"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-white/9"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-white/10"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-white/12"] {
+  background-color: rgba(205, 234, 255, 0.075);
+  box-shadow: inset 0 1px rgba(240, 250, 255, 0.07);
+}
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-black/20"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-black/25"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-black/15"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-black/10"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-[#071426]"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-[#091629]"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-[#091629]/95"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-[#071426]/98"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-[#0b1d32]"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-slate-950"] { background-color: rgba(5, 17, 34, 0.74); }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-sky-400/10"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-sky-400/12"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-sky-400/15"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-sky-400/18"] { background-color: rgba(82, 181, 228, 0.16); }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-emerald-400/10"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-emerald-400/12"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-emerald-400/14"] { background-color: rgba(71, 192, 155, 0.15); }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-rose-400/10"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-rose-400/12"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-rose-400/14"] { background-color: rgba(222, 94, 134, 0.15); }
+
+html[data-dashboard-theme="dark"] .apple-dashboard input:not([type="checkbox"]):not([type="radio"]),
+html[data-dashboard-theme="dark"] .apple-dashboard select,
+html[data-dashboard-theme="dark"] .apple-dashboard textarea {
+  color: #edf7ff;
+  background-color: rgba(7, 23, 42, 0.74);
+  border-color: rgba(148, 190, 217, 0.23);
+  box-shadow: inset 0 1px rgba(240, 250, 255, 0.05), 0 5px 16px rgba(0, 5, 18, 0.16);
+}
+html[data-dashboard-theme="dark"] .apple-dashboard input::placeholder,
+html[data-dashboard-theme="dark"] .apple-dashboard textarea::placeholder { color: #85a0b5; }
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-rose-500"][class~="text-white"],
+html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-red-500"][class~="text-white"] { color: #fff; }
+
+html[data-dashboard-theme="dark"] .apple-sidebar,
+html[data-dashboard-theme="dark"] .apple-mobile-panel {
+  background: linear-gradient(160deg, rgba(13, 32, 51, 0.91), rgba(11, 25, 45, 0.87) 58%, rgba(24, 24, 53, 0.88));
+  border-color: rgba(153, 202, 231, 0.18);
+  box-shadow: 15px 0 50px rgba(0, 4, 15, 0.27), inset -1px 0 rgba(217, 242, 255, 0.06);
+}
+html[data-dashboard-theme="dark"] .apple-nav-link:not(.apple-nav-active):hover { background: rgba(151, 207, 237, 0.11); color: #f4fbff; }
+html[data-dashboard-theme="dark"] .apple-nav-active {
+  color: #fff;
+  background: linear-gradient(135deg, #2578b7, #3d9bd0);
+  box-shadow: 0 9px 24px rgba(15, 106, 173, 0.26), inset 0 1px rgba(255, 255, 255, 0.2);
+}
+html[data-dashboard-theme="dark"] .apple-status-panel {
+  background: linear-gradient(135deg, rgba(26, 89, 82, 0.45), rgba(22, 56, 76, 0.4));
+  box-shadow: 0 9px 24px rgba(0, 8, 24, 0.17), inset 0 1px rgba(211, 255, 245, 0.1);
+}
+html[data-dashboard-theme="dark"] .apple-mobile-toggle {
+  background: rgba(14, 33, 54, 0.92);
+  border-color: rgba(153, 202, 231, 0.23);
+  box-shadow: 0 9px 24px rgba(0, 4, 15, 0.3);
+}
+html[data-dashboard-theme="dark"] .apple-hero {
+  border-color: rgba(155, 203, 232, 0.24);
+  background: linear-gradient(135deg, rgba(23, 57, 80, 0.79), rgba(14, 37, 59, 0.73) 60%, rgba(35, 31, 69, 0.72));
+  box-shadow: 0 20px 50px rgba(0, 5, 19, 0.28), inset 0 1px rgba(223, 247, 255, 0.11);
+}
+html[data-dashboard-theme="dark"] .apple-metric {
+  background: linear-gradient(145deg, rgba(47, 80, 102, 0.45), rgba(23, 47, 70, 0.49));
+  box-shadow: 0 8px 24px rgba(0, 7, 22, 0.13), inset 0 1px rgba(237, 249, 255, 0.08);
+}
+html[data-dashboard-theme="dark"] .apple-theme-switch {
+  color: #d1e6f4;
+  border-color: rgba(153, 202, 231, 0.24);
+  background: rgba(43, 77, 103, 0.4);
+  box-shadow: 0 8px 20px rgba(0, 4, 18, 0.2), inset 0 1px rgba(225, 248, 255, 0.08);
+}
+html[data-dashboard-theme="dark"] .apple-theme-switch:hover { background: rgba(54, 95, 122, 0.5); }
+html[data-dashboard-theme="dark"] .apple-theme-icon { color: #a9d7ff; background: rgba(96, 160, 228, 0.19); }
+html[data-dashboard-theme="dark"] .apple-theme-track { background: #2879b6; }
+html[data-dashboard-theme="dark"] .apple-theme-thumb { transform: translateX(20px); }
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-dashboard-theme="dark"] .apple-dashboard .glass,
+  html[data-dashboard-theme="dark"] .apple-sidebar,
+  html[data-dashboard-theme="dark"] .apple-mobile-panel,
+  html[data-dashboard-theme="dark"] .apple-hero { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: #10243a; }
 }

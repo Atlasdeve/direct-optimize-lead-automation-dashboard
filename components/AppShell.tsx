@@ -39,6 +39,8 @@ import MarkEmailUnreadIcon from "@mui/icons-material/MarkEmailUnread";
 import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
+import LightModeIcon from "@mui/icons-material/LightMode";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
 import { clsx } from "clsx";
 import { AdminNotificationCenter } from "@/components/AdminNotificationCenter";
 import { PushNotificationControl } from "@/components/PushNotificationControl";
@@ -134,6 +136,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const isClient = userRole === "client";
   const isEmployee = userRole === "employee";
   const isManager = userRole === "manager";
@@ -150,6 +153,10 @@ export function AppShell({
         });
 
   useEffect(() => setMobileOpen(false), [pathname]);
+
+  useEffect(() => {
+    setTheme(document.documentElement.dataset.dashboardTheme === "dark" ? "dark" : "light");
+  }, []);
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -189,6 +196,37 @@ export function AppShell({
     router.refresh();
   }
 
+  function toggleTheme() {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.dataset.dashboardTheme = nextTheme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", nextTheme === "dark" ? "#0a1526" : "#e2eff9");
+    try {
+      localStorage.setItem("direct-optimize-dashboard-theme", nextTheme);
+    } catch {
+      // The switch still works for this page when browser storage is unavailable.
+    }
+  }
+
+  function ThemeSwitch() {
+    return (
+      <button
+        type="button"
+        role="switch"
+        aria-label="Night mode"
+        aria-checked={theme === "dark"}
+        onClick={toggleTheme}
+        className="apple-theme-switch mb-5 flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left"
+      >
+        <span className="apple-theme-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg">
+          {theme === "dark" ? <DarkModeIcon fontSize="small" /> : <LightModeIcon fontSize="small" />}
+        </span>
+        <span className="min-w-0 flex-1 text-sm font-semibold">{theme === "dark" ? "Night mode" : "Light mode"}</span>
+        <span className="apple-theme-track relative h-6 w-11 shrink-0 rounded-full" aria-hidden="true"><span className="apple-theme-thumb absolute top-[3px] h-[18px] w-[18px] rounded-full" /></span>
+      </button>
+    );
+  }
+
   function NavigationLinks({ onNavigate }: { onNavigate?: () => void }) {
     return navigation.map((item) => {
       const Icon = item.icon;
@@ -226,6 +264,7 @@ export function AppShell({
             <div className="font-semibold leading-tight text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : isManager ? "Manager Workspace" : "Lead Automation"}</div>
           </div>
         </div>
+        <ThemeSwitch />
         <nav className="space-y-2">
           <NavigationLinks />
         </nav>
@@ -275,6 +314,7 @@ export function AppShell({
                 <CloseIcon />
               </button>
             </div>
+            <ThemeSwitch />
             <nav className="space-y-2"><NavigationLinks onNavigate={() => setMobileOpen(false)} /></nav>
             <div className="apple-status-panel mt-6 rounded-xl bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
               {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : "Manage leads, outreach, projects, and delivery from your mobile device."}
