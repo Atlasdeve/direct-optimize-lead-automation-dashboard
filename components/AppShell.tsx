@@ -67,7 +67,7 @@ const nav: NavItem[] = [
   { href: "/automation", label: "Automation", icon: PlayCircleIcon, minPlan: "growth" },
   { href: "/campaigns", label: "Campaigns", icon: CampaignIcon, minPlan: "growth" },
   { href: "/calls", label: "Calls", icon: PhoneInTalkIcon, minPlan: "agency_pro" },
-  { href: "/compose-call", label: "Compose Call", icon: DialpadIcon, minPlan: "agency_pro" },
+  { href: "/compose-call", label: "Compose Call", icon: DialpadIcon, adminOnly: true, minPlan: "agency_pro" },
   { href: "/reports", label: "Reports", icon: AssessmentIcon, minPlan: "agency_pro" },
   { href: "/pipeline", label: "Pipeline", icon: ViewKanbanIcon, minPlan: "growth" },
   { href: "/review", label: "Review Queue", icon: FactCheckIcon },

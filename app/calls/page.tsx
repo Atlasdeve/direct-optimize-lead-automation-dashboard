@@ -5,6 +5,7 @@ import QueryBuilderIcon from "@mui/icons-material/QueryBuilder";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import { currentUser } from "@/lib/auth";
 import { listRecentCallLogs } from "@/lib/callStore";
+import { isOperationsRole } from "@/lib/roles";
 
 function durationLabel(seconds: number) {
   const minutes = Math.floor(seconds / 60);
@@ -13,7 +14,7 @@ function durationLabel(seconds: number) {
 
 export default async function CallsPage() {
   const user = await currentUser();
-  if (!user || !["admin", "employee"].includes(user.role)) redirect("/");
+  if (!user || !isOperationsRole(user.role)) redirect("/");
   const calls = (await listRecentCallLogs(user.organizationId)).filter(Boolean);
   const totalSeconds = calls.reduce((sum, call) => sum + (call?.durationSeconds ?? 0), 0);
   const positive = calls.filter((call) => ["Interested", "Qualified", "Callback"].includes(call?.outcome ?? "")).length;

@@ -16,7 +16,19 @@ function Step({ number, title, detail, href, complete }: { number: string; title
 export default async function OnboardingPage() {
   const user = await currentUser();
   if (!user) redirect("/login?next=/onboarding");
-  if (user.role === "super_admin" || !user.organizationId || !user.organization) redirect("/");
+  if (user.role === "super_admin") {
+    return <div className="mx-auto max-w-4xl space-y-6">
+      <header><p className="text-sm font-semibold text-emerald-300">Platform setup</p><h1 className="mt-2 text-4xl font-semibold text-white">Super Admin setup guide</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Use these checks to prepare the platform and onboard company workspaces. Each company manages its own provider settings and outreach rules.</p></header>
+      <section className="glass rounded-xl p-5"><div className="grid gap-3">
+        <Step number="01" title="Review platform readiness" detail="Check provider readiness and account security before enabling calls or outreach." href="/settings" complete={false} />
+        <Step number="02" title="Onboard company workspaces" detail="Create companies, assign packages, and check each workspace's setup status." href="/super-admin" complete={false} />
+        <Step number="03" title="Review discovery regions" detail="Check the regions and schedules that will be used for lead discovery." href="/campaigns" complete={false} />
+        <Step number="04" title="Review outreach automation" detail="Confirm sending limits, follow-up timing, and compliance controls before outreach runs." href="/automation" complete={false} />
+        <Step number="05" title="Run a controlled test" detail="Review a lead and approve a test message before scaling up." href="/review" complete={false} />
+      </div></section>
+    </div>;
+  }
+  if (!user.organizationId || !user.organization) redirect("/");
   const [api, regions] = await Promise.all([getOrganizationApiConfig(user.organizationId), listEnabledRegions(user.organizationId)]);
   const readiness = providerSettings(api);
   const hasProvider = readiness.providers.googlePlaces || readiness.providers.googleSearch || readiness.providers.email;

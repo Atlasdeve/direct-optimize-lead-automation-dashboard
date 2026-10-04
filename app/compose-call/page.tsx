@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { ComposeCallForm } from "@/components/ComposeCallForm";
 import { currentUser } from "@/lib/auth";
+import { isAdminRole } from "@/lib/roles";
 
 export default async function ComposeCallPage() {
   const user = await currentUser();
-  if (!user || !["admin", "employee"].includes(user.role)) redirect("/");
+  if (!user || !isAdminRole(user.role)) redirect("/");
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
