@@ -157,6 +157,17 @@ body:has(.apple-dashboard) { background: #e2eff9; }
   backdrop-filter: blur(32px) saturate(155%);
 }
 
+.apple-brand-mark {
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: linear-gradient(145deg, #18496d, #0b2a49 58%, #314d82);
+  box-shadow: 0 8px 19px rgba(27, 82, 130, 0.25), inset 0 1px rgba(255, 255, 255, 0.24);
+}
+.apple-brand-image {
+  width: 88px;
+  height: 82px;
+  object-fit: contain;
+}
+
 .apple-nav-link:not(.apple-nav-active):hover { background: rgba(255, 255, 255, 0.72); color: #17324b; }
 .apple-nav-active {
   background: linear-gradient(135deg, #3b97da, #64afe4);

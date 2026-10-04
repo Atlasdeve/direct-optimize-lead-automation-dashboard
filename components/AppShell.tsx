@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -96,6 +97,25 @@ const employeeNav = [
   { href: "/notifications", label: "Notifications", icon: NotificationsIcon }
 ];
 
+function WorkspaceBrandMark({ directOptimize }: { directOptimize: boolean }) {
+  if (!directOptimize) {
+    return <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-400/15 text-sky-200 soft-border"><ShieldIcon /></div>;
+  }
+
+  return (
+    <div className="apple-brand-mark relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl" aria-hidden="true">
+      <Image
+        src="/direct-optimize-logo-transparent.png"
+        alt=""
+        width={88}
+        height={82}
+        className="apple-brand-image absolute left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2"
+        priority
+      />
+    </div>
+  );
+}
+
 export function AppShell({
   children,
   userRole,
@@ -117,6 +137,7 @@ export function AppShell({
   const isClient = userRole === "client";
   const isEmployee = userRole === "employee";
   const isManager = userRole === "manager";
+  const showDirectOptimizeLogo = workspaceSlug === "direct-optimize" || (!workspaceSlug && workspaceName === "Direct Optimize");
   const navigation = isClient
     ? clientNav
     : isEmployee
@@ -199,9 +220,7 @@ export function AppShell({
       {userRole && <AdminNotificationCenter userRole={userRole} />}
       <aside className="apple-sidebar fixed inset-y-0 left-0 hidden w-72 overflow-y-auto border-r border-line bg-black/28 p-5 backdrop-blur-2xl lg:block">
         <div className="mb-8 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-400/15 text-sky-200 soft-border">
-            <ShieldIcon />
-          </div>
+          <WorkspaceBrandMark directOptimize={showDirectOptimizeLogo} />
           <div>
             <div className="text-sm text-slate-400">{workspaceName}</div>
             <div className="font-semibold leading-tight text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : isManager ? "Manager Workspace" : "Lead Automation"}</div>
@@ -246,7 +265,7 @@ export function AppShell({
           >
             <div className="mb-6 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-400/15 text-sky-200 soft-border"><ShieldIcon /></div>
+                <WorkspaceBrandMark directOptimize={showDirectOptimizeLogo} />
                 <div className="min-w-0">
                   <div className="truncate text-sm text-slate-400">{workspaceName}</div>
                   <div className="truncate font-semibold text-white">{isClient ? "Client Progress" : isEmployee ? "Employee Workspace" : isManager ? "Manager Workspace" : "Lead Automation"}</div>
