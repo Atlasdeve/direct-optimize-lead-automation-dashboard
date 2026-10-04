@@ -6,7 +6,7 @@ import { getRegion } from "@/lib/regions";
 import { getSavedRegion } from "@/lib/regionStore";
 import { businessDiscoveryCategories, getDefaultCityForRegion } from "@/lib/discoveryTargets";
 import { buildGmbAuditPdf, buildWebsiteAuditPdf, type AuditAttachment } from "@/lib/auditPdf";
-import { renderBrandedEmailHtml, renderPlainTextEmail } from "@/lib/brandedEmailTemplate";
+import { DIRECT_OPTIMIZE_OFFER, renderBrandedEmailHtml, renderPlainTextEmail } from "@/lib/brandedEmailTemplate";
 import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntelligence";
 import type { Lead, PlaceLeadCandidate, RegionConfig } from "@/lib/types";
@@ -584,7 +584,7 @@ export function buildPersonalizedEmail(
       "",
       `In ${location}, ${lead.company_name} has real potential to attract more local customers. ${profileProof}${photoNote}`,
       "",
-      "We’re offering a complimentary 14-day Google Business Profile optimization. We’ll agree on priorities first and make changes only with your approval.",
+      DIRECT_OPTIMIZE_OFFER,
       websiteNote ? "" : null,
       websiteNote || null,
       "",
@@ -661,6 +661,8 @@ function buildTrackedEmailHtml(
   return renderBrandedEmailHtml({
     heading,
     body,
+    highlightParagraph: template === "direct-optimize-14-day" ? DIRECT_OPTIMIZE_OFFER : undefined,
+    attachmentLabel: template === "direct-optimize-14-day" ? directOptimizeCaseStudyFilename : undefined,
     brandName: config?.brandName || undefined,
     companyName: config?.brandName || undefined,
     ctaLabel: config?.defaultCtas?.[0] || template === "direct-optimize-14-day" ? undefined : "View Direct Optimize",
