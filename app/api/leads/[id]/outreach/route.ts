@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { approveLeadForOutreach, blockLeadFromOutreach, getDbLead, getLatestGmbAudit, getLatestLeadIntelligence, runGmbAudit, runLeadIntelligenceAudit } from "@/lib/dbStore";
-import { buildPersonalizedEmail } from "@/lib/providers";
+import { buildPersonalizedEmail, initialEmailTemplateForOrganization } from "@/lib/providers";
 import { isOperationsRole } from "@/lib/roles";
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,7 +17,9 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     getLatestGmbAudit(id).then((audit) => audit ?? runGmbAudit(id, organizationId))
   ]);
   return NextResponse.json({
-    preview: buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit }),
+    preview: buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit }, {
+      template: initialEmailTemplateForOrganization(organizationId)
+    }),
     lead
   });
 }

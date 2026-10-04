@@ -12,7 +12,7 @@ import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { enrichLeadWithProviders } from "@/lib/leadEnrichment";
 import { hasWhatsappContactSignal } from "@/lib/whatsappIdentification";
 import { getOrganizationApiConfig, organizationCtas } from "@/lib/organizationSettings";
-import { findGoogleBusinessProfileForWebsite, sendEmailFollowUp, sendEmailOutreach, type EmailProviderConfig } from "@/lib/providers";
+import { findGoogleBusinessProfileForWebsite, initialEmailTemplateForOrganization, sendEmailFollowUp, sendEmailOutreach, type EmailProviderConfig } from "@/lib/providers";
 import type { AutomationResult, Lead, PlaceLeadCandidate } from "@/lib/types";
 
 type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
@@ -1175,7 +1175,11 @@ export async function sendTrackedEmailOutreach(lead: Lead, organizationId?: stri
     }
   });
 
-  const result = await sendEmailOutreach(lead, { trackingLogId: pendingLog.id, config });
+  const result = await sendEmailOutreach(lead, {
+    trackingLogId: pendingLog.id,
+    config,
+    initialEmailTemplate: initialEmailTemplateForOrganization(organizationId)
+  });
 
   if (result.sent) {
     const now = new Date();
@@ -1198,7 +1202,7 @@ export async function sendTrackedEmailOutreach(lead: Lead, organizationId?: stri
         metadata: {
           to: lead.email,
           subject: result.message?.subject ?? null,
-          auditAttachments: result.auditAttachments ?? [],
+          emailAttachments: result.emailAttachments ?? [],
           gmbAuditStatus: result.gmbAudit?.error ? "failed" : "completed",
           websiteAuditStatus: result.websiteAudit?.error ? "failed" : "completed",
           trackingEnabled: true,

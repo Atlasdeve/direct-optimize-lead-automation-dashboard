@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import nodemailer from "nodemailer";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { getRegion } from "@/lib/regions";
 import { getSavedRegion } from "@/lib/regionStore";
 import { businessDiscoveryCategories, getDefaultCityForRegion } from "@/lib/discoveryTargets";
@@ -12,6 +14,31 @@ import type { Lead, PlaceLeadCandidate, RegionConfig } from "@/lib/types";
 const placesCategories = businessDiscoveryCategories;
 
 export const defaultPlacesCategories = businessDiscoveryCategories;
+
+export type InitialEmailTemplate = "audit-led" | "direct-optimize-14-day";
+
+export const directOptimizeCaseStudyFilename = "Direct Optimize - GBP Keyword Case Studies.pdf";
+
+const directOptimizeCaseStudyPath = path.join(
+  process.cwd(),
+  "public",
+  "email-assets",
+  "direct-optimize-gbp-keyword-case-studies.pdf"
+);
+
+export function initialEmailTemplateForOrganization(organizationId?: string | null): InitialEmailTemplate {
+  return !organizationId || organizationId === "org_direct_optimize"
+    ? "direct-optimize-14-day"
+    : "audit-led";
+}
+
+async function buildDirectOptimizeCaseStudyAttachment(): Promise<AuditAttachment> {
+  return {
+    filename: directOptimizeCaseStudyFilename,
+    content: await readFile(directOptimizeCaseStudyPath),
+    contentType: "application/pdf"
+  };
+}
 
 type GooglePlace = {
   id?: string;
@@ -529,9 +556,56 @@ export function buildPersonalizedEmail(
   lead: Lead,
   templateCategory = "SEO services",
   audits?: { website?: LeadIntelligenceAudit; gmb?: GmbAudit },
-  options?: { brandName?: string | null }
+  options?: { brandName?: string | null; template?: InitialEmailTemplate }
 ) {
   const brandName = options?.brandName?.trim() || "Direct Optimize";
+  const template = options?.template ?? "audit-led";
+  if (template === "direct-optimize-14-day") {
+    const greetingName = lead.manager_name ?? lead.owner_name ?? lead.decision_maker_name ?? `${lead.company_name} team`;
+    const location = [lead.city, lead.country].filter(Boolean).join(", ") || "your area";
+    const rating = audits?.gmb?.rating ?? lead.rating;
+    const reviewCount = audits?.gmb?.reviewCount ?? lead.review_count;
+    const ratingDisplay = typeof rating === "number" ? Number(rating.toFixed(1)) : null;
+    const profileProof = typeof rating === "number" && typeof reviewCount === "number"
+      ? `Your Google Business Profile currently shows ${ratingDisplay} stars across ${reviewCount} reviews${rating >= 4.5 ? "—a strong foundation" : ""}.`
+      : typeof rating === "number"
+        ? `Your Google Business Profile currently shows a ${ratingDisplay}-star rating.`
+        : "I’d be glad to identify how your profile could better support local enquiries.";
+    const photoNote = audits?.gmb && audits.gmb.photosCount <= 2
+      ? ` Our snapshot surfaced ${audits.gmb.photosCount} profile photos, so adding more project images could help showcase your work.`
+      : "";
+    const websiteOpportunities = audits?.website?.seoFlags.slice(0, 2) ?? [];
+    const websiteNote = websiteOpportunities.length
+      ? `I also spotted a couple of website opportunities: ${websiteOpportunities.join("; ")}.`
+      : "";
+    const subject = `Free 14-day Google Business Profile optimization for ${lead.company_name}`;
+    const body = [
+      `Hi ${greetingName},`,
+      "",
+      `In ${location}, ${lead.company_name} has real potential to attract more local customers. ${profileProof}${photoNote}`,
+      "",
+      "We’re offering a complimentary 14-day Google Business Profile optimization. We’ll agree on priorities first and make changes only with your approval.",
+      websiteNote ? "" : null,
+      websiteNote || null,
+      "",
+      "I’ve attached anonymized examples of our specialists’ previous work; these are not Direct Optimize client case studies.",
+      "",
+      "Reply YES and we’ll send you the brief plan.",
+      "",
+      "Best,",
+      "Direct Optimize LLC",
+      "",
+      "To opt out of future messages, reply with Unsubscribe."
+    ].filter((line): line is string => line !== null).join("\n");
+
+    return {
+      subject,
+      heading: "Free 14-day Google Business Profile optimization",
+      body,
+      attachments: [directOptimizeCaseStudyFilename]
+    };
+  }
+
   const missingWebsite = !lead.website;
   const subject = missingWebsite
     ? `${lead.company_name}: website and local visibility idea`
@@ -552,7 +626,11 @@ export function buildPersonalizedEmail(
     "",
     "To opt out of future messages, reply with Unsubscribe."
   ].join("\n");
-  return { subject, body };
+  const attachments = [
+    ...(audits?.gmb ? ["GMB audit PDF"] : []),
+    ...(audits?.website ? [lead.website ? "Website audit PDF" : "Website creation proposal PDF"] : [])
+  ];
+  return { subject, heading: "Quick local visibility wins", body, attachments };
 }
 
 function appBaseUrl() {
@@ -572,15 +650,21 @@ function publicTrackingBaseUrl() {
   }
 }
 
-function buildTrackedEmailHtml(body: string, logId?: string, config?: EmailProviderConfig | null) {
+function buildTrackedEmailHtml(
+  body: string,
+  logId?: string,
+  config?: EmailProviderConfig | null,
+  template?: InitialEmailTemplate,
+  heading = "Quick local visibility wins"
+) {
   const trackingBaseUrl = publicTrackingBaseUrl();
   return renderBrandedEmailHtml({
-    heading: "Quick local visibility wins",
+    heading,
     body,
     brandName: config?.brandName || undefined,
     companyName: config?.brandName || undefined,
-    ctaLabel: config?.defaultCtas?.[0] ? undefined : "View Direct Optimize",
-    ctaUrl: config?.defaultCtas?.[0] ? undefined : appBaseUrl(),
+    ctaLabel: config?.defaultCtas?.[0] || template === "direct-optimize-14-day" ? undefined : "View Direct Optimize",
+    ctaUrl: config?.defaultCtas?.[0] || template === "direct-optimize-14-day" ? undefined : appBaseUrl(),
     defaultCtas: config?.defaultCtas,
     trackingPixelUrl: logId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/open/${encodeURIComponent(logId)}` : undefined,
     clickTrackingBaseUrl: logId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/click/${encodeURIComponent(logId)}` : undefined
@@ -781,29 +865,35 @@ function createSmtpTransport(config?: EmailProviderConfig | null) {
   });
 }
 
-export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: string; config?: EmailProviderConfig | null }) {
+export async function sendEmailOutreach(lead: Lead, options?: {
+  trackingLogId?: string;
+  config?: EmailProviderConfig | null;
+  initialEmailTemplate?: InitialEmailTemplate;
+}) {
   const config = options?.config;
+  const template = options?.initialEmailTemplate ?? "audit-led";
+  const messageOptions = { brandName: config?.brandName, template };
   if (lead.unsubscribed || !lead.email) {
     return { sent: false, status: "skipped", reason: "Missing email or unsubscribed" };
   }
 
   if (!emailSendingEnabled()) {
-    const message = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName });
+    const message = buildPersonalizedEmail(lead, "SEO services", undefined, messageOptions);
     return { sent: false, status: "skipped", reason: "Live email sending is disabled by OUTREACH_EMAIL_SEND_ENABLED", message };
   }
 
   if (isDemoRecipient(lead.email)) {
-    const message = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName });
+    const message = buildPersonalizedEmail(lead, "SEO services", undefined, messageOptions);
     return { sent: false, status: "skipped", reason: "Demo/reserved recipient domain", message };
   }
 
   if (!brevoConfigured(config) && !smtpConfigured(config) && !process.env.GMAIL_CLIENT_ID) {
-    const message = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName });
+    const message = buildPersonalizedEmail(lead, "SEO services", undefined, messageOptions);
     return { sent: true, status: "simulated", providerId: `demo_email_${lead.id}`, message };
   }
 
   if (!brevoConfigured(config) && !smtpConfigured(config)) {
-    const message = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName });
+    const message = buildPersonalizedEmail(lead, "SEO services", undefined, messageOptions);
     return { sent: false, status: "skipped", reason: "SMTP is not configured; Gmail API sending is not implemented in this cPanel setup", message };
   }
 
@@ -812,17 +902,24 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
       auditLeadWebsite(lead),
       auditGmbProfile(lead)
     ]);
-    const message = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit }, { brandName: config?.brandName });
-    const attachments = await Promise.all([
-      buildGmbAuditPdf(lead, gmbAudit, { brandName: config?.brandName }),
-      buildWebsiteAuditPdf(lead, websiteAudit, { brandName: config?.brandName })
-    ]);
+    const message = buildPersonalizedEmail(
+      lead,
+      "local SEO and website conversion",
+      { website: websiteAudit, gmb: gmbAudit },
+      messageOptions
+    );
+    const attachments = template === "direct-optimize-14-day"
+      ? [await buildDirectOptimizeCaseStudyAttachment()]
+      : await Promise.all([
+          buildGmbAuditPdf(lead, gmbAudit, { brandName: config?.brandName }),
+          buildWebsiteAuditPdf(lead, websiteAudit, { brandName: config?.brandName })
+        ]);
     if (brevoConfigured(config)) {
       const info = await sendViaBrevo({
         to: lead.email,
         subject: message.subject,
         text: message.body,
-        html: buildTrackedEmailHtml(message.body, options?.trackingLogId, config),
+        html: buildTrackedEmailHtml(message.body, options?.trackingLogId, config, template, message.heading),
         attachments,
         tags: ["lead-outreach"]
       }, config);
@@ -832,7 +929,7 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
         provider: "brevo",
         providerId: info.messageId,
         message,
-        auditAttachments: attachments.map((attachment) => attachment.filename),
+        emailAttachments: attachments.map((attachment) => attachment.filename),
         websiteAudit,
         gmbAudit
       };
@@ -843,7 +940,7 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
       to: lead.email,
       subject: message.subject,
       text: message.body,
-      html: buildTrackedEmailHtml(message.body, options?.trackingLogId, config),
+      html: buildTrackedEmailHtml(message.body, options?.trackingLogId, config, template, message.heading),
       attachments,
       headers: {
         "X-Entity-Ref-ID": lead.id,
@@ -857,7 +954,7 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
       provider: "smtp",
       providerId: info.messageId,
       message,
-      auditAttachments: attachments.map((attachment) => attachment.filename),
+      emailAttachments: attachments.map((attachment) => attachment.filename),
       websiteAudit,
       gmbAudit
     };
@@ -866,7 +963,7 @@ export async function sendEmailOutreach(lead: Lead, options?: { trackingLogId?: 
       sent: false,
       status: "failed",
       reason: error instanceof Error ? error.message : "SMTP send failed",
-      message: buildPersonalizedEmail(lead, "SEO services", undefined, { brandName: config?.brandName })
+      message: buildPersonalizedEmail(lead, "SEO services", undefined, messageOptions)
     };
   }
 }

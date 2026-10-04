@@ -10,7 +10,7 @@ export function LeadOutreachControls({
   preview
 }: {
   lead: Lead;
-  preview: { subject: string; body: string };
+  preview: { subject: string; body: string; attachments?: string[] };
 }) {
   const [approved, setApproved] = useState(lead.outreach_approved);
   const [blocked, setBlocked] = useState(lead.do_not_contact || lead.unsubscribed);
@@ -40,8 +40,11 @@ export function LeadOutreachControls({
             {approved ? "Approved for reviewed email outreach." : blocked ? "Lead is blocked from outreach." : "Review the message before approving outreach."}
           </p>
           <p className="mt-1 text-xs text-sky-200">
-            Preview includes current GMB performance, website audit findings, and the PDF audit attachments used during send.
+            This is the current initial-email preview. Attachments are shown below; no email is sent from this preview.
           </p>
+          {preview.attachments?.length ? (
+            <p className="mt-1 text-xs text-slate-400">Attachment: {preview.attachments.join(", ")}</p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button

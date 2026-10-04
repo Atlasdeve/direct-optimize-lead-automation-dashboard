@@ -424,7 +424,7 @@ export async function sendApprovedAdultLeadEmails(country: string, limit: number
           country: row.country,
           category: row.category,
           subject: result.message?.subject ?? preview.subject,
-          auditAttachments: result.auditAttachments ?? [],
+          emailAttachments: result.emailAttachments ?? [],
           trackingEnabled: Boolean(result.sent),
           providerStatus: result.status,
           reason: result.reason ?? null

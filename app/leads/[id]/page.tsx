@@ -13,7 +13,7 @@ import { LeadResearchChecklist } from "@/components/lead/LeadResearchChecklist";
 import { CreateOpportunityPanel } from "@/components/lead/CreateOpportunityPanel";
 import { LeadIntelligencePanel } from "@/components/lead/LeadIntelligencePanel";
 import { GmbAuditPanel } from "@/components/lead/GmbAuditPanel";
-import { buildPersonalizedEmail } from "@/lib/providers";
+import { buildPersonalizedEmail, initialEmailTemplateForOrganization } from "@/lib/providers";
 import { whatsappNumberFromPhone } from "@/lib/whatsappIdentification";
 import { leadOpportunitySummary } from "@/lib/leadStrategy";
 import { CreateProjectFromLeadButton } from "@/components/portal/CreateProjectFromLeadButton";
@@ -77,7 +77,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     getProjectByLeadId(lead.id, organizationId),
     getActiveFollowUpReminder({ leadId: lead.id, organizationId })
   ]);
-  const preview = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit });
+  const preview = buildPersonalizedEmail(lead, "local SEO and website conversion", { website: websiteAudit, gmb: gmbAudit }, {
+    template: initialEmailTemplateForOrganization(organizationId)
+  });
   const callPitch = await generateLeadCallPitch(lead, websiteAudit, gmbAudit);
   const whatsappNumber = whatsappNumberFromPhone(lead.phone);
   const opportunitySummary = leadOpportunitySummary(lead);
