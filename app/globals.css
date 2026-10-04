@@ -150,11 +150,21 @@ body:has(.apple-dashboard) { background: #e2eff9; }
 
 .apple-sidebar,
 .apple-mobile-panel {
-  background: linear-gradient(160deg, rgba(251, 254, 255, 0.83), rgba(234, 246, 253, 0.69) 57%, rgba(240, 236, 252, 0.75));
-  border-color: rgba(255, 255, 255, 0.9);
-  box-shadow: 15px 0 50px rgba(68, 104, 144, 0.12), inset -1px 0 rgba(255, 255, 255, 0.75);
-  -webkit-backdrop-filter: blur(32px) saturate(155%);
-  backdrop-filter: blur(32px) saturate(155%);
+  background:
+    radial-gradient(circle at 12% 3%, rgba(255, 255, 255, 0.96), transparent 34%),
+    radial-gradient(circle at 100% 70%, rgba(193, 222, 249, 0.38), transparent 38%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.73), rgba(232, 245, 253, 0.64) 57%, rgba(239, 235, 252, 0.72));
+  border-color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 65px rgba(54, 92, 133, 0.2), inset 0 1px rgba(255, 255, 255, 0.95), inset 1px 0 rgba(255, 255, 255, 0.62);
+  -webkit-backdrop-filter: blur(36px) saturate(165%);
+  backdrop-filter: blur(36px) saturate(165%);
+  scrollbar-color: rgba(91, 153, 190, 0.38) transparent;
+  scrollbar-width: thin;
+}
+.apple-sidebar-brand {
+  border: 1px solid rgba(255, 255, 255, 0.87);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.63), rgba(231, 244, 253, 0.48));
+  box-shadow: 0 9px 25px rgba(76, 127, 166, 0.1), inset 0 1px #fff;
 }
 
 .apple-brand-mark {
@@ -180,13 +190,33 @@ body:has(.apple-dashboard) { background: #e2eff9; }
 .apple-theme-track { background: #bdd5e8; box-shadow: inset 0 1px 3px rgba(49, 85, 115, 0.16); }
 .apple-theme-thumb { left: 3px; background: #fff; box-shadow: 0 2px 5px rgba(50, 80, 112, 0.3); transition: transform 180ms ease; }
 
-.apple-nav-link:not(.apple-nav-active):hover { background: rgba(255, 255, 255, 0.72); color: #17324b; }
-.apple-nav-active {
-  background: linear-gradient(135deg, #3b97da, #64afe4);
-  color: #fff;
-  box-shadow: 0 9px 24px rgba(62, 139, 199, 0.28), inset 0 1px rgba(255, 255, 255, 0.36);
+.apple-nav-link {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 3px 10px rgba(71, 112, 150, 0.055), inset 0 1px rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
-.apple-nav-active [class~="bg-slate-950/12"] { background: rgba(255, 255, 255, 0.19); }
+.apple-nav-link:not(.apple-nav-active):hover {
+  background: rgba(255, 255, 255, 0.78);
+  color: #17324b;
+  box-shadow: 0 7px 19px rgba(73, 125, 166, 0.13), inset 0 1px #fff;
+  transform: translateX(2px);
+}
+.apple-nav-link:focus-visible { outline: 2px solid #448fcb; outline-offset: 2px; }
+.apple-nav-icon {
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.7), 0 2px 6px rgba(74, 122, 158, 0.08);
+}
+.apple-nav-active {
+  border-color: rgba(255, 255, 255, 0.91);
+  background: linear-gradient(135deg, rgba(119, 196, 239, 0.76), rgba(189, 223, 251, 0.68));
+  color: #153a59;
+  box-shadow: 0 8px 22px rgba(64, 137, 192, 0.19), inset 0 1px rgba(255, 255, 255, 0.88);
+}
+.apple-nav-active .apple-nav-icon { background: rgba(255, 255, 255, 0.48); }
+.apple-sidebar-signout { background: rgba(255, 255, 255, 0.28); box-shadow: inset 0 1px rgba(255, 255, 255, 0.68); }
 .apple-status-panel {
   background: linear-gradient(135deg, rgba(215, 244, 239, 0.86), rgba(245, 252, 255, 0.78));
   box-shadow: 0 9px 24px rgba(76, 135, 153, 0.1), inset 0 1px #fff;
@@ -317,16 +347,42 @@ html[data-dashboard-theme="dark"] .apple-dashboard [class~="bg-red-500"][class~=
 
 html[data-dashboard-theme="dark"] .apple-sidebar,
 html[data-dashboard-theme="dark"] .apple-mobile-panel {
-  background: linear-gradient(160deg, rgba(13, 32, 51, 0.91), rgba(11, 25, 45, 0.87) 58%, rgba(24, 24, 53, 0.88));
-  border-color: rgba(153, 202, 231, 0.18);
-  box-shadow: 15px 0 50px rgba(0, 4, 15, 0.27), inset -1px 0 rgba(217, 242, 255, 0.06);
+  background:
+    radial-gradient(circle at 10% 2%, rgba(83, 140, 180, 0.23), transparent 34%),
+    radial-gradient(circle at 100% 75%, rgba(82, 68, 148, 0.2), transparent 42%),
+    linear-gradient(165deg, rgba(18, 41, 62, 0.85), rgba(10, 26, 46, 0.78) 58%, rgba(27, 27, 58, 0.82));
+  border-color: rgba(174, 216, 239, 0.24);
+  box-shadow: 0 24px 65px rgba(0, 4, 15, 0.34), inset 0 1px rgba(217, 242, 255, 0.13);
+  scrollbar-color: rgba(149, 194, 219, 0.35) transparent;
 }
-html[data-dashboard-theme="dark"] .apple-nav-link:not(.apple-nav-active):hover { background: rgba(151, 207, 237, 0.11); color: #f4fbff; }
+html[data-dashboard-theme="dark"] .apple-sidebar-brand {
+  border-color: rgba(163, 204, 228, 0.18);
+  background: linear-gradient(135deg, rgba(103, 160, 195, 0.13), rgba(37, 71, 101, 0.12));
+  box-shadow: 0 9px 25px rgba(0, 8, 24, 0.15), inset 0 1px rgba(225, 246, 255, 0.07);
+}
+html[data-dashboard-theme="dark"] .apple-nav-link {
+  border-color: rgba(156, 200, 226, 0.14);
+  background: rgba(152, 207, 237, 0.055);
+  box-shadow: 0 3px 10px rgba(0, 5, 18, 0.11), inset 0 1px rgba(228, 247, 255, 0.055);
+}
+html[data-dashboard-theme="dark"] .apple-nav-icon {
+  border-color: rgba(179, 219, 243, 0.12);
+  background: rgba(169, 215, 244, 0.1);
+  box-shadow: inset 0 1px rgba(230, 246, 255, 0.09);
+}
+html[data-dashboard-theme="dark"] .apple-nav-link:not(.apple-nav-active):hover {
+  background: rgba(151, 207, 237, 0.16);
+  color: #f4fbff;
+  box-shadow: 0 7px 19px rgba(0, 7, 22, 0.2), inset 0 1px rgba(228, 247, 255, 0.11);
+}
 html[data-dashboard-theme="dark"] .apple-nav-active {
-  color: #fff;
-  background: linear-gradient(135deg, #2578b7, #3d9bd0);
-  box-shadow: 0 9px 24px rgba(15, 106, 173, 0.26), inset 0 1px rgba(255, 255, 255, 0.2);
+  color: #f4fbff;
+  border-color: rgba(151, 215, 247, 0.38);
+  background: linear-gradient(135deg, rgba(43, 123, 173, 0.69), rgba(56, 137, 181, 0.5));
+  box-shadow: 0 9px 24px rgba(0, 65, 111, 0.24), inset 0 1px rgba(234, 250, 255, 0.2);
 }
+html[data-dashboard-theme="dark"] .apple-nav-active .apple-nav-icon { background: rgba(188, 228, 250, 0.18); }
+html[data-dashboard-theme="dark"] .apple-sidebar-signout { background: rgba(152, 207, 237, 0.055); box-shadow: inset 0 1px rgba(228, 247, 255, 0.055); }
 html[data-dashboard-theme="dark"] .apple-status-panel {
   background: linear-gradient(135deg, rgba(26, 89, 82, 0.45), rgba(22, 56, 76, 0.4));
   box-shadow: 0 9px 24px rgba(0, 8, 24, 0.17), inset 0 1px rgba(211, 255, 245, 0.1);

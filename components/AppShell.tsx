@@ -216,9 +216,9 @@ export function AppShell({
         aria-label="Night mode"
         aria-checked={theme === "dark"}
         onClick={toggleTheme}
-        className="apple-theme-switch mb-5 flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left"
+        className="apple-theme-switch mb-5 flex h-12 w-full items-center gap-3 rounded-full px-2.5 text-left"
       >
-        <span className="apple-theme-icon grid h-8 w-8 shrink-0 place-items-center rounded-lg">
+        <span className="apple-theme-icon grid h-8 w-8 shrink-0 place-items-center rounded-full">
           {theme === "dark" ? <DarkModeIcon fontSize="small" /> : <LightModeIcon fontSize="small" />}
         </span>
         <span className="min-w-0 flex-1 text-sm font-semibold">{theme === "dark" ? "Night mode" : "Light mode"}</span>
@@ -238,13 +238,13 @@ export function AppShell({
           aria-current={active ? "page" : undefined}
           onClick={onNavigate}
           className={clsx(
-            "apple-nav-link relative flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition",
+            "apple-nav-link relative flex h-11 items-center gap-2.5 rounded-full px-2 text-sm font-medium transition",
             active
               ? "apple-nav-active bg-sky-400 text-slate-950"
               : "text-slate-300 hover:bg-white/7 hover:text-white"
           )}
         >
-          <span className={clsx("grid h-7 w-7 shrink-0 place-items-center rounded-md", active ? "bg-slate-950/12" : "bg-white/5")}>
+          <span className={clsx("apple-nav-icon grid h-8 w-8 shrink-0 place-items-center rounded-full", active ? "bg-slate-950/12" : "bg-white/5")}>
             <Icon fontSize="small" />
           </span>
           {item.label}
@@ -256,8 +256,8 @@ export function AppShell({
   return (
     <div className="apple-dashboard min-h-screen">
       {userRole && <AdminNotificationCenter userRole={userRole} />}
-      <aside className="apple-sidebar fixed inset-y-0 left-0 hidden w-72 overflow-y-auto border-r border-line bg-black/28 p-5 backdrop-blur-2xl lg:block">
-        <div className="mb-8 flex items-center gap-3">
+      <aside className="apple-sidebar fixed bottom-3 left-3 top-3 hidden w-[276px] overflow-y-auto rounded-[28px] border border-line p-4 backdrop-blur-2xl lg:block">
+        <div className="apple-sidebar-brand mb-5 flex items-center gap-3 rounded-[22px] p-2">
           <WorkspaceBrandMark directOptimize={showDirectOptimizeLogo} />
           <div>
             <div className="text-sm text-slate-400">{workspaceName}</div>
@@ -265,10 +265,10 @@ export function AppShell({
           </div>
         </div>
         <ThemeSwitch />
-        <nav className="space-y-2">
+        <nav className="space-y-1.5">
           <NavigationLinks />
         </nav>
-        <div className="apple-status-panel mt-6 rounded-xl bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
+        <div className="apple-status-panel mt-6 rounded-[20px] bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
           {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : isManager ? `${userName || "Manager"}, operational dashboard access is active.` : "Official APIs only. Rate limits, unsubscribe handling, consent fields, and outreach logs are built in."}
         </div>
         <div className="mt-4">
@@ -276,7 +276,7 @@ export function AppShell({
         </div>
         <button
           onClick={logout}
-          className="mt-4 flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-slate-300 transition soft-border hover:bg-white/7 hover:text-white"
+          className="apple-sidebar-signout mt-4 flex h-11 w-full items-center gap-3 rounded-full px-3 text-sm text-slate-300 transition soft-border hover:bg-white/7 hover:text-white"
         >
           <LogoutIcon fontSize="small" />
           Sign out
@@ -299,10 +299,10 @@ export function AppShell({
           <aside
             id="mobile-navigation"
             aria-label="Mobile navigation"
-            className="apple-mobile-panel h-full w-[min(20rem,88vw)] overflow-y-auto border-r border-line bg-[#071426] p-5 shadow-2xl"
+            className="apple-mobile-panel absolute bottom-3 left-3 top-3 w-[min(20rem,calc(88vw-12px))] overflow-y-auto rounded-[28px] border border-line p-4 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-6 flex items-center justify-between gap-3">
+            <div className="apple-sidebar-brand mb-5 flex items-center justify-between gap-3 rounded-[22px] p-2">
               <div className="flex min-w-0 items-center gap-3">
                 <WorkspaceBrandMark directOptimize={showDirectOptimizeLogo} />
                 <div className="min-w-0">
@@ -315,12 +315,12 @@ export function AppShell({
               </button>
             </div>
             <ThemeSwitch />
-            <nav className="space-y-2"><NavigationLinks onNavigate={() => setMobileOpen(false)} /></nav>
-            <div className="apple-status-panel mt-6 rounded-xl bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
+            <nav className="space-y-1.5"><NavigationLinks onNavigate={() => setMobileOpen(false)} /></nav>
+            <div className="apple-status-panel mt-6 rounded-[20px] bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
               {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : "Manage leads, outreach, projects, and delivery from your mobile device."}
             </div>
             <div className="mt-4"><PushNotificationControl /></div>
-            <button onClick={logout} className="mt-4 flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-slate-300 transition soft-border hover:bg-white/7 hover:text-white">
+            <button onClick={logout} className="apple-sidebar-signout mt-4 flex h-11 w-full items-center gap-3 rounded-full px-3 text-sm text-slate-300 transition soft-border hover:bg-white/7 hover:text-white">
               <LogoutIcon fontSize="small" />
               Sign out
             </button>
