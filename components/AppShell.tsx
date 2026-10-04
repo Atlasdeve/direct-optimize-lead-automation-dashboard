@@ -179,9 +179,9 @@ export function AppShell({
           aria-current={active ? "page" : undefined}
           onClick={onNavigate}
           className={clsx(
-            "relative flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition",
+            "apple-nav-link relative flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition",
             active
-              ? "bg-sky-400 text-slate-950 shadow-[0_8px_24px_rgba(56,189,248,0.18)]"
+              ? "apple-nav-active bg-sky-400 text-slate-950"
               : "text-slate-300 hover:bg-white/7 hover:text-white"
           )}
         >
@@ -195,9 +195,9 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="apple-dashboard min-h-screen">
       {userRole && <AdminNotificationCenter userRole={userRole} />}
-      <aside className="fixed inset-y-0 left-0 hidden w-72 overflow-y-auto border-r border-line bg-black/28 p-5 backdrop-blur-2xl lg:block">
+      <aside className="apple-sidebar fixed inset-y-0 left-0 hidden w-72 overflow-y-auto border-r border-line bg-black/28 p-5 backdrop-blur-2xl lg:block">
         <div className="mb-8 flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-400/15 text-sky-200 soft-border">
             <ShieldIcon />
@@ -210,7 +210,7 @@ export function AppShell({
         <nav className="space-y-2">
           <NavigationLinks />
         </nav>
-        <div className="mt-6 rounded-lg bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
+        <div className="apple-status-panel mt-6 rounded-xl bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
           {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : isManager ? `${userName || "Manager"}, operational dashboard access is active.` : "Official APIs only. Rate limits, unsubscribe handling, consent fields, and outreach logs are built in."}
         </div>
         <div className="mt-4">
@@ -231,7 +231,7 @@ export function AppShell({
           aria-label="Open navigation menu"
           aria-expanded={mobileOpen}
           aria-controls="mobile-navigation"
-          className="fixed left-4 top-4 z-40 grid h-11 w-11 place-items-center rounded-lg border border-line bg-[#091629]/95 text-slate-100 shadow-xl backdrop-blur-xl hover:bg-[#10213a] lg:hidden"
+          className="apple-mobile-toggle fixed left-4 top-4 z-40 grid h-11 w-11 place-items-center rounded-xl border border-line bg-[#091629]/95 text-slate-100 shadow-xl backdrop-blur-xl hover:bg-[#10213a] lg:hidden"
         >
           <MenuIcon />
         </button>
@@ -241,7 +241,7 @@ export function AppShell({
           <aside
             id="mobile-navigation"
             aria-label="Mobile navigation"
-            className="h-full w-[min(20rem,88vw)] overflow-y-auto border-r border-line bg-[#071426] p-5 shadow-2xl"
+            className="apple-mobile-panel h-full w-[min(20rem,88vw)] overflow-y-auto border-r border-line bg-[#071426] p-5 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-6 flex items-center justify-between gap-3">
@@ -257,7 +257,7 @@ export function AppShell({
               </button>
             </div>
             <nav className="space-y-2"><NavigationLinks onNavigate={() => setMobileOpen(false)} /></nav>
-            <div className="mt-6 rounded-lg bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
+            <div className="apple-status-panel mt-6 rounded-xl bg-emerald-400/10 p-4 text-xs text-emerald-100 soft-border">
               {isClient ? `${userName || "Client"}, your approved work updates and progress appear here.` : isEmployee ? `${userName || "Employee"}, only assigned projects are available here.` : "Manage leads, outreach, projects, and delivery from your mobile device."}
             </div>
             <div className="mt-4"><PushNotificationControl /></div>
@@ -268,7 +268,7 @@ export function AppShell({
           </aside>
         </div>
       )}
-      <main className="px-4 pb-4 pt-20 lg:ml-72 lg:px-8 lg:py-8">
+      <main className="apple-main px-4 pb-4 pt-20 lg:ml-72 lg:px-8 lg:py-8">
         {children}
       </main>
     </div>

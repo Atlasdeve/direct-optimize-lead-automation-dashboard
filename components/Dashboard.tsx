@@ -414,7 +414,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <header className="apple-hero flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="text-sm font-medium text-sky-200">
             {mode === "overview" ? "Executive overview" : mode === "automation" ? "Automation command center" : "Lead operations"}
@@ -485,7 +485,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
             {metrics.map((metric) => (
-              <div key={metric.label} className="rounded-lg bg-white/6 p-3 soft-border">
+              <div key={metric.label} className="apple-metric rounded-xl bg-white/6 p-3 soft-border">
                 <div className="text-xs text-slate-400">{metric.label}</div>
                 <div className="mt-2 text-2xl font-semibold text-white">{metric.value}</div>
               </div>
