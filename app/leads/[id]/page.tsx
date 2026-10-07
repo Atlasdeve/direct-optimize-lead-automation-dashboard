@@ -84,11 +84,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const callPitch = await generateLeadCallPitch(lead, websiteAudit, gmbAudit);
   const whatsappNumber = whatsappNumberFromPhone(lead.phone);
   const opportunitySummary = leadOpportunitySummary(lead);
-  const recommendedSequence = opportunitySummary.sequence.map((step) =>
-    initialEmailTemplate === "direct-optimize-14-day" && step.day === "Day 1" && lead.email
-      ? { ...step, action: "Send the complimentary 14-day Google Business Profile offer with the case-study PDF." }
-      : step
-  );
+  const is14DaySequence = initialEmailTemplate === "direct-optimize-14-day" && Boolean(lead.email);
+  const recommendedAction = is14DaySequence && lead.email_sent && !lead.replied
+    ? "Follow up on the complimentary 14-day Google Business Profile optimization offer."
+    : opportunitySummary.action;
+  const recommendedSequence = opportunitySummary.sequence.map((step) => {
+    if (!is14DaySequence) return step;
+    if (step.day === "Day 1") return { ...step, action: "Send the complimentary 14-day Google Business Profile offer with examples of our specialists’ work." };
+    if (step.day === "Day 3") return { ...step, action: "Follow up on the 14-day offer and ask if they would like the brief plan." };
+    return { ...step, action: "Close the loop on the 14-day offer and invite a YES reply for the brief plan." };
+  });
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -236,7 +241,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="font-semibold text-white">Recommended sequence</h2>
-            <p className="mt-1 text-sm text-slate-400">{opportunitySummary.action}</p>
+            <p className="mt-1 text-sm text-slate-400">{recommendedAction}</p>
           </div>
           <div className="rounded-lg bg-sky-400/12 px-3 py-2 text-sm font-semibold text-sky-100 soft-border">
             {opportunitySummary.temperature} · {opportunitySummary.quality}
