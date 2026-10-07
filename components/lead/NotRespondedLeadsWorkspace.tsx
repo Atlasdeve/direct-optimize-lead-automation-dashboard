@@ -28,7 +28,9 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkReactivating, setBulkReactivating] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [confirmBulkReactivate, setConfirmBulkReactivate] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const regions = useMemo(() => [...new Set(leads.map((lead) => lead.region))].sort(), [leads]);
@@ -125,6 +127,36 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
     setMessage(`${data.deletedCount ?? deletedIds.size} selected lead${(data.deletedCount ?? deletedIds.size) === 1 ? " was" : "s were"} permanently deleted.`);
   }
 
+  async function reactivateSelectedLeads() {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setBulkReactivating(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/leads/bulk-reactivate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids })
+      });
+      const data = await response.json().catch(() => ({}));
+      const reactivatedIds = new Set<string>(data.reactivatedIds || []);
+      if (reactivatedIds.size) {
+        setLeads((current) => current.filter((lead) => !reactivatedIds.has(lead.id)));
+        setSelectedIds((current) => new Set([...current].filter((id) => !reactivatedIds.has(id))));
+      }
+      setConfirmBulkReactivate(false);
+      if (!response.ok) {
+        setMessage(data.error || "Selected leads could not be reactivated.");
+        return;
+      }
+      setMessage(`${reactivatedIds.size} selected lead${reactivatedIds.size === 1 ? " was" : "s were"} returned to active review. No outreach was sent or approved.`);
+    } catch {
+      setMessage("Selected leads could not be reactivated. Please try again.");
+    } finally {
+      setBulkReactivating(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header>
@@ -175,17 +207,29 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
         ) : (
           <div>
             <div className="flex flex-col gap-3 border-b border-white/10 bg-white/[0.025] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <button type="button" onClick={toggleAllVisible} disabled={bulkDeleting} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-200 disabled:opacity-50">
+              <button type="button" onClick={toggleAllVisible} disabled={bulkDeleting || bulkReactivating} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-200 disabled:opacity-50">
                 {allVisibleSelected ? <CheckBoxIcon fontSize="small" className="text-sky-300" /> : <CheckBoxOutlineBlankIcon fontSize="small" className="text-slate-500" />}
                 {allVisibleSelected ? "Clear visible selection" : `Select all visible (${visibleIds.length})`}
               </button>
               <div className="flex items-center gap-3">
                 <span className="text-sm text-slate-400">{selectedIds.size} selected</span>
-                <button type="button" onClick={() => setConfirmBulkDelete(true)} disabled={!selectedIds.size || bulkDeleting} className="inline-flex h-10 items-center gap-2 rounded-lg bg-rose-500 px-4 text-sm font-semibold text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40">
+                <button type="button" onClick={() => { setConfirmBulkDelete(false); setConfirmBulkReactivate(true); }} disabled={!selectedIds.size || bulkDeleting || bulkReactivating} className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-40">
+                  <RefreshIcon fontSize="small" /> Reactivate selected
+                </button>
+                <button type="button" onClick={() => { setConfirmBulkReactivate(false); setConfirmBulkDelete(true); }} disabled={!selectedIds.size || bulkDeleting || bulkReactivating} className="inline-flex h-10 items-center gap-2 rounded-lg bg-rose-500 px-4 text-sm font-semibold text-white hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-40">
                   <DeleteForeverIcon fontSize="small" /> Delete selected
                 </button>
               </div>
             </div>
+            {confirmBulkReactivate && (
+              <div className="flex flex-col gap-3 border-b border-emerald-300/20 bg-emerald-400/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-emerald-100">Return {selectedIds.size} selected lead{selectedIds.size === 1 ? "" : "s"} to active review? No outreach will be sent or approved.</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setConfirmBulkReactivate(false)} disabled={bulkReactivating} className="h-9 rounded-lg bg-white/6 px-3 text-sm font-semibold text-slate-200 soft-border hover:bg-white/10 disabled:opacity-50">Cancel</button>
+                  <button type="button" onClick={reactivateSelectedLeads} disabled={bulkReactivating || !selectedIds.size} className="h-9 rounded-lg bg-emerald-400 px-3 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60">{bulkReactivating ? "Reactivating..." : "Confirm reactivate"}</button>
+                </div>
+              </div>
+            )}
             {confirmBulkDelete && (
               <div className="flex flex-col gap-3 border-b border-rose-300/20 bg-rose-400/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-rose-100">Permanently delete {selectedIds.size} selected lead{selectedIds.size === 1 ? "" : "s"} and all related history?</p>
@@ -199,7 +243,7 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
             {filtered.map((lead) => (
               <article key={lead.id} className={`px-5 py-5 ${selectedIds.has(lead.id) ? "bg-sky-400/[0.045]" : ""}`}>
                 <div className="grid gap-4 xl:grid-cols-[auto_1.15fr_0.7fr_0.85fr_0.8fr_auto] xl:items-center">
-                  <button type="button" onClick={() => toggleSelected(lead.id)} disabled={bulkDeleting} aria-label={`${selectedIds.has(lead.id) ? "Deselect" : "Select"} ${lead.companyName}`} className="grid h-10 w-10 place-items-center rounded-lg text-slate-500 hover:bg-sky-400/10 hover:text-sky-300 disabled:opacity-50">
+                  <button type="button" onClick={() => toggleSelected(lead.id)} disabled={bulkDeleting || bulkReactivating} aria-label={`${selectedIds.has(lead.id) ? "Deselect" : "Select"} ${lead.companyName}`} className="grid h-10 w-10 place-items-center rounded-lg text-slate-500 hover:bg-sky-400/10 hover:text-sky-300 disabled:opacity-50">
                     {selectedIds.has(lead.id) ? <CheckBoxIcon className="text-sky-300" /> : <CheckBoxOutlineBlankIcon />}
                   </button>
                   <div className="min-w-0">

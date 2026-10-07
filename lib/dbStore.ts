@@ -1439,14 +1439,13 @@ export async function listComposeEmailLogs(organizationId?: string | null) {
 export async function approveLeadForOutreach(leadId: string, organizationId?: string | null) {
   const existing = await prisma.lead.findFirst({ where: { id: leadId, ...(organizationId ? { organizationId } : {}) } });
   if (!existing) throw new Error("Lead not found");
+  if (existing.doNotContact || existing.unsubscribed) throw new Error("This lead is blocked from outreach. Reactivate it before approving.");
 
   const lead = await prisma.lead.update({
     where: { id: existing.id },
     data: {
       outreachApproved: true,
       outreachApprovedAt: new Date(),
-      doNotContact: false,
-      unsubscribed: false,
       outreachStatus: "Approved"
     },
     include: {
@@ -1478,7 +1477,6 @@ export async function blockLeadFromOutreach(leadId: string, organizationId?: str
       outreachApproved: false,
       outreachApprovedAt: null,
       doNotContact: true,
-      unsubscribed: true,
       outreachStatus: "Failed"
     },
     include: {
@@ -1497,6 +1495,50 @@ export async function blockLeadFromOutreach(leadId: string, organizationId?: str
       message: "Lead marked as do-not-contact."
     }
   });
+  return toLead(lead);
+}
+
+export async function reactivateLeadForOutreach(leadId: string, organizationId?: string | null) {
+  const existing = await prisma.lead.findFirst({ where: { id: leadId, ...(organizationId ? { organizationId } : {}) } });
+  if (!existing) throw new Error("Lead not found");
+  if (!existing.doNotContact && !existing.unsubscribed) throw new Error("This lead is already active.");
+
+  // Older manual blocks also set unsubscribed=true. Only undo that legacy flag
+  // when a manual block is recorded and no recipient opt-out or bounce exists.
+  const [manualBlock, recipientSuppression] = await Promise.all([
+    prisma.outreachLog.findFirst({ where: { leadId, channel: "system", action: "do_not_contact" }, select: { id: true } }),
+    prisma.outreachLog.findFirst({
+      where: { leadId, action: "reply_classified", status: { in: ["unsubscribe", "bounce"] } },
+      select: { id: true }
+    })
+  ]);
+  if (recipientSuppression || (existing.unsubscribed && !manualBlock)) {
+    throw new Error("This lead has an unsubscribe or bounce record and cannot be reactivated from here.");
+  }
+
+  const [lead] = await prisma.$transaction([
+    prisma.lead.update({
+      where: { id: existing.id },
+      data: {
+        doNotContact: false,
+        unsubscribed: false,
+        outreachApproved: false,
+        outreachApprovedAt: null,
+        outreachStatus: existing.emailSent || existing.whatsappSent || existing.lastContactedAt ? "Follow-up" : "New",
+        nextFollowUpAt: null
+      },
+      include: { contacts: { where: { type: "contact_form" }, select: { type: true, value: true } } }
+    }),
+    prisma.outreachLog.create({
+      data: {
+        leadId,
+        channel: "system",
+        action: "outreach_reactivated",
+        status: "completed",
+        message: "Manual outreach block removed. Lead returned to review; no outreach was approved or sent."
+      }
+    })
+  ]);
   return toLead(lead);
 }
 

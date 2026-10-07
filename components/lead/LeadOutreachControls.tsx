@@ -3,6 +3,7 @@
 import { useState } from "react";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import BlockIcon from "@mui/icons-material/Block";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import type { Lead } from "@/lib/types";
 
 export function LeadOutreachControls({
@@ -15,20 +16,29 @@ export function LeadOutreachControls({
   const [approved, setApproved] = useState(lead.outreach_approved);
   const [blocked, setBlocked] = useState(lead.do_not_contact || lead.unsubscribed);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
-  async function update(action: "approve" | "block") {
+  async function update(action: "approve" | "block" | "reactivate") {
     setBusy(true);
-    const response = await fetch(`/api/leads/${lead.id}/outreach`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action })
-    });
-    const data = await response.json();
-    if (response.ok) {
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/leads/${lead.id}/outreach`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to update lead outreach.");
       setApproved(Boolean(data.lead.outreach_approved));
       setBlocked(Boolean(data.lead.do_not_contact || data.lead.unsubscribed));
+      if (action === "reactivate") setNotice("Lead returned to review. No outreach was sent or approved.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update lead outreach.");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   return (
@@ -47,14 +57,20 @@ export function LeadOutreachControls({
           ) : null}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <button
+          {blocked ? <button
+            onClick={() => update("reactivate")}
+            disabled={busy}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-sky-300 disabled:opacity-60"
+          >
+            <RefreshIcon fontSize="small" /> Reactivate lead
+          </button> : <button
             onClick={() => update("block")}
             disabled={busy}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-400/12 px-4 text-sm font-semibold text-rose-100 transition soft-border hover:bg-rose-400/18 disabled:opacity-60"
           >
             <BlockIcon fontSize="small" />
             Do Not Contact
-          </button>
+          </button>}
           <button
             onClick={() => update("approve")}
             disabled={busy || blocked || !lead.email}
@@ -65,6 +81,8 @@ export function LeadOutreachControls({
           </button>
         </div>
       </div>
+      {error && <p role="alert" className="mt-3 text-sm text-rose-200">{error}</p>}
+      {notice && <p role="status" className="mt-3 text-sm text-sky-200">{notice}</p>}
 
       <div className="mt-5 rounded-lg bg-black/22 p-4 soft-border">
         <div className="text-xs uppercase text-slate-500">Subject</div>

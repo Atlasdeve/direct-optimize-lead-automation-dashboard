@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import BlockIcon from "@mui/icons-material/Block";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import ContactPageIcon from "@mui/icons-material/ContactPage";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
@@ -26,6 +27,7 @@ export function ReviewQueue() {
   const [queue, setQueue] = useState("needs_review");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const counts = useMemo(() => ({
     emailReady: leads.filter((lead) => lead.email && !lead.email_sent && !lead.do_not_contact && !lead.unsubscribed).length,
     forms: leads.filter((lead) => (lead.contact_forms?.length ?? 0) > 0).length,
@@ -44,12 +46,18 @@ export function ReviewQueue() {
     void load();
   }, [region, queue]);
 
-  async function updateLead(leadId: string, action: "approve" | "block") {
-    await fetch(`/api/leads/${leadId}/outreach`, {
+  async function updateLead(leadId: string, action: "approve" | "block" | "reactivate") {
+    setError("");
+    const response = await fetch(`/api/leads/${leadId}/outreach`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action })
     });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setError(data.error || "Unable to update lead outreach.");
+      return;
+    }
     await load();
   }
 
@@ -61,6 +69,7 @@ export function ReviewQueue() {
       </header>
 
       <RegionTabs selected={region} onSelect={setRegion} />
+      {error && <div role="alert" className="rounded-lg bg-rose-400/10 p-3 text-sm text-rose-100 soft-border">{error}</div>}
 
       <section className="glass rounded-xl p-4">
         <div className="flex flex-wrap gap-2">
@@ -118,13 +127,18 @@ export function ReviewQueue() {
                     <CheckCircleIcon fontSize="small" />
                     Approve
                   </button>
-                  <button
+                  {lead.do_not_contact || lead.unsubscribed ? <button
+                    onClick={() => updateLead(lead.id, "reactivate")}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-sky-400 px-4 text-sm font-semibold text-slate-950 transition hover:bg-sky-300"
+                  >
+                    <RefreshIcon fontSize="small" /> Reactivate
+                  </button> : <button
                     onClick={() => updateLead(lead.id, "block")}
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-rose-400/12 px-4 text-sm font-semibold text-rose-100 transition soft-border hover:bg-rose-400/18"
                   >
                     <BlockIcon fontSize="small" />
                     Do Not Contact
-                  </button>
+                  </button>}
                 </div>
               </div>
             </div>

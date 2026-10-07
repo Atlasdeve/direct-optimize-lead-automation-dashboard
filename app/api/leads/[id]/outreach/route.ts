@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
-import { approveLeadForOutreach, blockLeadFromOutreach, getDbLead, getLatestGmbAudit, getLatestLeadIntelligence, runGmbAudit, runLeadIntelligenceAudit } from "@/lib/dbStore";
+import { approveLeadForOutreach, blockLeadFromOutreach, getDbLead, getLatestGmbAudit, getLatestLeadIntelligence, reactivateLeadForOutreach, runGmbAudit, runLeadIntelligenceAudit } from "@/lib/dbStore";
 import { buildPersonalizedEmail, initialEmailTemplateForOrganization } from "@/lib/providers";
 import { isOperationsRole } from "@/lib/roles";
 
@@ -33,12 +33,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const body = await request.json().catch(() => ({}));
   const action = body.action;
 
-  if (action === "approve") {
-    return NextResponse.json({ lead: await approveLeadForOutreach(id, organizationId) });
-  }
-
-  if (action === "block") {
-    return NextResponse.json({ lead: await blockLeadFromOutreach(id, organizationId) });
+  try {
+    if (action === "approve") return NextResponse.json({ lead: await approveLeadForOutreach(id, organizationId) });
+    if (action === "block") return NextResponse.json({ lead: await blockLeadFromOutreach(id, organizationId) });
+    if (action === "reactivate") return NextResponse.json({ lead: await reactivateLeadForOutreach(id, organizationId) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to update lead outreach.";
+    return NextResponse.json({ error: message }, { status: message === "Lead not found" ? 404 : 400 });
   }
 
   return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
