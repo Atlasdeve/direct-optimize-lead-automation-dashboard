@@ -12,7 +12,7 @@ import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { enrichLeadWithProviders } from "@/lib/leadEnrichment";
 import { hasWhatsappContactSignal } from "@/lib/whatsappIdentification";
 import { getOrganizationApiConfig, organizationCtas } from "@/lib/organizationSettings";
-import { findGoogleBusinessProfileForWebsite, initialEmailTemplateForOrganization, sendEmailFollowUp, sendEmailOutreach, type EmailProviderConfig } from "@/lib/providers";
+import { directOptimizeCaseStudyFilename, findGoogleBusinessProfileForWebsite, initialEmailTemplateForOrganization, sendEmailFollowUp, sendEmailOutreach, type EmailProviderConfig } from "@/lib/providers";
 import type { AutomationResult, Lead, PlaceLeadCandidate } from "@/lib/types";
 
 type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
@@ -2007,8 +2007,8 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
         select: { type: true, value: true }
       },
       outreachLogs: {
-        where: { action: { in: ["send_follow_up_1", "send_follow_up_2"] }, status: { in: ["pending", "completed"] } },
-        select: { action: true, status: true },
+        where: { action: { in: ["send_outreach", "send_follow_up_1", "send_follow_up_2"] }, status: { in: ["pending", "completed"] } },
+        select: { action: true, status: true, metadata: true },
         orderBy: { createdAt: "asc" }
       }
     },
@@ -2024,8 +2024,8 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
   const logs: string[] = [];
 
   for (const row of rows) {
-    const completed = row.outreachLogs.filter((log) => log.status === "completed");
-    const hasPending = row.outreachLogs.some((log) => log.status === "pending");
+    const completed = row.outreachLogs.filter((log) => log.action.startsWith("send_follow_up_") && log.status === "completed");
+    const hasPending = row.outreachLogs.some((log) => log.action.startsWith("send_follow_up_") && log.status === "pending");
     if (hasPending) {
       skipped += 1;
       logs.push(`${row.companyName}: a follow-up delivery is already pending.`);
@@ -2038,6 +2038,14 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
     }
 
     const stage = (completed.length + 1) as 1 | 2;
+    const initialLog = [...row.outreachLogs].reverse().find((log) => log.action === "send_outreach" && log.status === "completed");
+    const initialMetadata = initialLog?.metadata && typeof initialLog.metadata === "object" && !Array.isArray(initialLog.metadata)
+      ? initialLog.metadata as Record<string, unknown>
+      : {};
+    const priorExamplesAttached = Array.isArray(initialMetadata.emailAttachments)
+      && initialMetadata.emailAttachments.includes(directOptimizeCaseStudyFilename);
+    const sent14DayOffer = priorExamplesAttached || (typeof initialMetadata.subject === "string"
+      && initialMetadata.subject.startsWith("Free 14-day Google Business Profile optimization for "));
     const action = `send_follow_up_${stage}`;
     const pendingLog = await prisma.outreachLog.create({
       data: {
@@ -2049,7 +2057,12 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
         metadata: { to: row.email, stage, trackingEnabled: true }
       }
     });
-    const result = await sendEmailFollowUp(toLead(row), stage, { trackingLogId: pendingLog.id, config });
+    const result = await sendEmailFollowUp(toLead(row), stage, {
+      trackingLogId: pendingLog.id,
+      config,
+      initialTemplate: sent14DayOffer ? "direct-optimize-14-day" : "audit-led",
+      priorExamplesAttached
+    });
     if (result.sent) {
       const now = new Date();
       const gapDays = Math.max(1, schedule.finalFollowUpDays - schedule.firstFollowUpDays);

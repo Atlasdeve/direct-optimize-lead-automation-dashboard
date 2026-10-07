@@ -970,7 +970,12 @@ export async function sendEmailOutreach(lead: Lead, options?: {
   }
 }
 
-export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: { trackingLogId?: string; config?: EmailProviderConfig | null }) {
+export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: {
+  trackingLogId?: string;
+  config?: EmailProviderConfig | null;
+  initialTemplate?: InitialEmailTemplate;
+  priorExamplesAttached?: boolean;
+}) {
   const config = options?.config;
   if (lead.unsubscribed || lead.do_not_contact || !lead.email) {
     return { sent: false, status: "skipped", reason: "Missing email, unsubscribed, or do-not-contact" };
@@ -985,11 +990,40 @@ export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: { tr
     return { sent: false, status: "skipped", reason: "Brevo or SMTP is not configured" };
   }
 
-  const greetingName = lead.manager_name ?? lead.owner_name ?? lead.decision_maker_name ?? "there";
-  const brandName = config?.brandName?.trim() || "Direct Optimize";
-  const original = buildPersonalizedEmail(lead, "SEO services", undefined, { brandName });
-  const subject = `Re: ${original.subject}`;
-  const body = stage === 1
+  const is14DayOffer = options?.initialTemplate === "direct-optimize-14-day";
+  const greetingName = lead.manager_name ?? lead.owner_name ?? lead.decision_maker_name ?? (is14DayOffer ? `${lead.company_name} team` : "there");
+  const brandName = config?.brandName?.trim() || (is14DayOffer ? "Direct Optimize LLC" : "Direct Optimize");
+  const original = is14DayOffer ? null : buildPersonalizedEmail(lead, "SEO services", undefined, { brandName });
+  const subject = is14DayOffer
+    ? stage === 1 ? `A quick follow-up for ${lead.company_name}` : `One last note for ${lead.company_name}`
+    : `Re: ${original?.subject}`;
+  const body = is14DayOffer
+    ? stage === 1
+      ? [
+          `Hi ${greetingName},`,
+          "",
+          `I’m following up on the complimentary 14-day Google Business Profile optimization I offered ${lead.company_name}.` + (options?.priorExamplesAttached ? " My first email also included examples of work completed by our specialists." : ""),
+          "",
+          "We’d send you a brief plan, agree on priorities, and make changes only with your approval. Would you like to see the plan? Just reply YES.",
+          "",
+          "Best,",
+          brandName,
+          "",
+          "To opt out of future messages, reply with Unsubscribe."
+        ].join("\n")
+      : [
+          `Hi ${greetingName},`,
+          "",
+          `One last note about the complimentary 14-day Google Business Profile optimization for ${lead.company_name}. If you’d like to explore it, reply YES and I’ll send a brief plan for your review. No changes would be made without your approval.`,
+          "",
+          "If the timing isn’t right, no problem.",
+          "",
+          "Best,",
+          brandName,
+          "",
+          "To opt out of future messages, reply with Unsubscribe."
+        ].join("\n")
+    : stage === 1
     ? [
         `Hi ${greetingName},`,
         "",
