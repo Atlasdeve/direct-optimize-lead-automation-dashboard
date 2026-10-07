@@ -100,9 +100,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       <div className="glass rounded-xl p-6">
         <Link href={`/dashboard?region=${encodeURIComponent(lead.region)}`} className="text-sm text-sky-200">Back to {lead.region} leads</Link>
         <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-4xl font-semibold text-white">{lead.company_name}</h1>
-            <p className="mt-2 text-slate-400">{lead.city}, {lead.country} · {lead.category}</p>
+          <div className="min-w-0">
+            <h1 className="break-words text-4xl font-semibold text-white">{lead.company_name}</h1>
+            <p className="mt-2 break-words text-slate-400">{lead.city}, {lead.country} · {lead.category}</p>
             <CreateProjectFromLeadButton lead={lead} existingProjectId={existingProject?.id ?? null} />
           </div>
           <div className="flex flex-col items-stretch gap-3 sm:items-end">
@@ -115,8 +115,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-        <section className="glass rounded-xl p-5">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <section className="glass min-w-0 rounded-xl p-5">
           <h2 className="mb-4 font-semibold text-white">Contact channels</h2>
           <div className="space-y-3 text-sm text-slate-300">
             {lead.email ? (
@@ -124,16 +124,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 href={`mailto:${lead.email}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex min-w-0 items-center gap-2 transition hover:text-sky-200"
+                className="flex w-full min-w-0 items-center gap-2 transition hover:text-sky-200"
                 title={`Email ${lead.email}`}
               >
-                <EmailIcon fontSize="small" />
-                <span className="truncate underline-offset-4 hover:underline">{lead.email}</span>
+                <EmailIcon fontSize="small" className="shrink-0" />
+                <span className="min-w-0 truncate underline-offset-4 hover:underline">{lead.email}</span>
               </a>
             ) : (
               <div className="flex items-center gap-2 text-slate-500"><EmailIcon fontSize="small" />Email discovery pending</div>
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               {lead.phone ? (
                 <a
                   href={`tel:${lead.phone}`}
@@ -142,8 +142,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                   className="flex min-w-0 items-center gap-2 transition hover:text-sky-200"
                   title={`Call ${lead.phone}`}
                 >
-                  <PhoneIcon fontSize="small" />
-                  <span className="truncate underline-offset-4 hover:underline">{lead.phone}</span>
+                  <PhoneIcon fontSize="small" className="shrink-0" />
+                  <span className="min-w-0 truncate underline-offset-4 hover:underline">{lead.phone}</span>
                 </a>
               ) : (
                 <div className="flex items-center gap-2 text-slate-500"><PhoneIcon fontSize="small" />Phone pending</div>
@@ -159,11 +159,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 href={websiteHref(lead.website)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex min-w-0 items-center gap-2 transition hover:text-sky-200"
+                className="flex w-full min-w-0 items-center gap-2 transition hover:text-sky-200"
                 title={`Open ${lead.website}`}
               >
-                <LanguageIcon fontSize="small" />
-                <span className="truncate underline-offset-4 hover:underline">{lead.website}</span>
+                <LanguageIcon fontSize="small" className="shrink-0" />
+                <span className="min-w-0 truncate underline-offset-4 hover:underline">{lead.website}</span>
               </a>
             ) : (
               <div className="flex items-center gap-2 text-slate-500"><LanguageIcon fontSize="small" />No website detected</div>
@@ -176,8 +176,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 className="flex min-w-0 items-center gap-2 transition hover:text-sky-200"
                 title="Open Google Business Profile"
               >
-                <PlaceIcon fontSize="small" />
-                <span className="truncate underline-offset-4 hover:underline">Google Business Profile</span>
+                <PlaceIcon fontSize="small" className="shrink-0" />
+                <span className="min-w-0 truncate underline-offset-4 hover:underline">Google Business Profile</span>
               </a>
             )}
             {contactForms.length > 0 && (
@@ -194,13 +194,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </div>
         </section>
 
-        <section className="glass rounded-xl p-5">
+        <section className="glass min-w-0 rounded-xl p-5">
           <h2 className="mb-4 font-semibold text-white">Lead detail</h2>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid min-w-0 gap-3 md:grid-cols-2">
             {fields.map(([label, value]) => (
-              <div key={label} className="rounded-lg bg-white/6 p-3 soft-border">
+              <div key={label} className="min-w-0 rounded-lg bg-white/6 p-3 soft-border">
                 <div className="text-xs text-slate-500">{label}</div>
-                <div className="mt-1 text-sm text-slate-200">{value}</div>
+                <div className="mt-1 break-words text-sm text-slate-200 [overflow-wrap:anywhere]">{value}</div>
               </div>
             ))}
           </div>
