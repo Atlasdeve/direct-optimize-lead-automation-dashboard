@@ -54,6 +54,7 @@ function linkifyText(text: string, clickTrackingBaseUrl?: string) {
 }
 
 export const DIRECT_OPTIMIZE_OFFER = "We’re offering a complimentary 14-day Google Business Profile optimization. We’ll agree on priorities first and make changes only with your approval.";
+export const SPECIALIST_WORK_ATTACHMENT_LINE = "I’ve attached examples of Google Business Profile work completed by our specialists.";
 
 function paragraphHtml(body: string, clickTrackingBaseUrl?: string, highlightParagraph?: string, attachmentLabel?: string) {
   return body
@@ -62,7 +63,7 @@ function paragraphHtml(body: string, clickTrackingBaseUrl?: string, highlightPar
     .filter((paragraph) => Boolean(paragraph) && paragraph !== "To opt out of future messages, reply with Unsubscribe.")
     .map((paragraph) => paragraph === highlightParagraph
       ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#e7f2fc" style="width:100%;table-layout:fixed;margin:21px 0;border:1px solid #ffffff;border-radius:16px;background-color:#e7f2fc;background-image:linear-gradient(125deg,rgba(219,242,252,.9),rgba(248,251,255,.92) 53%,rgba(238,234,255,.9));box-shadow:0 12px 28px rgba(77,123,169,.18);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);"><tr><td style="padding:19px 21px;overflow-wrap:break-word;"><div style="margin:0 0 8px;color:#336f9f;font-size:10px;line-height:1.4;font-weight:800;letter-spacing:.15em;text-transform:uppercase;">YOUR COMPLIMENTARY OFFER</div><p style="margin:0;color:#163650;font-size:17px;line-height:1.55;font-weight:700;">${linkifyText(paragraph, clickTrackingBaseUrl).replaceAll("\n", "<br />")}</p></td></tr></table>`
-      : `<p style="margin:0 0 17px;color:#344d63;font-size:15px;line-height:1.7;overflow-wrap:break-word;">${linkifyText(paragraph, clickTrackingBaseUrl).replaceAll("\n", "<br />")}</p>${attachmentLabel && paragraph.includes("I’ve attached anonymized examples") ? `<div style="display:inline-block;max-width:100%;box-sizing:border-box;overflow-wrap:break-word;margin:0 0 18px;padding:10px 13px;border:1px solid #ffffff;border-radius:10px;background-color:#edf5fc;color:#365b74;font-size:12px;line-height:1.4;">PDF attached: ${escapeHtml(attachmentLabel)}</div>` : ""}`)
+      : `<p style="margin:0 0 17px;color:#344d63;font-size:15px;line-height:1.7;overflow-wrap:break-word;">${linkifyText(paragraph, clickTrackingBaseUrl).replaceAll("\n", "<br />")}</p>${attachmentLabel && paragraph.includes(SPECIALIST_WORK_ATTACHMENT_LINE) ? `<div style="display:inline-block;max-width:100%;box-sizing:border-box;overflow-wrap:break-word;margin:0 0 18px;padding:10px 13px;border:1px solid #ffffff;border-radius:10px;background-color:#edf5fc;color:#365b74;font-size:12px;line-height:1.4;">PDF attached: ${escapeHtml(attachmentLabel)}</div>` : ""}`)
     .join("");
 }
 

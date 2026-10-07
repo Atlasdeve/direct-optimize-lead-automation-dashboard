@@ -6,7 +6,7 @@ import { getRegion } from "@/lib/regions";
 import { getSavedRegion } from "@/lib/regionStore";
 import { businessDiscoveryCategories, getDefaultCityForRegion } from "@/lib/discoveryTargets";
 import { buildGmbAuditPdf, buildWebsiteAuditPdf, type AuditAttachment } from "@/lib/auditPdf";
-import { DIRECT_OPTIMIZE_OFFER, renderBrandedEmailHtml, renderPlainTextEmail } from "@/lib/brandedEmailTemplate";
+import { DIRECT_OPTIMIZE_OFFER, SPECIALIST_WORK_ATTACHMENT_LINE, renderBrandedEmailHtml, renderPlainTextEmail } from "@/lib/brandedEmailTemplate";
 import { auditGmbProfile, type GmbAudit } from "@/lib/gmbAudit";
 import { auditLeadWebsite, type LeadIntelligenceAudit } from "@/lib/leadIntelligence";
 import type { Lead, PlaceLeadCandidate, RegionConfig } from "@/lib/types";
@@ -588,7 +588,7 @@ export function buildPersonalizedEmail(
       websiteNote ? "" : null,
       websiteNote || null,
       "",
-      "I’ve attached anonymized examples of our specialists’ previous work; these are not Direct Optimize client case studies.",
+      SPECIALIST_WORK_ATTACHMENT_LINE,
       "",
       "Reply YES and we’ll send you the brief plan.",
       "",

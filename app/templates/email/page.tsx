@@ -1,6 +1,6 @@
 import { emailTemplates } from "@/lib/templates";
 import { currentUser } from "@/lib/auth";
-import { DIRECT_OPTIMIZE_OFFER, renderBrandedEmailHtml } from "@/lib/brandedEmailTemplate";
+import { DIRECT_OPTIMIZE_OFFER, SPECIALIST_WORK_ATTACHMENT_LINE, renderBrandedEmailHtml } from "@/lib/brandedEmailTemplate";
 import Link from "next/link";
 
 export default async function EmailTemplatesPage() {
@@ -18,7 +18,7 @@ export default async function EmailTemplatesPage() {
       "",
       DIRECT_OPTIMIZE_OFFER,
       "",
-      "I’ve attached anonymized examples of our specialists’ previous work; these are not Direct Optimize client case studies.",
+      SPECIALIST_WORK_ATTACHMENT_LINE,
       "",
       "Reply YES and we’ll send you the brief plan.",
       "",
@@ -61,7 +61,7 @@ export default async function EmailTemplatesPage() {
             <p>Hi [owner or business team],</p>
             <p className="mt-3">In [city, country], [business name] has real potential to attract more local customers. The message highlights the available Google Business Profile rating, reviews, and a relevant profile opportunity, plus a brief website observation when an audit is available.</p>
             <p className="mt-3">{DIRECT_OPTIMIZE_OFFER}</p>
-            <p className="mt-3">An anonymized specialist-work case-study PDF is attached. It is not presented as Direct Optimize client case studies. The email asks the recipient to reply YES for a brief plan and retains the unsubscribe footer.</p>
+            <p className="mt-3">{SPECIALIST_WORK_ATTACHMENT_LINE} The email asks the recipient to reply YES for a brief plan and retains the unsubscribe footer.</p>
           </div>
           <p className="mt-3 text-xs text-slate-400">
             Attachment: Direct Optimize - GBP Keyword Case Studies.pdf. The lead-specific GMB and website audit PDFs are not attached to this initial email. Buttons: Visit Direct Optimize · Create Your Portal.
