@@ -578,7 +578,7 @@ export function buildPersonalizedEmail(
     const websiteNote = websiteOpportunities.length
       ? `I also spotted a couple of website opportunities: ${websiteOpportunities.join("; ")}.`
       : "";
-    const subject = `Free 14-day Google Business Profile optimization for ${lead.company_name}`;
+    const subject = `A quick note about ${lead.company_name} in ${lead.city || "your area"}`;
     const body = [
       `Hi ${greetingName},`,
       "",

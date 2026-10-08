@@ -2130,8 +2130,11 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
       : {};
     const priorExamplesAttached = Array.isArray(initialMetadata.emailAttachments)
       && initialMetadata.emailAttachments.includes(directOptimizeCaseStudyFilename);
-    const sent14DayOffer = priorExamplesAttached || (typeof initialMetadata.subject === "string"
-      && initialMetadata.subject.startsWith("Free 14-day Google Business Profile optimization for "));
+    const initialSubject = typeof initialMetadata.subject === "string" ? initialMetadata.subject : "";
+    const sent14DayOffer = priorExamplesAttached
+      || initialSubject.startsWith("A quick note about ")
+      // Keep existing campaigns on the correct follow-up sequence after this subject update.
+      || initialSubject.startsWith("Free 14-day Google Business Profile optimization for ");
     const action = `send_follow_up_${stage}`;
     const pendingLog = await prisma.outreachLog.create({
       data: {

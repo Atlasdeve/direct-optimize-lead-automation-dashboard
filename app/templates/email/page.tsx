@@ -55,7 +55,7 @@ export default async function EmailTemplatesPage() {
           <div className="text-sm font-medium text-sky-200">Day 1 campaign email</div>
           <h2 className="mt-2 text-xl font-semibold text-white">Free 14-day Google Business Profile optimization</h2>
           <p className="mt-2 text-sm text-slate-400">
-            Subject: Free 14-day Google Business Profile optimization for [business name]
+            Subject: A quick note about [business name] in [city]
           </p>
           <div className="mt-4 rounded-lg bg-white/6 p-4 text-sm leading-6 text-slate-300 soft-border">
             <p>Hi [owner or business team],</p>
