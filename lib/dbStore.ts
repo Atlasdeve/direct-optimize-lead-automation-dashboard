@@ -103,7 +103,16 @@ export async function saveOutreachAutomationSettings(input: Partial<OutreachAuto
 }
 
 export function toLead(lead: DbLead): Lead {
-  const reactivationLog = lead.outreachLogs?.find((log) => log.action === "lead_reactivated");
+  const reactivationLog = lead.outreachLogs?.reduce<NonNullable<DbLead["outreachLogs"]>[number] | undefined>((latest, log) => {
+    if (log.action !== "lead_reactivated" || !log.createdAt) return latest;
+    return !latest?.createdAt || log.createdAt > latest.createdAt ? log : latest;
+  }, undefined);
+  const reactivatedAt = reactivationLog?.createdAt;
+  const currentCampaignLogs = reactivatedAt
+    ? lead.outreachLogs?.filter((log) => !log.createdAt || log.createdAt >= reactivatedAt)
+    : lead.outreachLogs;
+  const hasNewInitialEmail = currentCampaignLogs?.some((log) => log.action === "send_outreach" && log.status === "completed") ?? false;
+  const isFreshReactivation = Boolean(reactivatedAt && !hasNewInitialEmail);
   return {
     id: lead.id,
     company_name: lead.companyName,
@@ -128,18 +137,18 @@ export function toLead(lead: DbLead): Lead {
     decision_maker_confidence: lead.decisionMakerConfidence,
     source_platform: lead.sourcePlatform,
     lead_score: lead.leadScore,
-    outreach_status: lead.outreachStatus as Lead["outreach_status"],
+    outreach_status: (isFreshReactivation ? "New" : lead.outreachStatus) as Lead["outreach_status"],
     outreach_approved: lead.outreachApproved,
     outreach_approved_at: lead.outreachApprovedAt?.toISOString() ?? null,
     reactivated_at: reactivationLog?.createdAt?.toISOString() ?? null,
-    email_sent: lead.emailSent,
-    email_opened: lead.outreachLogs?.some((log) => (log.openCount ?? 0) > 0) ?? false,
-    email_clicked: lead.outreachLogs?.some((log) => (log.clickCount ?? 0) > 0) ?? false,
+    email_sent: isFreshReactivation ? false : lead.emailSent,
+    email_opened: currentCampaignLogs?.some((log) => (log.openCount ?? 0) > 0) ?? false,
+    email_clicked: currentCampaignLogs?.some((log) => (log.clickCount ?? 0) > 0) ?? false,
     voice_called: (lead.callLogs?.length ?? 0) > 0,
-    whatsapp_sent: lead.whatsappSent,
+    whatsapp_sent: isFreshReactivation ? false : lead.whatsappSent,
     replied: lead.replied,
-    last_contacted_at: lead.lastContactedAt?.toISOString() ?? null,
-    next_follow_up_at: lead.nextFollowUpAt?.toISOString() ?? null,
+    last_contacted_at: isFreshReactivation ? null : lead.lastContactedAt?.toISOString() ?? null,
+    next_follow_up_at: isFreshReactivation ? null : lead.nextFollowUpAt?.toISOString() ?? null,
     notes: lead.notes,
     research_note: lead.checklist?.notes?.trim() || null,
     rating: lead.rating ?? undefined,
@@ -172,7 +181,8 @@ export async function listDbLeads(region?: string, organizationId?: string | nul
         where: {
           OR: [
             { channel: "email", OR: [{ openCount: { gt: 0 } }, { clickCount: { gt: 0 } }] },
-            { action: "lead_reactivated" }
+            { action: "lead_reactivated" },
+            { action: "send_outreach", status: "completed" }
           ]
         },
         select: { openCount: true, clickCount: true, action: true, createdAt: true },
@@ -226,6 +236,11 @@ export async function listReviewQueue(queue: ReviewQueueKey = "needs_review", re
       contacts: {
         where: { type: "contact_form" },
         select: { type: true, value: true }
+      },
+      outreachLogs: {
+        where: { action: { in: ["lead_reactivated", "send_outreach"] } },
+        select: { action: true, status: true, createdAt: true },
+        orderBy: { createdAt: "desc" }
       }
     },
     orderBy: [{ leadScore: "desc" }, { createdAt: "desc" }],
@@ -241,6 +256,11 @@ export async function getDbLead(id: string, organizationId?: string | null) {
       contacts: {
         where: { type: "contact_form" },
         select: { type: true, value: true }
+      },
+      outreachLogs: {
+        where: { action: { in: ["lead_reactivated", "send_outreach"] } },
+        select: { action: true, status: true, createdAt: true },
+        orderBy: { createdAt: "desc" }
       }
     }
   });
@@ -1443,13 +1463,24 @@ export async function approveLeadForOutreach(leadId: string, organizationId?: st
   const existing = await prisma.lead.findFirst({ where: { id: leadId, ...(organizationId ? { organizationId } : {}) } });
   if (!existing) throw new Error("Lead not found");
   if (existing.doNotContact || existing.unsubscribed) throw new Error("This lead is blocked from outreach. Reactivate it before approving.");
+  const [latestReactivation, latestInitialEmail] = await Promise.all([
+    prisma.outreachLog.findFirst({ where: { leadId, action: "lead_reactivated" }, select: { createdAt: true }, orderBy: { createdAt: "desc" } }),
+    prisma.outreachLog.findFirst({ where: { leadId, action: "send_outreach", status: "completed" }, select: { createdAt: true }, orderBy: { createdAt: "desc" } })
+  ]);
+  const restartAsNew = Boolean(latestReactivation && (!latestInitialEmail || latestReactivation.createdAt > latestInitialEmail.createdAt));
 
   const lead = await prisma.lead.update({
     where: { id: existing.id },
     data: {
       outreachApproved: true,
       outreachApprovedAt: new Date(),
-      outreachStatus: "Approved"
+      outreachStatus: "Approved",
+      ...(restartAsNew ? {
+        emailSent: false,
+        whatsappSent: false,
+        lastContactedAt: null,
+        nextFollowUpAt: null
+      } : {})
     },
     include: {
       contacts: {
@@ -2052,8 +2083,13 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
         select: { type: true, value: true }
       },
       outreachLogs: {
-        where: { action: { in: ["send_outreach", "send_follow_up_1", "send_follow_up_2"] }, status: { in: ["pending", "completed"] } },
-        select: { action: true, status: true, metadata: true },
+        where: {
+          OR: [
+            { action: { in: ["send_outreach", "send_follow_up_1", "send_follow_up_2"] }, status: { in: ["pending", "completed"] } },
+            { action: "lead_reactivated" }
+          ]
+        },
+        select: { action: true, status: true, metadata: true, createdAt: true },
         orderBy: { createdAt: "asc" }
       }
     },
@@ -2069,8 +2105,13 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
   const logs: string[] = [];
 
   for (const row of rows) {
-    const completed = row.outreachLogs.filter((log) => log.action.startsWith("send_follow_up_") && log.status === "completed");
-    const hasPending = row.outreachLogs.some((log) => log.action.startsWith("send_follow_up_") && log.status === "pending");
+    const lastReactivationAt = row.outreachLogs.reduce<Date | undefined>((latest, log) => {
+      if (log.action !== "lead_reactivated") return latest;
+      return !latest || log.createdAt > latest ? log.createdAt : latest;
+    }, undefined);
+    const campaignLogs = row.outreachLogs.filter((log) => log.action !== "lead_reactivated" && (!lastReactivationAt || log.createdAt >= lastReactivationAt));
+    const completed = campaignLogs.filter((log) => log.action.startsWith("send_follow_up_") && log.status === "completed");
+    const hasPending = campaignLogs.some((log) => log.action.startsWith("send_follow_up_") && log.status === "pending");
     if (hasPending) {
       skipped += 1;
       logs.push(`${row.companyName}: a follow-up delivery is already pending.`);
@@ -2083,7 +2124,7 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
     }
 
     const stage = (completed.length + 1) as 1 | 2;
-    const initialLog = [...row.outreachLogs].reverse().find((log) => log.action === "send_outreach" && log.status === "completed");
+    const initialLog = [...campaignLogs].reverse().find((log) => log.action === "send_outreach" && log.status === "completed");
     const initialMetadata = initialLog?.metadata && typeof initialLog.metadata === "object" && !Array.isArray(initialLog.metadata)
       ? initialLog.metadata as Record<string, unknown>
       : {};

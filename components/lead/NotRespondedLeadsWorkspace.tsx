@@ -82,7 +82,7 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
       next.delete(lead.id);
       return next;
     });
-    setMessage(`${lead.companyName} was returned to active review. No outreach was sent.`);
+    setMessage(`${lead.companyName} was reset as a new lead. No outreach was sent; approve it when ready to start the current email sequence.`);
   }
 
   async function deleteLead(lead: NotRespondedLeadRecord) {
@@ -150,7 +150,7 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
         setMessage(data.error || "Selected leads could not be reactivated.");
         return;
       }
-      setMessage(`${reactivatedIds.size} selected lead${reactivatedIds.size === 1 ? " was" : "s were"} returned to active review. No outreach was sent or approved.`);
+      setMessage(`${reactivatedIds.size} selected lead${reactivatedIds.size === 1 ? " was" : "s were"} reset as new. No outreach was sent or approved.`);
     } catch {
       setMessage("Selected leads could not be reactivated. Please try again.");
     } finally {
@@ -224,7 +224,7 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
             </div>
             {confirmBulkReactivate && (
               <div className="flex flex-col gap-3 border-b border-emerald-300/20 bg-emerald-400/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-emerald-100">Return {selectedIds.size} selected lead{selectedIds.size === 1 ? "" : "s"} to active review? No outreach will be sent or approved.</p>
+                <p className="text-sm text-emerald-100">Reset {selectedIds.size} selected lead{selectedIds.size === 1 ? "" : "s"} as new? They will use the current initial email sequence after approval. No outreach will be sent now.</p>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setConfirmBulkReactivate(false)} disabled={bulkReactivating} className="h-9 rounded-lg bg-white/6 px-3 text-sm font-semibold text-slate-200 soft-border hover:bg-white/10 disabled:opacity-50">Cancel</button>
                   <button type="button" onClick={reactivateSelectedLeads} disabled={bulkReactivating || !selectedIds.size} className="h-9 rounded-lg bg-emerald-400 px-3 text-sm font-semibold text-slate-950 hover:bg-emerald-300 disabled:opacity-60">{bulkReactivating ? "Reactivating..." : "Confirm reactivate"}</button>

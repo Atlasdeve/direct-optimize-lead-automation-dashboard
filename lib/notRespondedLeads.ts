@@ -105,15 +105,17 @@ export async function reactivateNotRespondedLead(leadId: string, organizationId?
     throw new Error("This lead is suppressed and cannot be reactivated.");
   }
 
-  const nextStatus = lead.emailSent || lead.whatsappSent || lead.lastContactedAt ? "Follow-up" : "New";
   const [updated] = await prisma.$transaction([
     prisma.lead.update({
       where: { id: leadId },
       data: {
         archived: false,
-        outreachStatus: nextStatus,
+        outreachStatus: "New",
         outreachApproved: false,
         outreachApprovedAt: null,
+        emailSent: false,
+        whatsappSent: false,
+        lastContactedAt: null,
         nextFollowUpAt: null
       }
     }),
@@ -123,7 +125,7 @@ export async function reactivateNotRespondedLead(leadId: string, organizationId?
         channel: "system",
         action: "lead_reactivated",
         status: "completed",
-        message: "Lead returned to active review from the Not Responded queue."
+        message: "Lead reset as a new lead from the Not Responded queue. Prior outreach history is retained."
       }
     })
   ]);
