@@ -112,7 +112,7 @@ export function toLead(lead: DbLead): Lead {
     ? lead.outreachLogs?.filter((log) => !log.createdAt || log.createdAt >= reactivatedAt)
     : lead.outreachLogs;
   const hasNewInitialEmail = currentCampaignLogs?.some((log) => log.action === "send_outreach" && log.status === "completed") ?? false;
-  const isFreshReactivation = Boolean(reactivatedAt && !hasNewInitialEmail);
+  const isFreshReactivation = Boolean(reactivatedAt && !hasNewInitialEmail && !lead.outreachApproved);
   return {
     id: lead.id,
     company_name: lead.companyName,
