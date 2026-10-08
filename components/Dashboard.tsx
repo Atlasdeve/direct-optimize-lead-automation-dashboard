@@ -21,6 +21,7 @@ import ManageSearchIcon from "@mui/icons-material/ManageSearch";
 import StarIcon from "@mui/icons-material/Star";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { RegionTabs } from "@/components/RegionTabs";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getLocalTime, getRegion } from "@/lib/regions";
@@ -221,7 +222,8 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
         lead.notes
       ].filter(Boolean).join(" ").toLowerCase();
       if (query && !haystack.includes(query)) return false;
-      if (statusFilter !== "all" && lead.outreach_status !== statusFilter) return false;
+      if (statusFilter === "reactivated" && !lead.reactivated_at) return false;
+      if (statusFilter !== "all" && statusFilter !== "reactivated" && lead.outreach_status !== statusFilter) return false;
       if (contactFilter === "email" && !lead.email) return false;
       if (contactFilter === "phone" && !lead.phone) return false;
       if (contactFilter === "form" && (lead.contact_forms?.length ?? 0) === 0) return false;
@@ -636,6 +638,7 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
                   <FilterAltIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" fontSize="small" />
                   <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 w-full rounded-lg border border-line bg-black/20 pl-10 pr-3 text-sm text-white outline-none focus:border-sky-300">
                     <option value="all">All statuses</option>
+                    <option value="reactivated">Reactivated from Not Responded</option>
                     <option value="New">New</option>
                     <option value="Approved">Approved</option>
                     <option value="Follow-up">Follow-up</option>
@@ -741,6 +744,15 @@ export function Dashboard({ mode = "overview", initialRegion = "Canada", workspa
 
                   <div>
                     <StatusBadge status={lead.outreach_status} />
+                    {lead.reactivated_at && (
+                      <div
+                        title={`Reactivated from Not Responded on ${new Date(lead.reactivated_at).toLocaleString()}`}
+                        className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-sky-400/12 px-2 py-1 text-[11px] font-semibold text-sky-100 soft-border"
+                      >
+                        <RestartAltIcon sx={{ fontSize: 14 }} />
+                        Reactivated
+                      </div>
+                    )}
                     <div className="mt-2 flex gap-1.5">
                       <ActivityFlag active={lead.email_sent} label="Email sent"><SendIcon sx={{ fontSize: 15 }} /></ActivityFlag>
                       <ActivityFlag active={Boolean(lead.email_opened)} label="Email opened"><MarkEmailReadIcon sx={{ fontSize: 15 }} /></ActivityFlag>

@@ -17,7 +17,7 @@ import type { AutomationResult, Lead, PlaceLeadCandidate } from "@/lib/types";
 
 type DbLead = Prisma.LeadGetPayload<Record<string, never>> & {
   contacts?: Array<{ type: string; value: string }>;
-  outreachLogs?: Array<{ openCount?: number; clickCount?: number; status?: string; action?: string; metadata?: Prisma.JsonValue | null }>;
+  outreachLogs?: Array<{ openCount?: number; clickCount?: number; status?: string; action?: string; createdAt?: Date; metadata?: Prisma.JsonValue | null }>;
   callLogs?: Array<{ id: string }>;
   checklist?: { notes?: string | null } | null;
 };
@@ -103,6 +103,7 @@ export async function saveOutreachAutomationSettings(input: Partial<OutreachAuto
 }
 
 export function toLead(lead: DbLead): Lead {
+  const reactivationLog = lead.outreachLogs?.find((log) => log.action === "lead_reactivated");
   return {
     id: lead.id,
     company_name: lead.companyName,
@@ -130,6 +131,7 @@ export function toLead(lead: DbLead): Lead {
     outreach_status: lead.outreachStatus as Lead["outreach_status"],
     outreach_approved: lead.outreachApproved,
     outreach_approved_at: lead.outreachApprovedAt?.toISOString() ?? null,
+    reactivated_at: reactivationLog?.createdAt?.toISOString() ?? null,
     email_sent: lead.emailSent,
     email_opened: lead.outreachLogs?.some((log) => (log.openCount ?? 0) > 0) ?? false,
     email_clicked: lead.outreachLogs?.some((log) => (log.clickCount ?? 0) > 0) ?? false,
@@ -170,10 +172,11 @@ export async function listDbLeads(region?: string, organizationId?: string | nul
         where: {
           OR: [
             { channel: "email", OR: [{ openCount: { gt: 0 } }, { clickCount: { gt: 0 } }] },
+            { action: "lead_reactivated" }
           ]
         },
-        select: { openCount: true, clickCount: true },
-        take: 1
+        select: { openCount: true, clickCount: true, action: true, createdAt: true },
+        orderBy: { createdAt: "desc" }
       },
       callLogs: {
         where: { status: { not: "planned" } },

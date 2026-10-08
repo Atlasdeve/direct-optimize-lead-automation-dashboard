@@ -27,6 +27,7 @@ export type Lead = {
   outreach_status: "New" | "Approved" | "Contacted" | "Replied" | "Follow-up" | "Meeting Booked" | "Closed" | "Failed";
   outreach_approved: boolean;
   outreach_approved_at?: string | null;
+  reactivated_at?: string | null;
   email_sent: boolean;
   email_opened?: boolean;
   email_clicked?: boolean;
