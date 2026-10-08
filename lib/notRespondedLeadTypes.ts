@@ -12,6 +12,8 @@ export type NotRespondedLeadRecord = {
   category: string;
   email: string | null;
   phone: string | null;
+  rating: number | null;
+  reviewCount: number | null;
   outreachStatus: string;
   previousStatus: string;
   createdAt: string;

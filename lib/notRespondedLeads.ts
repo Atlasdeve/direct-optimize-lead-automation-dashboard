@@ -86,6 +86,8 @@ export async function listNotRespondedLeads(organizationId?: string | null): Pro
       category: lead.category ?? lead.businessType ?? "Uncategorized",
       email: lead.email,
       phone: lead.phone,
+      rating: lead.rating,
+      reviewCount: lead.reviewCount,
       outreachStatus: "Not Responded",
       previousStatus: lead.outreachStatus,
       createdAt: lead.createdAt.toISOString(),

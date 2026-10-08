@@ -9,6 +9,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
 import ScheduleIcon from "@mui/icons-material/Schedule";
+import StarIcon from "@mui/icons-material/Star";
 import type { NotRespondedLeadRecord } from "@/lib/notRespondedLeadTypes";
 
 function formatActivity(value: string) {
@@ -242,7 +243,7 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
             <div className="divide-y divide-white/10">
             {filtered.map((lead) => (
               <article key={lead.id} className={`px-5 py-5 ${selectedIds.has(lead.id) ? "bg-sky-400/[0.045]" : ""}`}>
-                <div className="grid gap-4 xl:grid-cols-[auto_1.15fr_0.7fr_0.85fr_0.8fr_auto] xl:items-center">
+                <div className="grid gap-4 xl:grid-cols-[auto_minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_minmax(0,0.4fr)_auto] xl:items-center">
                   <button type="button" onClick={() => toggleSelected(lead.id)} disabled={bulkDeleting || bulkReactivating} aria-label={`${selectedIds.has(lead.id) ? "Deselect" : "Select"} ${lead.companyName}`} className="grid h-10 w-10 place-items-center rounded-lg text-slate-500 hover:bg-sky-400/10 hover:text-sky-300 disabled:opacity-50">
                     {selectedIds.has(lead.id) ? <CheckBoxIcon className="text-sky-300" /> : <CheckBoxOutlineBlankIcon />}
                   </button>
@@ -257,6 +258,14 @@ export function NotRespondedLeadsWorkspace({ initialLeads }: { initialLeads: Not
                   <div>
                     <span className="inline-flex rounded-md bg-amber-400/12 px-2 py-1 text-xs font-semibold text-amber-100">Not Responded</span>
                     <div className="mt-2 text-xs text-slate-500">Previous: {lead.previousStatus}</div>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs uppercase text-slate-500">GMB rating</div>
+                    <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-amber-400/10 px-2 py-1 text-sm font-semibold text-amber-200" title="Google Business Profile rating">
+                      <StarIcon sx={{ fontSize: 16 }} />
+                      <span>{lead.rating != null ? `${lead.rating.toFixed(1)}/5` : "No rating"}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">{lead.reviewCount != null ? `${lead.reviewCount.toLocaleString()} reviews` : "Reviews unavailable"}</div>
                   </div>
                   <div>
                     <div className="text-xs uppercase text-slate-500">Last activity</div>
