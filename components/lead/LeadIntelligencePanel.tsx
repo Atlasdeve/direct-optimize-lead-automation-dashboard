@@ -63,7 +63,7 @@ export function LeadIntelligencePanel({ leadId }: { leadId: string }) {
   }
 
   return (
-    <section className="glass rounded-xl p-5">
+    <section className="glass min-w-0 rounded-xl p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -109,7 +109,7 @@ export function LeadIntelligencePanel({ leadId }: { leadId: string }) {
       )}
 
       {audit && (
-        <div className="mt-5 space-y-4">
+        <div className="mt-5 min-w-0 space-y-4">
           <div className="rounded-lg bg-white/6 p-4 soft-border">
             <div className="text-xs uppercase text-slate-500">Lead fit summary</div>
             <p className="mt-2 text-sm leading-6 text-slate-300">{audit.fitSummary}</p>
@@ -151,11 +151,11 @@ export function LeadIntelligencePanel({ leadId }: { leadId: string }) {
             </div>
           )}
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-lg bg-white/6 p-4 soft-border">
+          <div className="grid min-w-0 gap-3 md:grid-cols-2">
+            <div className="min-w-0 rounded-lg bg-white/6 p-4 soft-border">
               <div className="mb-3 text-sm font-semibold text-white">Website snapshot</div>
               <div className="space-y-2 text-sm text-slate-300">
-                <div>Final URL: {audit.finalUrl || audit.website || "Missing"}</div>
+                <div className="[overflow-wrap:anywhere]">Final URL: {audit.finalUrl || audit.website || "Missing"}</div>
                 <div>HTTP status: {audit.httpStatus || "Unknown"}</div>
                 <div>Title: {audit.title || "Missing"}</div>
                 <div>Meta: {audit.metaDescription || "Missing"}</div>
@@ -165,7 +165,7 @@ export function LeadIntelligencePanel({ leadId }: { leadId: string }) {
                 <div>Robots: {yesNo(audit.hasRobotsTxt)} · Sitemap: {yesNo(audit.hasSitemapXml)} · Open Graph: {yesNo(audit.hasOpenGraph)}</div>
               </div>
             </div>
-            <div className="rounded-lg bg-white/6 p-4 soft-border">
+            <div className="min-w-0 rounded-lg bg-white/6 p-4 soft-border">
               <div className="mb-3 text-sm font-semibold text-white">SEO opportunity flags</div>
               <div className="flex flex-wrap gap-2">
                 {audit.seoFlags.length === 0 && <span className="rounded-md bg-emerald-400/12 px-3 py-1 text-sm text-emerald-100 soft-border">No major flags</span>}
@@ -211,11 +211,11 @@ export function LeadIntelligencePanel({ leadId }: { leadId: string }) {
           </div>
 
           {audit.pagesScanned && audit.pagesScanned.length > 0 && (
-            <div className="rounded-lg bg-white/6 p-4 soft-border">
+            <div className="min-w-0 rounded-lg bg-white/6 p-4 soft-border">
               <div className="mb-3 text-sm font-semibold text-white">Pages scanned</div>
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 {audit.pagesScanned.map((page) => (
-                  <div key={page.url} className="rounded-lg bg-slate-950/35 p-3 text-sm soft-border">
+                  <div key={page.url} className="min-w-0 overflow-hidden rounded-lg bg-slate-950/35 p-3 text-sm soft-border">
                     <div className="truncate font-semibold text-white">{page.title || page.url}</div>
                     <div className="mt-1 truncate text-xs text-slate-500">{page.status || "Unknown"} · {page.url}</div>
                   </div>
