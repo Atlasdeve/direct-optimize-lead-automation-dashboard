@@ -38,7 +38,7 @@ export function CampaignBuilder({ initialRegion = "Canada" }: { initialRegion?: 
   const todayTarget = getDailyAutomationTarget(region, selectedRegion?.country, undefined, savedCategories);
 
   useEffect(() => {
-    fetch("/api/outreach/settings")
+    fetch("/api/outreach/settings", { cache: "no-store" })
       .then((response) => response.json())
       .then((data) => {
         if (!data.settings) return;
