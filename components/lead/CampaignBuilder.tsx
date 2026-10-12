@@ -263,15 +263,16 @@ export function CampaignBuilder({ initialRegion = "Canada" }: { initialRegion?: 
             <p className="mt-2 text-sm text-slate-400">Discovery keeps businesses with real website, SEO, GMB, or review opportunities and a usable contact path. Healthy low-opportunity businesses are rejected before they enter your pipeline.</p>
           </div>
           <label className="text-sm text-slate-300">
-            Daily action limit
+            Automation batch size
             <input
               type="number"
               min={1}
-              max={150}
+              max={50}
               value={dailyLimit}
-              onChange={(event) => setDailyLimit(Math.max(1, Math.min(150, Number(event.target.value) || 1)))}
+              onChange={(event) => setDailyLimit(Math.max(1, Math.min(50, Number(event.target.value) || 1)))}
               className="mt-2 h-11 w-full rounded-lg border border-line bg-black/20 px-3 text-white outline-none focus:border-sky-300"
             />
+            <span className="mt-1 block text-xs leading-5 text-slate-400">Maximum approved emails and follow-ups processed in one automation run.</span>
           </label>
           <label className="text-sm text-slate-300">
             City
@@ -389,7 +390,7 @@ export function CampaignBuilder({ initialRegion = "Canada" }: { initialRegion?: 
               <EventRepeatIcon fontSize="small" className="text-sky-200" />
               Day 1 outreach
             </div>
-            <p className="mt-2 text-sm leading-6 text-slate-400">The worker sends approved personalized emails automatically during regional business hours.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-400">The worker runs every 10 minutes during regional business hours and processes up to the batch size above. This is a per-run limit, not a daily limit.</p>
           </div>
           <label className="rounded-lg bg-white/6 p-3 text-sm text-slate-300 soft-border">
             Follow-up delay
