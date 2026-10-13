@@ -213,7 +213,7 @@ export function BookingWorkspace() {
       </header>
 
       {(error || message || calendarMessage) && (
-        <div className={`rounded-2xl border px-4 py-3 text-sm ${error ? "border-rose-300/30 bg-rose-400/10 text-rose-100" : calendarMessage?.tone === "warning" ? "border-amber-300/30 bg-amber-400/10 text-amber-50" : "border-emerald-300/30 bg-emerald-400/10 text-emerald-50"}`}>
+        <div className={`rounded-2xl border px-4 py-3 text-sm ${error ? "border-rose-300/30 bg-rose-400/10 text-rose-100" : calendarMessage?.tone === "warning" ? "border-amber-300/30 bg-amber-400/10 text-amber-100" : "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"}`}>
           {error || message || calendarMessage?.message}
         </div>
       )}
@@ -256,10 +256,10 @@ export function BookingWorkspace() {
           ) : null}
         </div>
         {!workspace.googleCalendar.configured && (
-          <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-400/5 p-4 text-sm text-amber-50">
+          <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-400/5 p-4 text-sm text-amber-100">
             <div className="font-semibold">One-time Google setup needed</div>
-            <p className="mt-1 leading-6 text-amber-100/90">Add <code>GOOGLE_CALENDAR_CLIENT_ID</code>, <code>GOOGLE_CALENDAR_CLIENT_SECRET</code>, and a 32+ character <code>GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY</code> in Railway. Then add this exact redirect URI in Google Cloud:</p>
-            <code className="mt-3 block break-all rounded-lg bg-black/25 px-3 py-2 text-xs text-amber-50">{workspace.googleCalendar.redirectUri}</code>
+            <p className="mt-1 leading-6 text-amber-100">Add <code>GOOGLE_CALENDAR_CLIENT_ID</code>, <code>GOOGLE_CALENDAR_CLIENT_SECRET</code>, and a 32+ character <code>GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY</code> in Railway. Then add this exact redirect URI in Google Cloud:</p>
+            <code className="mt-3 block break-all rounded-lg bg-black/25 px-3 py-2 text-xs text-amber-100">{workspace.googleCalendar.redirectUri}</code>
           </div>
         )}
       </section>
