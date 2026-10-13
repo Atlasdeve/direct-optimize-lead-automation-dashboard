@@ -41,6 +41,9 @@ model Organization {
   whatsappTemplates  WhatsappTemplate[]
   automationRuns     AutomationRun[]
   notifications      Notification[]
+  bookingSettings    BookingSettings?
+  googleCalendarConnection GoogleCalendarConnection?
+  bookingAppointments BookingAppointment[]
 
   @@index([plan])
   @@index([billingStatus])
@@ -175,6 +178,7 @@ model Lead {
   callLogs          CallLog[]
   followUpReminders FollowUpReminder[]
   websiteVisits     LeadWebsiteVisit[]
+  bookingAppointments BookingAppointment[]
   organization      Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
@@ -632,6 +636,71 @@ model PushSubscription {
 
   @@index([userId, enabled])
   @@map("push_subscriptions")
+}
+
+model BookingSettings {
+  id                         String    @id @default(cuid())
+  organizationId             String    @unique @map("organization_id")
+  timezone                   String    @default("America/Toronto")
+  appointmentDurationMinutes Int       @default(30) @map("appointment_duration_minutes")
+  bufferMinutes              Int       @default(0) @map("buffer_minutes")
+  minimumNoticeMinutes       Int       @default(120) @map("minimum_notice_minutes")
+  maximumDaysAhead           Int       @default(30) @map("maximum_days_ahead")
+  availability               Json?
+  eventTitle                 String    @default("Discovery call") @map("event_title")
+  eventDescription           String?   @map("event_description")
+  isPublic                   Boolean   @default(true) @map("is_public")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+  organization               Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointments               BookingAppointment[]
+
+  @@map("booking_settings")
+}
+
+model GoogleCalendarConnection {
+  id                    String    @id @default(cuid())
+  organizationId        String    @unique @map("organization_id")
+  calendarId            String    @default("primary") @map("calendar_id")
+  googleAccountEmail    String?   @map("google_account_email")
+  encryptedRefreshToken String    @map("encrypted_refresh_token")
+  scope                 String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("google_calendar_connections")
+}
+
+model BookingAppointment {
+  id                 String    @id @default(cuid())
+  organizationId     String    @map("organization_id")
+  bookingSettingsId  String?   @map("booking_settings_id")
+  leadId             String?   @map("lead_id")
+  name               String
+  email              String
+  companyName        String?   @map("company_name")
+  phone              String?
+  notes              String?
+  startsAt           DateTime  @map("starts_at")
+  endsAt             DateTime  @map("ends_at")
+  timezone           String
+  status             String    @default("confirmed")
+  source             String    @default("public_booking")
+  googleEventId      String?   @unique @map("google_event_id")
+  calendarSyncStatus String    @default("not_connected") @map("calendar_sync_status")
+  bookingToken       String    @unique @map("booking_token")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bookingSettings    BookingSettings? @relation(fields: [bookingSettingsId], references: [id], onDelete: SetNull)
+  lead               Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, startsAt])
+  @@index([organizationId, startsAt])
+  @@index([bookingSettingsId, startsAt])
+  @@index([leadId])
+  @@map("booking_appointments")
 }
 
 model Setting {

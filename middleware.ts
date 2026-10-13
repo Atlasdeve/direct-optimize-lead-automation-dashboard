@@ -16,7 +16,7 @@ const publicPaths = new Set([
   "/favicon.ico"
 ]);
 
-const publicPrefixes = ["/api/email/open", "/api/email/click", "/api/visitor", "/_next"];
+const publicPrefixes = ["/api/email/open", "/api/email/click", "/api/visitor", "/api/book", "/book", "/_next"];
 const crossOriginApiKeyPaths = new Set([
   "/api/extension/leads",
   "/api/extension/regions",

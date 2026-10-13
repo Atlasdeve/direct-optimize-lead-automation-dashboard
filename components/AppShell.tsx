@@ -35,6 +35,7 @@ import NightlifeIcon from "@mui/icons-material/Nightlife";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AlarmIcon from "@mui/icons-material/Alarm";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
+import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import MarkEmailUnreadIcon from "@mui/icons-material/MarkEmailUnread";
 import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -66,6 +67,7 @@ const nav: NavItem[] = [
   { href: "/adult-leads", label: "Adult Leads", icon: NightlifeIcon, minPlan: "agency_pro" },
   { href: "/automation", label: "Automation", icon: PlayCircleIcon, minPlan: "growth" },
   { href: "/campaigns", label: "Campaigns", icon: CampaignIcon, minPlan: "growth" },
+  { href: "/booking", label: "Booking", icon: EventAvailableIcon, minPlan: "growth" },
   { href: "/calls", label: "Calls", icon: PhoneInTalkIcon, minPlan: "agency_pro" },
   { href: "/compose-call", label: "Compose Call", icon: DialpadIcon, adminOnly: true, minPlan: "agency_pro" },
   { href: "/reports", label: "Reports", icon: AssessmentIcon, minPlan: "agency_pro" },
@@ -181,7 +183,7 @@ export function AppShell({
     return false;
   }
 
-  if (pathname === "/client-register" || /^\/o\/[^/]+\/login$/.test(pathname)) {
+  if (pathname === "/client-register" || pathname.startsWith("/book/") || /^\/o\/[^/]+\/login$/.test(pathname)) {
     return <>{children}</>;
   }
 

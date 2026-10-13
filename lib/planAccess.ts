@@ -18,6 +18,7 @@ export function planMeets(plan: string | null | undefined, required: FeatureKey)
 const growthPagePrefixes = [
   "/automation",
   "/campaigns",
+  "/booking",
   "/follow-up-reminders",
   "/not-responded",
   "/pipeline",
@@ -42,6 +43,7 @@ const agencyPagePrefixes = [
 
 const growthApiPrefixes = [
   "/api/automation",
+  "/api/booking",
   "/api/follow-up-reminders",
   "/api/portal",
   "/api/outreach/send-approved"
