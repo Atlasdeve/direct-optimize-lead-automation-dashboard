@@ -250,8 +250,8 @@ export function ReputationBenchmarkWorkspace({
       <section className="glass rounded-[28px] p-5 sm:p-6">
         <RegionPicker regions={regions} selectedRegion={selectedRegion} onSelect={selectRegion} />
         <div className="my-6 border-t border-white/10" />
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
-          <div className="grid gap-4">
+        <div className="grid gap-5">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
             <label className="grid gap-2 text-sm font-medium text-slate-200">Client or lead business
               <select value={leadId} onChange={(event) => setLeadId(event.target.value)} className="h-12 rounded-xl border border-white/10 bg-slate-950/45 px-3 text-white outline-none focus:border-sky-300">
                 {leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.companyName} · {lead.city}</option>)}
@@ -259,9 +259,10 @@ export function ReputationBenchmarkWorkspace({
             </label>
             <div className="rounded-2xl bg-white/[0.055] px-4 py-3 text-xs leading-5 text-slate-300 soft-border">{leads.length.toLocaleString()} comparison-ready {leads.length === 1 ? "lead" : "leads"} in this region.</div>
           </div>
+          <div className="border-t border-white/10" />
           <div className="grid gap-3">
             <label className="grid gap-2 text-sm font-medium text-slate-200">Keywords to compare <span className="text-xs font-normal text-slate-400">Automatically suggested from the selected business type and city. One per line, up to four.</span>
-              <textarea value={keywordsText} onChange={(event) => setKeywordsText(event.target.value)} rows={4} maxLength={500} className="resize-y rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300" placeholder="pest control Calgary\nemergency pest control Calgary" />
+              <textarea value={keywordsText} onChange={(event) => setKeywordsText(event.target.value)} rows={3} maxLength={500} className="resize-y rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300" placeholder="pest control Calgary\nemergency pest control Calgary" />
             </label>
             {selectedLead && <div className="rounded-2xl bg-white/[0.045] p-3 soft-border">
               <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold text-slate-200">Recommended local keywords</span><button type="button" onClick={useSuggestedKeywords} className="text-xs font-semibold text-sky-200 hover:text-white">Use all suggestions</button></div>
