@@ -4,7 +4,11 @@ import { completeGoogleCalendarConnection, googleCalendarStateCookieName, verify
 import { isOperationsRole } from "@/lib/roles";
 
 function redirect(request: NextRequest, status: string) {
-  const url = new URL("/booking", request.url);
+  // Railway forwards the OAuth callback through its internal listener, whose
+  // request URL can be `0.0.0.0:8080`. Always prefer the configured public
+  // URL so the user returns to the live dashboard after Google authorization.
+  const baseUrl = (process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin).replace(/\/$/, "");
+  const url = new URL("/booking", baseUrl);
   url.searchParams.set("calendar", status);
   return url;
 }
