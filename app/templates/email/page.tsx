@@ -32,7 +32,7 @@ export default async function EmailTemplatesPage() {
     ].join("\n"),
     highlightParagraph: DIRECT_OPTIMIZE_OFFER,
     attachmentLabel: "Direct Optimize - GBP Keyword Case Studies.pdf",
-    ctas: [{ label: "Book a call", url: bookingPreviewUrl, variant: "primary" }]
+    ctas: [{ label: "Book Free Meeting", url: bookingPreviewUrl, variant: "primary" }]
   }) : null;
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -70,7 +70,7 @@ export default async function EmailTemplatesPage() {
             <p className="mt-3">{SPECIALIST_WORK_ATTACHMENT_LINE} The email asks the recipient to reply YES for a brief plan and retains the unsubscribe footer.</p>
           </div>
           <p className="mt-3 text-xs text-slate-400">
-            Attachment: Direct Optimize - GBP Keyword Case Studies.pdf. The lead-specific GMB and website audit PDFs are not attached to this initial email. Buttons: Book a call · Visit Direct Optimize · Create Your Portal.
+            Attachment: Direct Optimize - GBP Keyword Case Studies.pdf. The lead-specific GMB and website audit PDFs are not attached to this initial email. Buttons: Book Free Meeting · Visit Direct Optimize · Create Your Portal.
           </p>
           <div className="mt-5 overflow-hidden rounded-xl border border-line bg-slate-100">
             <iframe title="Day 1 email design preview" srcDoc={initialEmailPreview ?? ""} sandbox="" loading="lazy" className="h-[760px] w-full bg-slate-100" />

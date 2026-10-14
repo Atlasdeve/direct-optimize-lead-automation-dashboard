@@ -648,7 +648,7 @@ function bookingCtasForLead(lead: Lead, bookingUrl?: string | null): EmailCta[] 
     // Company is the only lead detail placed in the URL. It is prefilled in
     // the public form but stays editable if the recipient needs to correct it.
     url.searchParams.set("company", companyName);
-    return [{ label: "Book a call", url: url.toString(), variant: "primary" }];
+    return [{ label: "Book Free Meeting", url: url.toString(), variant: "primary" }];
   } catch {
     return [];
   }
