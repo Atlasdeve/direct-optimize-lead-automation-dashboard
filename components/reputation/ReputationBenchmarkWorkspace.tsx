@@ -262,7 +262,7 @@ export function ReputationBenchmarkWorkspace({
           <div className="border-t border-white/10" />
           <div className="grid gap-3">
             <label className="grid gap-2 text-sm font-medium text-slate-200">Keywords to compare <span className="text-xs font-normal text-slate-400">Automatically suggested from the selected business type and city. One per line, up to four.</span>
-              <textarea value={keywordsText} onChange={(event) => setKeywordsText(event.target.value)} rows={3} maxLength={500} className="resize-y rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300" placeholder="pest control Calgary\nemergency pest control Calgary" />
+              <textarea value={keywordsText} onChange={(event) => setKeywordsText(event.target.value)} rows={4} maxLength={500} className="resize-y rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300" placeholder="pest control Calgary\nemergency pest control Calgary" />
             </label>
             {selectedLead && <div className="rounded-2xl bg-white/[0.045] p-3 soft-border">
               <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold text-slate-200">Recommended local keywords</span><button type="button" onClick={useSuggestedKeywords} className="text-xs font-semibold text-sky-200 hover:text-white">Use all suggestions</button></div>
