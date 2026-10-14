@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
@@ -23,6 +24,12 @@ type LeadOption = {
   suggestedKeywords: string[];
 };
 
+type RegionOption = {
+  name: string;
+  label: string;
+  country: string;
+};
+
 function formatNumber(value: number | null) {
   return value === null ? "—" : value.toLocaleString();
 }
@@ -42,6 +49,20 @@ function rankTone(rank: number | null) {
   return "bg-amber-400/15 text-amber-100";
 }
 
+function keywordKey(value: string) {
+  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+}
+
+function parseKeywordList(value: string) {
+  const unique = new Map<string, string>();
+  for (const item of value.split(/[\n,]+/)) {
+    const keyword = item.trim().replace(/\s+/g, " ");
+    if (keyword.length < 2 || keyword.length > 120) continue;
+    unique.set(keywordKey(keyword), keyword);
+  }
+  return [...unique.values()].slice(0, 4);
+}
+
 function businessLabel(business: BenchmarkBusiness) {
   return business.name || "Unnamed business";
 }
@@ -59,6 +80,33 @@ function MetricCard({ label, value, detail, tone = "sky" }: { label: string; val
       <div className="mt-3 flex items-end justify-between gap-3">
         <div className="text-3xl font-semibold tracking-tight text-white">{value}</div>
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${toneClass}`}>{detail}</span>
+      </div>
+    </div>
+  );
+}
+
+function RegionPicker({ regions, selectedRegion, onSelect }: { regions: RegionOption[]; selectedRegion: string | null; onSelect: (region: string) => void }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <div className="text-sm font-semibold text-slate-100">Select region</div>
+        <p className="mt-1 text-xs text-slate-400">Only comparison-ready leads from the selected region are shown below.</p>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {regions.map((region) => {
+          const active = selectedRegion === region.name;
+          return (
+            <button
+              key={region.name}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onSelect(region.name)}
+              className={`h-10 shrink-0 rounded-full px-4 text-sm font-semibold transition soft-border ${active ? "bg-sky-300 text-slate-950" : "bg-white/7 text-slate-200 hover:bg-white/12 hover:text-white"}`}
+            >
+              {region.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -93,13 +141,31 @@ function BusinessRow({ business, target }: { business: BenchmarkBusiness; target
   );
 }
 
-export function ReputationBenchmarkWorkspace({ leads, initialLeadId }: { leads: LeadOption[]; initialLeadId: string | null }) {
+export function ReputationBenchmarkWorkspace({
+  leads,
+  initialLeadId,
+  selectedRegion,
+  regions
+}: {
+  leads: LeadOption[];
+  initialLeadId: string | null;
+  selectedRegion: string | null;
+  regions: RegionOption[];
+}) {
+  const router = useRouter();
   const [leadId, setLeadId] = useState(initialLeadId || "");
   const [keywordsText, setKeywordsText] = useState("");
   const [benchmark, setBenchmark] = useState<LocalCompetitorBenchmark | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const selectedLead = useMemo(() => leads.find((lead) => lead.id === leadId) ?? null, [leadId, leads]);
+  const selectedKeywordKeys = new Set(parseKeywordList(keywordsText).map(keywordKey));
+
+  useEffect(() => {
+    setLeadId(initialLeadId || "");
+    setBenchmark(null);
+    setError("");
+  }, [initialLeadId, selectedRegion]);
 
   useEffect(() => {
     setKeywordsText(selectedLead?.suggestedKeywords.join("\n") || "");
@@ -107,9 +173,30 @@ export function ReputationBenchmarkWorkspace({ leads, initialLeadId }: { leads: 
     setError("");
   }, [selectedLead?.id]);
 
+  function selectRegion(region: string) {
+    if (region === selectedRegion) return;
+    const params = new URLSearchParams({ region });
+    router.push(`/reputation?${params.toString()}`);
+  }
+
+  function useSuggestedKeywords() {
+    setKeywordsText(selectedLead?.suggestedKeywords.join("\n") || "");
+  }
+
+  function toggleSuggestedKeyword(keyword: string) {
+    setKeywordsText((current) => {
+      const keywords = parseKeywordList(current);
+      const key = keywordKey(keyword);
+      if (keywords.some((item) => keywordKey(item) === key)) {
+        return keywords.filter((item) => keywordKey(item) !== key).join("\n");
+      }
+      return [...keywords.slice(0, 3), keyword].join("\n");
+    });
+  }
+
   async function runBenchmark() {
     if (!selectedLead || running) return;
-    const keywords = keywordsText.split(/[\n,]+/).map((keyword) => keyword.trim()).filter(Boolean).slice(0, 4);
+    const keywords = parseKeywordList(keywordsText);
     setRunning(true);
     setError("");
     const response = await fetch("/api/reputation/benchmark", {
@@ -128,8 +215,15 @@ export function ReputationBenchmarkWorkspace({ leads, initialLeadId }: { leads: 
 
   if (!leads.length) {
     return (
-      <div className="mx-auto max-w-4xl glass rounded-[28px] p-7">
-        <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-sky-400/15 text-sky-100 soft-border"><CompareArrowsIcon /></span><div><h1 className="text-2xl font-semibold text-white">Local Competitor Benchmark</h1><p className="mt-1 text-sm text-slate-300">Add or import a lead with a city and business category before running a local comparison.</p></div></div>
+      <div className="mx-auto max-w-4xl space-y-6">
+        <header>
+          <div className="text-sm font-semibold text-sky-200">Google Business Profile</div>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">Local Competitor Benchmark</h1>
+        </header>
+        <section className="glass rounded-[28px] p-6">
+          <RegionPicker regions={regions} selectedRegion={selectedRegion} onSelect={selectRegion} />
+          <div className="mt-6 flex items-center gap-3 border-t border-white/10 pt-6"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-sky-400/15 text-sky-100 soft-border"><CompareArrowsIcon /></span><div><h2 className="text-lg font-semibold text-white">No comparison-ready leads in this region</h2><p className="mt-1 text-sm text-slate-300">Add or import a lead with a city and business category before running a local comparison.</p></div></div>
+        </section>
       </div>
     );
   }
@@ -154,21 +248,38 @@ export function ReputationBenchmarkWorkspace({ leads, initialLeadId }: { leads: 
       </header>
 
       <section className="glass rounded-[28px] p-5 sm:p-6">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto] lg:items-end">
-          <label className="grid gap-2 text-sm text-slate-200">Client or lead business
-            <select value={leadId} onChange={(event) => setLeadId(event.target.value)} className="h-12 rounded-xl border border-white/10 bg-slate-950/45 px-3 text-white outline-none focus:border-sky-300">
-              {leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.companyName} · {lead.city}</option>)}
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm text-slate-200">Keywords <span className="text-xs font-normal text-slate-400">One per line, up to four. Use niche terms—not the business name.</span>
-            <textarea value={keywordsText} onChange={(event) => setKeywordsText(event.target.value)} rows={3} maxLength={500} className="resize-y rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300" placeholder="pest control Calgary\nemergency pest control Calgary" />
-          </label>
-          <button type="button" onClick={runBenchmark} disabled={!selectedLead || running} className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-sky-300 px-5 text-sm font-semibold text-slate-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-55">
+        <RegionPicker regions={regions} selectedRegion={selectedRegion} onSelect={selectRegion} />
+        <div className="my-6 border-t border-white/10" />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
+          <div className="grid gap-4">
+            <label className="grid gap-2 text-sm font-medium text-slate-200">Client or lead business
+              <select value={leadId} onChange={(event) => setLeadId(event.target.value)} className="h-12 rounded-xl border border-white/10 bg-slate-950/45 px-3 text-white outline-none focus:border-sky-300">
+                {leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.companyName} · {lead.city}</option>)}
+              </select>
+            </label>
+            <div className="rounded-2xl bg-white/[0.055] px-4 py-3 text-xs leading-5 text-slate-300 soft-border">{leads.length.toLocaleString()} comparison-ready {leads.length === 1 ? "lead" : "leads"} in this region.</div>
+          </div>
+          <div className="grid gap-3">
+            <label className="grid gap-2 text-sm font-medium text-slate-200">Keywords to compare <span className="text-xs font-normal text-slate-400">Automatically suggested from the selected business type and city. One per line, up to four.</span>
+              <textarea value={keywordsText} onChange={(event) => setKeywordsText(event.target.value)} rows={4} maxLength={500} className="resize-y rounded-xl border border-white/10 bg-slate-950/45 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300" placeholder="pest control Calgary\nemergency pest control Calgary" />
+            </label>
+            {selectedLead && <div className="rounded-2xl bg-white/[0.045] p-3 soft-border">
+              <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold text-slate-200">Recommended local keywords</span><button type="button" onClick={useSuggestedKeywords} className="text-xs font-semibold text-sky-200 hover:text-white">Use all suggestions</button></div>
+              <div className="mt-2 flex flex-wrap gap-2">{selectedLead.suggestedKeywords.map((keyword) => {
+                const selected = selectedKeywordKeys.has(keywordKey(keyword));
+                return <button key={keyword} type="button" onClick={() => toggleSuggestedKeyword(keyword)} className={`rounded-full px-3 py-1.5 text-xs font-semibold transition soft-border ${selected ? "bg-sky-300 text-slate-950" : "bg-white/7 text-slate-200 hover:bg-white/12"}`}>{selected ? "✓ " : "+ "}{keyword}</button>;
+              })}</div>
+              <p className="mt-2 text-[11px] leading-4 text-slate-400">Click a suggestion to include or remove it from the live comparison.</p>
+            </div>}
+          </div>
+        </div>
+        <div className="mt-5 flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          {selectedLead && <div className="flex flex-wrap gap-2 text-xs text-slate-300"><span className="rounded-full bg-white/7 px-3 py-1.5 soft-border"><LocationOnIcon className="mr-1 align-[-3px] text-sky-200" fontSize="inherit" />{selectedLead.city}, {selectedLead.country}</span><span className="rounded-full bg-white/7 px-3 py-1.5 soft-border">Niche: {selectedLead.category || selectedLead.businessType}</span><span className="rounded-full bg-white/7 px-3 py-1.5 soft-border">Stored rating: {formatRating(selectedLead.rating)} ★ · {formatNumber(selectedLead.reviewCount)} reviews</span></div>}
+          <button type="button" onClick={runBenchmark} disabled={!selectedLead || running} className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-sky-300 px-5 text-sm font-semibold text-slate-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-55">
             {running ? <RefreshIcon className="animate-spin" fontSize="small" /> : <SearchIcon fontSize="small" />}
             {running ? "Checking…" : "Run live comparison"}
           </button>
         </div>
-        {selectedLead && <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300"><span className="rounded-full bg-white/7 px-3 py-1.5 soft-border"><LocationOnIcon className="mr-1 align-[-3px] text-sky-200" fontSize="inherit" />{selectedLead.city}, {selectedLead.country}</span><span className="rounded-full bg-white/7 px-3 py-1.5 soft-border">Niche: {selectedLead.category || selectedLead.businessType}</span><span className="rounded-full bg-white/7 px-3 py-1.5 soft-border">Stored rating: {formatRating(selectedLead.rating)} ★ · {formatNumber(selectedLead.reviewCount)} reviews</span></div>}
       </section>
 
       {error && <div className="rounded-2xl border border-rose-300/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</div>}

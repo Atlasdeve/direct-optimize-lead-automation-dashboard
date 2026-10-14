@@ -211,7 +211,18 @@ function rankFinding(target: BenchmarkBusiness, rows: KeywordBenchmark[]) {
 export function defaultBenchmarkKeywords(lead: Pick<Lead, "category" | "business_type" | "city">) {
   const niche = humanizeCategory(lead.category || lead.business_type) || "local business";
   const city = lead.city?.trim();
-  return city ? [`${niche} ${city}`] : [niche];
+  const isUrgentService = /\b(plumb|electric|locksmith|hvac|air condition|pest|roof|garage|auto repair|towing|water damage|heating|cooling)\b/i.test(niche);
+  const suggestions = city
+    ? [
+        `${niche} ${city}`,
+        `best ${niche} ${city}`,
+        `${niche} services ${city}`,
+        `${isUrgentService ? "emergency" : "local"} ${niche} ${city}`
+      ]
+    : [niche, `best ${niche}`, `${niche} services`, `local ${niche}`];
+  const unique = new Map<string, string>();
+  for (const suggestion of suggestions) unique.set(normaliseText(suggestion), suggestion);
+  return [...unique.values()].slice(0, 4);
 }
 
 export function normalizeBenchmarkKeywords(input: unknown, lead: Pick<Lead, "category" | "business_type" | "city">) {

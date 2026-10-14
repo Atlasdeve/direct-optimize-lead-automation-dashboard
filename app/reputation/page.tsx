@@ -1,18 +1,27 @@
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
-import { listDbLeads } from "@/lib/dbStore";
+import { getDbLead, listDbLeads } from "@/lib/dbStore";
 import { defaultBenchmarkKeywords } from "@/lib/localCompetitorBenchmark";
+import { listEnabledRegions } from "@/lib/regionStore";
 import { isOperationsRole } from "@/lib/roles";
 import { ReputationBenchmarkWorkspace } from "@/components/reputation/ReputationBenchmarkWorkspace";
 
-export default async function ReputationPage({ searchParams }: { searchParams: Promise<{ leadId?: string }> }) {
+export default async function ReputationPage({ searchParams }: { searchParams: Promise<{ leadId?: string; region?: string }> }) {
   const [user, query] = await Promise.all([currentUser(), searchParams]);
   if (!user) redirect("/login");
   if (!isOperationsRole(user.role)) redirect("/");
 
-  const leads = (await listDbLeads(undefined, user.organizationId))
+  const [regions, linkedLead] = await Promise.all([
+    listEnabledRegions(user.organizationId),
+    query.leadId ? getDbLead(query.leadId, user.organizationId) : null
+  ]);
+  const selectedRegion = query.region && regions.some((region) => region.name === query.region)
+    ? query.region
+    : linkedLead && regions.some((region) => region.name === linkedLead.region)
+      ? linkedLead.region
+      : regions[0]?.name ?? null;
+  const leads = (selectedRegion ? await listDbLeads(selectedRegion, user.organizationId) : [])
     .filter((lead) => Boolean(lead.city && (lead.category || lead.business_type)))
-    .slice(0, 300)
     .map((lead) => ({
       id: lead.id,
       companyName: lead.company_name,
@@ -28,5 +37,10 @@ export default async function ReputationPage({ searchParams }: { searchParams: P
     ? query.leadId
     : leads[0]?.id ?? null;
 
-  return <ReputationBenchmarkWorkspace leads={leads} initialLeadId={initialLeadId} />;
+  return <ReputationBenchmarkWorkspace
+    leads={leads}
+    initialLeadId={initialLeadId}
+    selectedRegion={selectedRegion}
+    regions={regions.map((region) => ({ name: region.name, label: region.label || region.name, country: region.country }))}
+  />;
 }
