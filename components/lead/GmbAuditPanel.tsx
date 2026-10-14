@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import MapIcon from "@mui/icons-material/Map";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import StarIcon from "@mui/icons-material/Star";
 import PhotoCameraIcon from "@mui/icons-material/PhotoCamera";
 import ScheduleIcon from "@mui/icons-material/Schedule";
@@ -45,6 +47,13 @@ export function GmbAuditPanel({ leadId }: { leadId: string }) {
           <p className="mt-1 text-sm text-slate-400">Profile completeness, reviews, categories, hours, photos, and GMB opportunity flags.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/reputation?leadId=${leadId}`}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white/8 px-4 text-sm font-semibold text-white soft-border hover:bg-white/12"
+          >
+            <CompareArrowsIcon fontSize="small" />
+            Compare locally
+          </Link>
           <button
             onClick={runAudit}
             disabled={running}

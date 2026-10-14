@@ -36,6 +36,7 @@ import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AlarmIcon from "@mui/icons-material/Alarm";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import MarkEmailUnreadIcon from "@mui/icons-material/MarkEmailUnread";
 import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -68,6 +69,7 @@ const nav: NavItem[] = [
   { href: "/automation", label: "Automation", icon: PlayCircleIcon, minPlan: "growth" },
   { href: "/campaigns", label: "Campaigns", icon: CampaignIcon, minPlan: "growth" },
   { href: "/booking", label: "Booking", icon: EventAvailableIcon, minPlan: "growth" },
+  { href: "/reputation", label: "GBP Reputation", icon: CompareArrowsIcon },
   { href: "/calls", label: "Calls", icon: PhoneInTalkIcon, minPlan: "agency_pro" },
   { href: "/compose-call", label: "Compose Call", icon: DialpadIcon, adminOnly: true, minPlan: "agency_pro" },
   { href: "/reports", label: "Reports", icon: AssessmentIcon, minPlan: "agency_pro" },
