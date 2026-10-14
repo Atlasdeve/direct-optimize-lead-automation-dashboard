@@ -176,6 +176,7 @@ export function renderBrandedEmailHtml(input: BrandedEmailInput) {
 }
 
 export function renderPlainTextEmail(input: BrandedEmailInput) {
+  const hasUnsubscribeLine = /(?:^|\n)To opt out of future messages, reply with Unsubscribe\.?\s*$/im.test(input.body);
   return [
     input.heading,
     "",
@@ -183,6 +184,6 @@ export function renderPlainTextEmail(input: BrandedEmailInput) {
     ...emailCtas(input).flatMap((cta) => ["", `${cta.label}: ${trackedUrl(cta.url, input.clickTrackingBaseUrl, cta.label)}`]),
     "",
     input.companyName || input.brandName || "Direct Optimize",
-    "To opt out, reply with Unsubscribe."
+    ...(hasUnsubscribeLine ? [] : ["To opt out, reply with Unsubscribe."])
   ].filter(Boolean).join("\n");
 }

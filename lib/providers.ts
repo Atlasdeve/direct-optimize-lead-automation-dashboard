@@ -637,6 +637,23 @@ function appBaseUrl() {
   return (process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
+type EmailCta = { label: string; url: string; variant?: "primary" | "secondary" };
+
+function bookingCtasForLead(lead: Lead, bookingUrl?: string | null): EmailCta[] {
+  if (!bookingUrl) return [];
+  const companyName = lead.company_name.trim().slice(0, 160);
+  if (!companyName) return [];
+  try {
+    const url = new URL(bookingUrl);
+    // Company is the only lead detail placed in the URL. It is prefilled in
+    // the public form but stays editable if the recipient needs to correct it.
+    url.searchParams.set("company", companyName);
+    return [{ label: "Book a call", url: url.toString(), variant: "primary" }];
+  } catch {
+    return [];
+  }
+}
+
 function publicTrackingBaseUrl() {
   const configuredUrl = process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL;
   if (!configuredUrl) return undefined;
@@ -655,7 +672,8 @@ function buildTrackedEmailHtml(
   logId?: string,
   config?: EmailProviderConfig | null,
   template?: InitialEmailTemplate,
-  heading = "Quick local visibility wins"
+  heading = "Quick local visibility wins",
+  ctas: EmailCta[] = []
 ) {
   const trackingBaseUrl = publicTrackingBaseUrl();
   return renderBrandedEmailHtml({
@@ -667,8 +685,31 @@ function buildTrackedEmailHtml(
     companyName: config?.brandName || undefined,
     ctaLabel: config?.defaultCtas?.[0] || template === "direct-optimize-14-day" ? undefined : "View Direct Optimize",
     ctaUrl: config?.defaultCtas?.[0] || template === "direct-optimize-14-day" ? undefined : appBaseUrl(),
+    ctas,
     defaultCtas: config?.defaultCtas,
     trackingPixelUrl: logId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/open/${encodeURIComponent(logId)}` : undefined,
+    clickTrackingBaseUrl: logId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/click/${encodeURIComponent(logId)}` : undefined
+  });
+}
+
+function buildTrackedEmailText(
+  body: string,
+  logId?: string,
+  config?: EmailProviderConfig | null,
+  template?: InitialEmailTemplate,
+  heading = "Quick local visibility wins",
+  ctas: EmailCta[] = []
+) {
+  const trackingBaseUrl = publicTrackingBaseUrl();
+  return renderPlainTextEmail({
+    heading,
+    body,
+    brandName: config?.brandName || undefined,
+    companyName: config?.brandName || undefined,
+    ctaLabel: config?.defaultCtas?.[0] || template === "direct-optimize-14-day" ? undefined : "View Direct Optimize",
+    ctaUrl: config?.defaultCtas?.[0] || template === "direct-optimize-14-day" ? undefined : appBaseUrl(),
+    ctas,
+    defaultCtas: config?.defaultCtas,
     clickTrackingBaseUrl: logId && trackingBaseUrl ? `${trackingBaseUrl}/api/email/click/${encodeURIComponent(logId)}` : undefined
   });
 }
@@ -682,7 +723,7 @@ export type EmailProviderConfig = {
   smtpFrom?: string | null;
   smtpFromName?: string | null;
   brandName?: string | null;
-  defaultCtas?: Array<{ label: string; url: string; variant?: "primary" | "secondary" }>;
+  defaultCtas?: EmailCta[];
 };
 
 function smtpConfigured(config?: EmailProviderConfig | null) {
@@ -871,6 +912,7 @@ export async function sendEmailOutreach(lead: Lead, options?: {
   trackingLogId?: string;
   config?: EmailProviderConfig | null;
   initialEmailTemplate?: InitialEmailTemplate;
+  bookingUrl?: string | null;
 }) {
   const config = options?.config;
   const template = options?.initialEmailTemplate ?? "audit-led";
@@ -916,12 +958,15 @@ export async function sendEmailOutreach(lead: Lead, options?: {
           buildGmbAuditPdf(lead, gmbAudit, { brandName: config?.brandName }),
           buildWebsiteAuditPdf(lead, websiteAudit, { brandName: config?.brandName })
         ]);
+    const ctas = bookingCtasForLead(lead, options?.bookingUrl);
+    const html = buildTrackedEmailHtml(message.body, options?.trackingLogId, config, template, message.heading, ctas);
+    const text = buildTrackedEmailText(message.body, options?.trackingLogId, config, template, message.heading, ctas);
     if (brevoConfigured(config)) {
       const info = await sendViaBrevo({
         to: lead.email,
         subject: message.subject,
-        text: message.body,
-        html: buildTrackedEmailHtml(message.body, options?.trackingLogId, config, template, message.heading),
+        text,
+        html,
         attachments,
         tags: ["lead-outreach"]
       }, config);
@@ -941,8 +986,8 @@ export async function sendEmailOutreach(lead: Lead, options?: {
       from: config?.smtpFrom || config?.smtpUser || process.env.SMTP_FROM || process.env.SMTP_USER,
       to: lead.email,
       subject: message.subject,
-      text: message.body,
-      html: buildTrackedEmailHtml(message.body, options?.trackingLogId, config, template, message.heading),
+      text,
+      html,
       attachments,
       headers: {
         "X-Entity-Ref-ID": lead.id,
@@ -975,6 +1020,7 @@ export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: {
   config?: EmailProviderConfig | null;
   initialTemplate?: InitialEmailTemplate;
   priorExamplesAttached?: boolean;
+  bookingUrl?: string | null;
 }) {
   const config = options?.config;
   if (lead.unsubscribed || lead.do_not_contact || !lead.email) {
@@ -1051,13 +1097,17 @@ export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: {
         "To opt out of future messages, reply with Unsubscribe."
       ].join("\n");
 
+  const ctas = bookingCtasForLead(lead, options?.bookingUrl);
+  const html = buildTrackedEmailHtml(body, options?.trackingLogId, config, undefined, "Quick local visibility wins", ctas);
+  const text = buildTrackedEmailText(body, options?.trackingLogId, config, undefined, "Quick local visibility wins", ctas);
+
   try {
     if (brevoConfigured(config)) {
       const info = await sendViaBrevo({
         to: lead.email,
         subject,
-        text: body,
-        html: buildTrackedEmailHtml(body, options?.trackingLogId, config),
+        text,
+        html,
         tags: [`lead-follow-up-${stage}`]
       }, config);
       return { sent: true, status: "sent", provider: "brevo", providerId: info.messageId, message: { subject, body } };
@@ -1067,8 +1117,8 @@ export async function sendEmailFollowUp(lead: Lead, stage: 1 | 2, options?: {
       from: config?.smtpFrom || config?.smtpUser || process.env.SMTP_FROM || process.env.SMTP_USER,
       to: lead.email,
       subject,
-      text: body,
-      html: buildTrackedEmailHtml(body, options?.trackingLogId, config),
+      text,
+      html,
       headers: {
         "X-Entity-Ref-ID": lead.id,
         "X-Direct-Optimize-Log-ID": options?.trackingLogId ?? lead.id,

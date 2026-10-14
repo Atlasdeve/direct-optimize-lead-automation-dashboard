@@ -36,6 +36,19 @@ function appBaseUrl() {
   return (process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
+async function publicBookingUrlForOrganization(organizationId?: string | null) {
+  if (!organizationId) return undefined;
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      slug: true,
+      bookingSettings: { select: { isPublic: true } }
+    }
+  });
+  if (!organization?.slug || !organization.bookingSettings?.isPublic) return undefined;
+  return `${appBaseUrl()}/book/${encodeURIComponent(organization.slug)}`;
+}
+
 async function emailProviderConfigForOrganization(organizationId?: string | null): Promise<EmailProviderConfig | undefined> {
   if (!organizationId || organizationId === "org_direct_optimize") return undefined;
   const [settings, organization] = await Promise.all([
@@ -1183,7 +1196,10 @@ export async function markDbOutreach(leadId: string, channel: "email" | "whatsap
 }
 
 export async function sendTrackedEmailOutreach(lead: Lead, organizationId?: string | null) {
-  const config = await emailProviderConfigForOrganization(organizationId);
+  const [config, bookingUrl] = await Promise.all([
+    emailProviderConfigForOrganization(organizationId),
+    publicBookingUrlForOrganization(organizationId)
+  ]);
   const pendingLog = await prisma.outreachLog.create({
     data: {
       leadId: lead.id,
@@ -1201,7 +1217,8 @@ export async function sendTrackedEmailOutreach(lead: Lead, organizationId?: stri
   const result = await sendEmailOutreach(lead, {
     trackingLogId: pendingLog.id,
     config,
-    initialEmailTemplate: initialEmailTemplateForOrganization(organizationId)
+    initialEmailTemplate: initialEmailTemplateForOrganization(organizationId),
+    bookingUrl
   });
 
   if (result.sent) {
@@ -2097,8 +2114,11 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
     take
   });
 
-  const schedule = await getOutreachAutomationSettings(organizationId);
-  const config = await emailProviderConfigForOrganization(organizationId);
+  const [schedule, config, bookingUrl] = await Promise.all([
+    getOutreachAutomationSettings(organizationId),
+    emailProviderConfigForOrganization(organizationId),
+    publicBookingUrlForOrganization(organizationId)
+  ]);
   let sent = 0;
   let skipped = 0;
   let failed = 0;
@@ -2150,7 +2170,8 @@ export async function processDueFollowUps({ region, limit = 25, organizationId }
       trackingLogId: pendingLog.id,
       config,
       initialTemplate: sent14DayOffer ? "direct-optimize-14-day" : "audit-led",
-      priorExamplesAttached
+      priorExamplesAttached,
+      bookingUrl
     });
     if (result.sent) {
       const now = new Date();

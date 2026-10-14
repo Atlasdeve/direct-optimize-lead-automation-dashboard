@@ -36,7 +36,7 @@ function displaySlot(slot: Slot, timezone: string) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date(slot.startsAt));
 }
 
-export function PublicBookingPage({ profile }: { profile: BookingProfile }) {
+export function PublicBookingPage({ profile, initialCompanyName = "" }: { profile: BookingProfile; initialCompanyName?: string }) {
   const today = useMemo(() => dateInTimeZone(new Date(), profile.settings.timezone), [profile.settings.timezone]);
   const maximumDate = useMemo(() => addDays(today, profile.settings.maximumDaysAhead), [today, profile.settings.maximumDaysAhead]);
   const [date, setDate] = useState(today);
@@ -46,6 +46,7 @@ export function PublicBookingPage({ profile }: { profile: BookingProfile }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<{ appointment: { name: string; startsAt: string; timezone: string }; calendarSynced: boolean } | null>(null);
+  const [companyName, setCompanyName] = useState(initialCompanyName);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,7 +144,7 @@ export function PublicBookingPage({ profile }: { profile: BookingProfile }) {
             <div className="text-sm font-semibold text-sky-200">2. Your details</div>
             <h3 className="mt-1 text-xl font-semibold text-white">Confirm your booking</h3>
             {selectedSlot && <p className="mt-2 rounded-xl bg-sky-300/10 px-3 py-2 text-sm text-sky-100">Selected: {displaySlot(selectedSlot, profile.settings.timezone)}</p>}
-            <div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="grid gap-1.5 text-sm text-slate-200">Name<input name="name" required minLength={2} maxLength={120} className="rounded-xl border border-white/15 bg-slate-950/50 px-3 py-2.5 text-white outline-none focus:border-sky-300" /></label><label className="grid gap-1.5 text-sm text-slate-200">Email<input name="email" required type="email" maxLength={254} className="rounded-xl border border-white/15 bg-slate-950/50 px-3 py-2.5 text-white outline-none focus:border-sky-300" /></label><label className="grid gap-1.5 text-sm text-slate-200">Company <span className="text-xs text-slate-500">Optional</span><input name="companyName" maxLength={160} className="rounded-xl border border-white/15 bg-slate-950/50 px-3 py-2.5 text-white outline-none focus:border-sky-300" /></label><label className="grid gap-1.5 text-sm text-slate-200">Phone <span className="text-xs text-slate-500">Optional</span><input name="phone" maxLength={60} className="rounded-xl border border-white/15 bg-slate-950/50 px-3 py-2.5 text-white outline-none focus:border-sky-300" /></label></div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="grid gap-1.5 text-sm text-slate-200">Name<input name="name" required minLength={2} maxLength={120} className="rounded-xl border border-white/15 bg-slate-950/50 px-3 py-2.5 text-white outline-none focus:border-sky-300" /></label><label className="grid gap-1.5 text-sm text-slate-200">Email<input name="email" required type="email" maxLength={254} className="rounded-xl border border-white/15 bg-slate-950/50 px-3 py-2.5 text-white outline-none focus:border-sky-300" /></label><label className="grid gap-1.5 text-sm text-slate-200">Company <span className="text-xs text-slate-500">Optional</span><input name="companyName" value={companyName} onChange={(event) => setCompanyName(event.target.value)} maxLength={160} autoComplete="organization" className="rounded-xl border border-white/15 bg-slate-950/50 px-3 py-2.5 text-white outline-none focus:border-sky-300" />{initialCompanyName && <span className="text-xs text-slate-500">Prefilled from your invitation — please correct it if needed.</span>}</label><label className="grid gap-1.5 text-sm text-slate-200">Phone <span className="text-xs text-slate-500">Optional</span><input name="phone" maxLength={60} className="rounded-xl border border-white/15 bg-slate-950/50 px-3 py-2.5 text-white outline-none focus:border-sky-300" /></label></div>
             <label className="mt-3 grid gap-1.5 text-sm text-slate-200">Anything we should know? <span className="text-xs text-slate-500">Optional</span><textarea name="notes" maxLength={1500} rows={3} className="resize-y rounded-xl border border-white/15 bg-slate-950/50 px-3 py-2.5 text-white outline-none focus:border-sky-300" /></label>
             <button type="submit" disabled={!selectedSlot || submitting || loadingSlots} className="mt-5 w-full rounded-xl px-4 py-3 text-sm font-semibold text-slate-950 transition disabled:cursor-not-allowed disabled:opacity-50" style={{ backgroundColor: profile.brandColor }}>{submitting ? "Confirming…" : "Confirm booking"}</button>
           </form>

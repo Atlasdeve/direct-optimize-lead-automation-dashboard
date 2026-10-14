@@ -390,9 +390,15 @@ export async function sendApprovedAdultLeadEmails(country: string, limit: number
         }
       }
     });
-    const organization = organizationId ? await prisma.organization.findUnique({ where: { id: organizationId }, select: { companyName: true, slug: true } }) : null;
+    const organization = organizationId ? await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { companyName: true, slug: true, bookingSettings: { select: { isPublic: true } } }
+    }) : null;
     const settings = organizationId ? await getOrganizationApiConfig(organizationId) : null;
     const portalUrl = organization?.slug ? `${(process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "")}/o/${organization.slug}/login` : "http://localhost:3000";
+    const bookingUrl = organization?.slug && organization.bookingSettings?.isPublic
+      ? `${(process.env.APP_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "")}/book/${encodeURIComponent(organization.slug)}`
+      : undefined;
     const result = await sendEmailOutreach(lead, {
       trackingLogId: pendingLog.id,
       config: organizationId ? {
@@ -408,7 +414,8 @@ export async function sendApprovedAdultLeadEmails(country: string, limit: number
           { label: `Visit ${organization?.companyName || "our website"}`, url: portalUrl, variant: "primary" },
           { label: "Open Your Portal", url: portalUrl, variant: "secondary" }
         ])
-      } : undefined
+      } : undefined,
+      bookingUrl
     });
 
     await prisma.composeEmailLog.update({
